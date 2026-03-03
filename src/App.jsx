@@ -16,6 +16,7 @@ import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
 import { ModalProvider } from "@/hooks/useModal";
 import { ToastProvider } from "@/contexts/ToastContext";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   // Show intro on every page load / refresh
@@ -45,6 +46,7 @@ export default function App() {
                 {/* 404 */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              <Analytics />
             </div>
           </ModalProvider>
         </WatchlistProvider>
