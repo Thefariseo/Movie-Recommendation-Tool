@@ -92,11 +92,14 @@ export async function rottenScore(imdbID) {
 
 // You can add more specific helpers as your app grows (reviews, similar, etc.)
 
-/** TMDB /discover/movie with arbitrary filter params */
+/** TMDB /discover/movie with arbitrary filter params.
+ *  Default vote_count.gte is intentionally low (50) so that world cinema
+ *  and art-house films are not systematically excluded.
+ *  Callers may override by passing their own "vote_count.gte" in params. */
 export function discoverMovies(params = {}) {
   return get("/discover/movie", {
     sort_by: "vote_average.desc",
-    "vote_count.gte": 200,
+    "vote_count.gte": 50,
     ...params,
   });
 }

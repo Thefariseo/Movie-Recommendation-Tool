@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   RefreshCw, Sparkles, Play, Plus, Check,
   SlidersHorizontal, X, Shuffle, User, Film,
-  Video, ChevronDown, Globe, Tv,
+  Video, ChevronDown, Globe, Tv, Compass,
 } from "lucide-react";
 import { useModal }        from "@/hooks/useModal";
 import useRecommend        from "@/hooks/useRecommend";
@@ -304,8 +304,9 @@ export default function ForYouSection() {
   const [selGenres,    setSelGenres]    = useState([]);
   const [selEra,       setSelEra]       = useState("all");
   const [selCountry,   setSelCountry]   = useState("any");
-  const [directorPick, setDirectorPick] = useState(null);
-  const [actorPick,    setActorPick]    = useState(null);
+  const [directorPick,   setDirectorPick]   = useState(null);
+  const [actorPick,      setActorPick]      = useState(null);
+  const [expandHorizons, setExpandHorizons] = useState(false);
 
   /* Genre list from user's actual watch history */
   const availableGenres = useMemo(() => {
@@ -327,20 +328,22 @@ export default function ForYouSection() {
   };
 
   const prefs = useMemo(() => ({
-    genres:     selGenres,
-    era:        selEra === "all" ? undefined : selEra,
-    mood:       selMood || undefined,
-    country:    selCountry === "any" ? undefined : selCountry,
-    directorId: directorPick?.id,
-    actorId:    actorPick?.id,
-  }), [selGenres, selEra, selMood, selCountry, directorPick, actorPick]);
+    genres:         selGenres,
+    era:            selEra === "all" ? undefined : selEra,
+    mood:           selMood || undefined,
+    country:        selCountry === "any" ? undefined : selCountry,
+    directorId:     directorPick?.id,
+    actorId:        actorPick?.id,
+    expandHorizons: expandHorizons || undefined,
+  }), [selGenres, selEra, selMood, selCountry, directorPick, actorPick, expandHorizons]);
 
   const prefCount =
     (selMood ? 1 : selGenres.length) +
     (selEra !== "all" ? 1 : 0) +
     (selCountry !== "any" ? 1 : 0) +
-    (directorPick ? 1 : 0) +
-    (actorPick    ? 1 : 0);
+    (directorPick    ? 1 : 0) +
+    (actorPick       ? 1 : 0) +
+    (expandHorizons  ? 1 : 0);
 
   const hasPrefs = prefCount > 0;
 
@@ -351,6 +354,7 @@ export default function ForYouSection() {
     setSelCountry("any");
     setDirectorPick(null);
     setActorPick(null);
+    setExpandHorizons(false);
   };
 
   /* ---- Recommendations ---- */
@@ -423,6 +427,20 @@ export default function ForYouSection() {
               <span className="ml-0.5 rounded-full bg-white/25 px-1.5 text-xs">{prefCount}</span>
             )}
             <ChevronDown className={`h-3 w-3 transition-transform ${showPrefs ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* Expand Horizons: world-cinema mode — cinephile seeds + hidden gems */}
+          <button
+            onClick={() => setExpandHorizons((v) => !v)}
+            title="World cinema mode: surfaces auteur films, hidden gems, and international art house. Lowers vote-count floor for deeper cuts."
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors ${
+              expandHorizons
+                ? "bg-amber-500 text-white ring-amber-500 shadow-md"
+                : "text-slate-600 ring-slate-300 hover:bg-slate-100 dark:text-slate-300 dark:ring-slate-600 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Compass className="h-4 w-4" />
+            {expandHorizons ? "Horizons ✓" : "Expand"}
           </button>
 
           <button
