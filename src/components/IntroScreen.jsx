@@ -181,7 +181,7 @@ export default function IntroScreen({ onDone }) {
         transition={{ delay: 0.2, duration: 0.9 }}
         className="relative z-10 mb-10 text-[10px] font-light uppercase tracking-[0.28em] text-white select-none"
       >
-        CineSuggest
+        umbrify
       </motion.p>
 
       {/* ── Main phrase ── */}

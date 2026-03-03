@@ -81,7 +81,7 @@ function OnboardingBanner() {
           </h1>
 
           <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-400">
-            Rate the films you&apos;ve seen — CineSuggest maps your taste in directors,
+            Rate the films you&apos;ve seen — Umbrify maps your taste in directors,
             genres and decades to surface picks that feel chosen just for you.
           </p>
 

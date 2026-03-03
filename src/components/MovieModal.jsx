@@ -1,6 +1,6 @@
 // =====================================================
 // MovieModal – cinematic full-detail sheet
-// Trailer: thumbnail lazy-embed (no autoplay issues)
+// Trailer: lazy-embed on user click (autoplay permitted by browser)
 // =====================================================
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +16,7 @@ import {
   Star,
   Sparkles,
   Tv,
+  Award,
 } from "lucide-react";
 import useWatchlist from "@/hooks/useWatchlist";
 import useWatched from "@/hooks/useWatched";
@@ -23,7 +24,6 @@ import { externalIds, rottenScore, movieDetails, movieWatchProviders } from "@/u
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 
-/* Detect user's country for watch providers */
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
   const parts = lang.split("-");
@@ -44,7 +44,7 @@ export default function MovieModal({ movie, onClose }) {
   /* ---- External IDs + Rotten Tomatoes ---- */
   const [imdbID,    setImdbID]    = useState(null);
   const [tomato,    setTomato]    = useState(null);
-  const [providers, setProviders] = useState(null); // { flatrate, rent, buy }
+  const [providers, setProviders] = useState(null);
 
   useEffect(() => {
     setImdbID(null);
@@ -58,18 +58,15 @@ export default function MovieModal({ movie, onClose }) {
       }
     });
 
-    // Fetch streaming providers for this film
-    const country = detectCountry();
-    movieWatchProviders(movie.id, country)
+    movieWatchProviders(movie.id, detectCountry())
       .then(setProviders)
       .catch(() => {});
   }, [movie.id]);
 
   /* ---- Full details + trailer ---- */
-  const [details, setDetails]           = useState(null);
-  const [trailerKey, setTrailerKey]     = useState(null);
-  // trailerState: "thumb" | "player"
-  const [trailerState, setTrailerState] = useState("thumb");
+  const [details,      setDetails]      = useState(null);
+  const [trailerKey,   setTrailerKey]   = useState(null);
+  const [trailerState, setTrailerState] = useState("thumb"); // "thumb" | "player"
 
   const findTrailer = (videos) =>
     videos?.results?.find(
@@ -79,20 +76,18 @@ export default function MovieModal({ movie, onClose }) {
   useEffect(() => {
     setTrailerKey(null);
     setTrailerState("thumb");
+    setDetails(null);
 
-    if (movie.credits && movie.videos) {
-      setDetails(movie);
-      const t = findTrailer(movie.videos);
-      if (t) setTrailerKey(t.key);
-    } else {
-      movieDetails(movie.id)
-        .then((d) => {
-          setDetails(d);
-          const t = findTrailer(d.videos);
-          if (t) setTrailerKey(t.key);
-        })
-        .catch(() => {});
-    }
+    const load = async () => {
+      try {
+        // Use already-fetched data if available (has videos + credits)
+        const d = (movie.videos && movie.credits) ? movie : await movieDetails(movie.id);
+        setDetails(d);
+        const t = findTrailer(d.videos);
+        if (t) setTrailerKey(t.key);
+      } catch { /* ignore */ }
+    };
+    load();
   }, [movie.id]);
 
   /* ---- Actions ---- */
@@ -134,15 +129,16 @@ export default function MovieModal({ movie, onClose }) {
   const runtime  = details?.runtime;
   const year     = (movie.release_date || details?.release_date || "").slice(0, 4);
   const reason   = movie._reason;
+  const isCriterion = movie._isCriterion || false;
+  const keywords = movie._keywords || details?.keywords?.keywords || [];
 
   /* ---- CinemaAtlas deep-link ---- */
   const cinematlasUrl = `https://www.cinematlas.it/?s=${encodeURIComponent(movie.title)}`;
 
-  /* ---- YouTube thumbnail URLs ---- */
-  const thumbHq  = trailerKey ? `https://img.youtube.com/vi/${trailerKey}/hqdefault.jpg`  : null;
+  /* ---- YouTube thumbnails ---- */
+  const thumbHq  = trailerKey ? `https://img.youtube.com/vi/${trailerKey}/hqdefault.jpg`    : null;
   const thumbMax = trailerKey ? `https://img.youtube.com/vi/${trailerKey}/maxresdefault.jpg` : null;
 
-  /* ---- Trailer section: shows when player active ---- */
   const showingTrailer = trailerState === "player" && trailerKey;
 
   return (
@@ -155,7 +151,7 @@ export default function MovieModal({ movie, onClose }) {
       onClick={(e) => e.stopPropagation()}
       className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
     >
-      {/* ── Trailer player (lazy-embed: only mounted when user clicks play) ── */}
+      {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>
         {showingTrailer && (
           <motion.div
@@ -164,7 +160,6 @@ export default function MovieModal({ movie, onClose }) {
             exit={{ opacity: 0 }}
             className="relative aspect-video bg-black"
           >
-            {/* iframe created on user click — browser permits autoplay in this case */}
             <iframe
               className="absolute inset-0 h-full w-full"
               src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
@@ -183,7 +178,7 @@ export default function MovieModal({ movie, onClose }) {
         )}
       </AnimatePresence>
 
-      {/* ── Cinematic backdrop (hidden while trailer plays) ── */}
+      {/* ── Cinematic backdrop ── */}
       {!showingTrailer && (
         <div className="relative h-52 overflow-hidden sm:h-64 md:h-72">
           {movie.backdrop_path ? (
@@ -196,18 +191,15 @@ export default function MovieModal({ movie, onClose }) {
             <div className="h-full w-full bg-gradient-to-br from-slate-700 to-slate-900" />
           )}
 
-          {/* Bottom fade */}
           <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent dark:from-slate-900 dark:via-slate-900/20" />
 
-          {/* ── Trailer thumbnail + play button ──
-               Clicking this button creates the iframe (direct user gesture → autoplay allowed) */}
+          {/* Trailer play button */}
           {trailerKey && (
             <button
               onClick={() => setTrailerState("player")}
               className="absolute inset-0 flex items-center justify-center group"
               aria-label="Watch Trailer"
             >
-              {/* Semi-transparent thumbnail overlay for "preview" feel */}
               {thumbMax && (
                 <img
                   src={thumbMax}
@@ -223,8 +215,18 @@ export default function MovieModal({ movie, onClose }) {
             </button>
           )}
 
+          {/* Criterion badge */}
+          {isCriterion && (
+            <div className="absolute right-4 top-4">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-600/90 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm shadow">
+                <Award className="h-3 w-3" />
+                Criterion / Radiance
+              </span>
+            </div>
+          )}
+
           {/* Reason chip */}
-          {reason && (
+          {reason && !isCriterion && (
             <div className="absolute left-4 top-4">
               <span className="rounded-full bg-indigo-600/90 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm shadow">
                 {reason}
@@ -260,7 +262,6 @@ export default function MovieModal({ movie, onClose }) {
               {movie.title}
             </h2>
 
-            {/* Meta row */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               {year && <span className="font-medium">{year}</span>}
               {runtime && (
@@ -277,7 +278,6 @@ export default function MovieModal({ movie, onClose }) {
               {tomato && <span className="text-red-500">🍅 {tomato}</span>}
             </div>
 
-            {/* Director */}
             {director && (
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Dir.{" "}
@@ -287,7 +287,6 @@ export default function MovieModal({ movie, onClose }) {
               </p>
             )}
 
-            {/* Genre tags */}
             {genres.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {genres.map((g) => (
@@ -303,18 +302,37 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         </div>
 
-        {/* ── CineSuggest narrative — only shown for recommendations ── */}
+        {/* ── Umbrify narrative — personalised recommendation insight ── */}
         {movie._narrative && (
           <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
             <div className="mb-2 flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
               <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400">
-                Why this was picked for you
+                Why Umbrify picked this for you
               </p>
             </div>
             <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
               {movie._narrative}
             </p>
+          </div>
+        )}
+
+        {/* ── Keywords / nanogenre tags ── */}
+        {keywords.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              Themes & Vibes
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {keywords.slice(0, 12).map((kw) => (
+                <span
+                  key={kw.id}
+                  className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                >
+                  {kw.name}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -352,7 +370,7 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         )}
 
-        {/* ── User rating (only when watched) ── */}
+        {/* ── User rating ── */}
         {alreadyWatched && (
           <div className="mt-5 flex items-center gap-3">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -451,6 +469,14 @@ export default function MovieModal({ movie, onClose }) {
             className="flex items-center gap-1 text-slate-500 transition-colors hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300"
           >
             Cinematlas <ExternalLink className="h-3 w-3" />
+          </a>
+          <a
+            href={`https://letterboxd.com/film/${movie.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}/`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-slate-500 transition-colors hover:text-green-600 dark:text-slate-400 dark:hover:text-green-400"
+          >
+            Letterboxd <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       </div>

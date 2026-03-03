@@ -1,12 +1,12 @@
 // =====================================================
-// ForYouSection – Cinematic discovery hero v4
-// • Mood bar ("Tonight I feel like…")
-// • Geographic origin country filter
-// • Individual decade buckets from 1920s to 2020s
-// • Streaming provider badges on hero (with pulse animation)
-// • FIXED: Narrative readability — dark frosted glass panel
-// • Director/actor person search with filmography filter
-// • Staggered entrance for picks carousel
+// ForYouSection – Cinematic discovery hero v5
+//
+// CHANGES vs v4:
+// – Removed "Expand Horizons" toggle: world cinema is always the base mode
+// – Fixed PersonSearch dropdown: scroll/resize listeners for position accuracy,
+//   max-height + scroll on dropdown list, min-width 280px
+// – Criterion/Radiance badge on hero and secondary cards
+// – Removed Compass icon (button removed entirely)
 // =====================================================
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   RefreshCw, Sparkles, Play, Plus, Check,
   SlidersHorizontal, X, Shuffle, User, Film,
-  Video, ChevronDown, Globe, Tv,
+  Video, ChevronDown, Globe, Tv, Award,
 } from "lucide-react";
 import { useModal }        from "@/hooks/useModal";
 import useRecommend        from "@/hooks/useRecommend";
@@ -34,7 +34,7 @@ const MOODS = [
   { id: "mindbending", label: "Mind-bending", emoji: "🤯", hint: "sci-fi & mystery" },
   { id: "deep",        label: "Deep",         emoji: "🎭", hint: "drama & history" },
   { id: "epic",        label: "Epic",         emoji: "🌀", hint: "action & adventure" },
-  { id: "romantic",    label: "Romantic",     emoji: "💑", hint: "romance & drama" },
+  { id: "romantic",    label: "Romantic",     emoji: "💑", hint: "romance films" },
   { id: "dark",        label: "Dark",         emoji: "😱", hint: "horror & thriller" },
   { id: "artsy",       label: "Artsy",        emoji: "🎨", hint: "drama & documentary" },
 ];
@@ -75,16 +75,20 @@ const COUNTRIES = [
   { code: "MX",  label: "Mexican",      flag: "🇲🇽" },
   { code: "AR",  label: "Argentine",    flag: "🇦🇷" },
   { code: "BR",  label: "Brazilian",    flag: "🇧🇷" },
+  { code: "DK",  label: "Danish",       flag: "🇩🇰" },
+  { code: "PT",  label: "Portuguese",   flag: "🇵🇹" },
+  { code: "GR",  label: "Greek",        flag: "🇬🇷" },
+  { code: "TR",  label: "Turkish",      flag: "🇹🇷" },
+  { code: "PH",  label: "Filipino",     flag: "🇵🇭" },
+  { code: "TH",  label: "Thai",         flag: "🇹🇭" },
 ];
 
 /* ------------------------------------------------------------------ */
-/* Framer Motion variants for staggered picks entrance                 */
+/* Framer Motion variants                                               */
 /* ------------------------------------------------------------------ */
 const carouselContainer = {
   hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
-  },
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
 };
 
 const carouselItem = {
@@ -96,7 +100,6 @@ const carouselItem = {
 /* Sub-components                                                       */
 /* ------------------------------------------------------------------ */
 
-/* Secondary pick card */
 function PickCard({ movie }) {
   const { open } = useModal();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
@@ -138,6 +141,13 @@ function PickCard({ movie }) {
         </span>
       )}
 
+      {/* Criterion badge */}
+      {movie._isCriterion && (
+        <span className="absolute right-1.5 top-1.5 rounded-md bg-amber-600/90 px-1 py-0.5 text-[9px] font-bold text-white">
+          CC
+        </span>
+      )}
+
       <motion.div
         initial={{ opacity: 0 }}
         whileHover={{ opacity: 1 }}
@@ -166,7 +176,6 @@ function PickCard({ movie }) {
   );
 }
 
-/* Skeleton loader */
 function Skeleton() {
   return (
     <div className="animate-pulse">
@@ -180,7 +189,6 @@ function Skeleton() {
   );
 }
 
-/* Person filter chip */
 function PersonChip({ label, icon: Icon, onRemove }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white">
@@ -193,27 +201,37 @@ function PersonChip({ label, icon: Icon, onRemove }) {
   );
 }
 
-/* Debounced person search
- * FIX: The preferences panel uses overflow-hidden for its collapse animation,
- * which clips position:absolute dropdowns. We fix this by rendering the
- * dropdown via React portal at document.body with position:fixed, so it is
- * never clipped by any ancestor's overflow setting.
+/**
+ * Debounced person search with portal dropdown.
+ * Portal renders at document.body so it's never clipped by overflow:hidden ancestors.
+ * Position is recalculated on scroll and resize for accuracy.
  */
 function PersonSearch({ placeholder, icon: Icon, onSelect }) {
   const [query,   setQuery]   = useState("");
   const [results, setResults] = useState([]);
   const [isOpen,  setIsOpen]  = useState(false);
   const [loading, setLoading] = useState(false);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 240 });
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 280 });
   const debounceRef           = useRef(null);
   const containerRef          = useRef(null);
+
+  const recalcPos = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropPos({
+        top:   rect.bottom + window.scrollY, // account for page scroll
+        left:  rect.left   + window.scrollX,
+        width: Math.max(rect.width, 280),
+      });
+    }
+  }, []);
 
   const doSearch = useCallback(async (q) => {
     if (!q.trim() || q.length < 2) { setResults([]); setIsOpen(false); return; }
     setLoading(true);
     try {
       const data   = await searchPeople(q);
-      const people = (data.results || []).slice(0, 6);
+      const people = (data.results || []).slice(0, 7);
       setResults(people);
       setIsOpen(people.length > 0);
     } catch { /* ignore */ }
@@ -232,18 +250,26 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
     setQuery(""); setResults([]); setIsOpen(false);
   };
 
-  // Recalculate dropdown position whenever it opens or results change
+  // Recalculate position when dropdown opens/results change
   useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropPos({
-        top:   rect.bottom + 4,
-        left:  rect.left,
-        width: Math.max(rect.width, 240),
-      });
+    if (isOpen) {
+      recalcPos();
     }
-  }, [isOpen, results]);
+  }, [isOpen, results, recalcPos]);
 
+  // Update position on scroll and resize while dropdown is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = () => recalcPos();
+    window.addEventListener("scroll", handler, { passive: true });
+    window.addEventListener("resize", handler, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handler);
+      window.removeEventListener("resize", handler);
+    };
+  }, [isOpen, recalcPos]);
+
+  // Close on outside click
   useEffect(() => {
     const fn = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
@@ -252,7 +278,18 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  // Dropdown rendered into document.body via portal — escapes overflow:hidden ancestors
+  // Ensure dropdown never overflows viewport bottom
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 600;
+  const dropStyle = {
+    position: "fixed",
+    top:      Math.min(dropPos.top, viewportHeight - 280),
+    left:     dropPos.left,
+    width:    dropPos.width,
+    zIndex:   9999,
+    maxHeight: "260px",
+    overflowY: "auto",
+  };
+
   const dropdown = (
     <AnimatePresence>
       {isOpen && results.length > 0 && (
@@ -261,19 +298,13 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.15 }}
-          style={{
-            position: "fixed",
-            top:      dropPos.top,
-            left:     dropPos.left,
-            width:    dropPos.width,
-            zIndex:   9999,
-          }}
+          style={dropStyle}
           className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
         >
           {results.map((p) => (
             <li key={p.id}>
               <button
-                onClick={() => handleSelect(p)}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(p); }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
               >
                 {p.profile_path ? (
@@ -307,13 +338,12 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
           value={query}
           onChange={handleChange}
           placeholder={placeholder}
-          className="w-36 bg-transparent text-xs outline-none placeholder:text-slate-400 dark:text-slate-200"
+          className="w-40 bg-transparent text-xs outline-none placeholder:text-slate-400 dark:text-slate-200"
         />
         {loading && (
           <span className="h-3 w-3 animate-spin rounded-full border border-indigo-400 border-t-transparent" />
         )}
       </div>
-      {/* Portal: renders outside overflow:hidden ancestors */}
       {typeof document !== "undefined" && createPortal(dropdown, document.body)}
     </div>
   );
@@ -330,16 +360,15 @@ export default function ForYouSection() {
   const { addToast } = useToast();
 
   /* ---- Preference state ---- */
-  const [showPrefs,    setShowPrefs]    = useState(false);
-  const [selMood,      setSelMood]      = useState(null);   // mood id
-  const [selGenres,    setSelGenres]    = useState([]);
-  const [selEra,       setSelEra]       = useState("all");
-  const [selCountry,   setSelCountry]   = useState("any");
-  const [directorPick,   setDirectorPick]   = useState(null);
-  const [actorPick,      setActorPick]      = useState(null);
-  const [expandHorizons, setExpandHorizons] = useState(false);
+  const [showPrefs,  setShowPrefs]  = useState(false);
+  const [selMood,    setSelMood]    = useState(null);
+  const [selGenres,  setSelGenres]  = useState([]);
+  const [selEra,     setSelEra]     = useState("all");
+  const [selCountry, setSelCountry] = useState("any");
+  const [directorPick, setDirectorPick] = useState(null);
+  const [actorPick,    setActorPick]    = useState(null);
 
-  /* Genre list from user's actual watch history */
+  /* Genre list from user's watch history */
   const availableGenres = useMemo(() => {
     const ids = new Set();
     watched.forEach((m) => m.genres?.forEach((g) => ids.add(g)));
@@ -351,30 +380,28 @@ export default function ForYouSection() {
   /* Mood and explicit genres are mutually exclusive */
   const handleMoodSelect = (id) => {
     setSelMood((prev) => (prev === id ? null : id));
-    setSelGenres([]);  // clear genres when mood selected
+    setSelGenres([]);
   };
   const toggleGenre = (id) => {
-    setSelMood(null);  // clear mood when genre selected
+    setSelMood(null);
     setSelGenres((prev) => prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]);
   };
 
   const prefs = useMemo(() => ({
-    genres:         selGenres,
-    era:            selEra === "all" ? undefined : selEra,
-    mood:           selMood || undefined,
-    country:        selCountry === "any" ? undefined : selCountry,
-    directorId:     directorPick?.id,
-    actorId:        actorPick?.id,
-    expandHorizons: expandHorizons || undefined,
-  }), [selGenres, selEra, selMood, selCountry, directorPick, actorPick, expandHorizons]);
+    genres:     selGenres,
+    era:        selEra === "all" ? undefined : selEra,
+    mood:       selMood || undefined,
+    country:    selCountry === "any" ? undefined : selCountry,
+    directorId: directorPick?.id,
+    actorId:    actorPick?.id,
+  }), [selGenres, selEra, selMood, selCountry, directorPick, actorPick]);
 
   const prefCount =
     (selMood ? 1 : selGenres.length) +
     (selEra !== "all" ? 1 : 0) +
     (selCountry !== "any" ? 1 : 0) +
-    (directorPick    ? 1 : 0) +
-    (actorPick       ? 1 : 0) +
-    (expandHorizons  ? 1 : 0);
+    (directorPick ? 1 : 0) +
+    (actorPick    ? 1 : 0);
 
   const hasPrefs = prefCount > 0;
 
@@ -385,7 +412,6 @@ export default function ForYouSection() {
     setSelCountry("any");
     setDirectorPick(null);
     setActorPick(null);
-    setExpandHorizons(false);
   };
 
   /* ---- Recommendations ---- */
@@ -406,7 +432,7 @@ export default function ForYouSection() {
   };
 
   /* ---- Hero derived data ---- */
-  const heroImg    = pick?.backdrop_path
+  const heroImg = pick?.backdrop_path
     ? `https://image.tmdb.org/t/p/w1280${pick.backdrop_path}`
     : pick?.poster_path
     ? `https://image.tmdb.org/t/p/w780${pick.poster_path}`
@@ -418,8 +444,7 @@ export default function ForYouSection() {
   const dirName    = pick?._director  || null;
   const heroGenres = pick?.genres?.slice(0, 3) || [];
 
-  /* ---- Streaming providers for hero pick ---- */
-  const providers  = pick?._providers?.flatrate || [];
+  const providers = pick?._providers?.flatrate || [];
 
   return (
     <section>
@@ -460,20 +485,6 @@ export default function ForYouSection() {
             <ChevronDown className={`h-3 w-3 transition-transform ${showPrefs ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Expand Horizons: world-cinema mode — cinephile seeds + hidden gems */}
-          <button
-            onClick={() => setExpandHorizons((v) => !v)}
-            title="World cinema mode: surfaces auteur films, hidden gems, and international art house. Lowers vote-count floor for deeper cuts."
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors ${
-              expandHorizons
-                ? "bg-amber-500 text-white ring-amber-500 shadow-md"
-                : "text-slate-600 ring-slate-300 hover:bg-slate-100 dark:text-slate-300 dark:ring-slate-600 dark:hover:bg-slate-800"
-            }`}
-          >
-            <Compass className="h-4 w-4" />
-            {expandHorizons ? "Horizons ✓" : "Expand"}
-          </button>
-
           <button
             onClick={refresh}
             disabled={loading}
@@ -485,7 +496,7 @@ export default function ForYouSection() {
         </div>
       </div>
 
-      {/* ── Mood bar — "Tonight I feel like…" ── */}
+      {/* ── Mood bar ── */}
       <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-700/50 dark:bg-slate-800/40">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Tonight I feel like…
@@ -575,7 +586,7 @@ export default function ForYouSection() {
                 </div>
               </div>
 
-              {/* Genres (hidden when mood is active — mood covers genre selection) */}
+              {/* Genres (hidden when mood is active) */}
               {!selMood && (
                 <div className="mb-4">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
@@ -667,7 +678,6 @@ export default function ForYouSection() {
               style={{ minHeight: "clamp(360px, 60vh, 580px)" }}
               onClick={() => open(pick)}
             >
-              {/* Backdrop */}
               {heroImg ? (
                 <img src={heroImg} alt={pick.title}
                   className="absolute inset-0 h-full w-full object-cover" />
@@ -675,10 +685,9 @@ export default function ForYouSection() {
                 <div className="absolute inset-0 bg-slate-800" />
               )}
 
-              {/* Gradient scrim — very strong at bottom for readability */}
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/10" />
 
-              {/* ── Streaming providers (top-right) with pulse glow ── */}
+              {/* Streaming providers */}
               {providers.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -705,8 +714,24 @@ export default function ForYouSection() {
                 </motion.div>
               )}
 
-              {/* ── Reason chip (top-left) ── */}
-              {pick._reason && (
+              {/* Criterion/Radiance badge */}
+              {pick._isCriterion && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="absolute right-4 bottom-[calc(100%-52px)] top-auto sm:top-4 sm:right-[calc(100%-6rem)]"
+                  style={{ position: "absolute", top: providers.length > 0 ? "3.5rem" : "1rem", right: "1rem" }}
+                >
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-600/90 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm shadow">
+                    <Award className="h-2.5 w-2.5" />
+                    Criterion / Radiance
+                  </span>
+                </motion.div>
+              )}
+
+              {/* Reason chip */}
+              {pick._reason && !pick._isCriterion && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -720,13 +745,10 @@ export default function ForYouSection() {
                 </motion.div>
               )}
 
-              {/* ── Bottom info block ── */}
+              {/* Bottom info block */}
               <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-8">
                 <div className="flex items-end justify-between gap-6">
-
-                  {/* Left: text */}
                   <div className="min-w-0 flex-1">
-                    {/* Director */}
                     {dirName && (
                       <motion.p
                         initial={{ opacity: 0 }}
@@ -738,7 +760,6 @@ export default function ForYouSection() {
                       </motion.p>
                     )}
 
-                    {/* Title */}
                     <motion.h3
                       initial={{ opacity: 0, y: 14 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -752,7 +773,6 @@ export default function ForYouSection() {
                       {pick.title}
                     </motion.h3>
 
-                    {/* Meta */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -773,7 +793,7 @@ export default function ForYouSection() {
                       ))}
                     </motion.div>
 
-                    {/* ── NARRATIVE — dark frosted glass panel for guaranteed readability ── */}
+                    {/* Narrative */}
                     {heroText && (
                       <motion.div
                         initial={{ opacity: 0 }}
@@ -790,7 +810,6 @@ export default function ForYouSection() {
                     )}
                   </div>
 
-                  {/* Right: actions */}
                   <div className="flex shrink-0 flex-col gap-2">
                     <button
                       onClick={(e) => { e.stopPropagation(); open(pick); }}
@@ -816,7 +835,7 @@ export default function ForYouSection() {
             </motion.div>
           </AnimatePresence>
 
-          {/* ── More picks carousel — staggered entrance ── */}
+          {/* ── More picks carousel ── */}
           {list.length > 0 && (
             <div>
               <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">

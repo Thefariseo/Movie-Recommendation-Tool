@@ -286,7 +286,7 @@ export default function LetterboxdImport() {
         />
         <div className="flex-1">
           <p className="font-semibold text-slate-800 dark:text-slate-100">Import from Letterboxd</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Bring your full diary into CineSuggest</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Bring your full diary into Umbrify</p>
         </div>
 
         {/* Mode toggle */}

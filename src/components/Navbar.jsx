@@ -1,10 +1,10 @@
 // =====================================================
-// Navbar – minimal, sophisticated sticky header
+// Navbar – Umbrify sticky header
 // =====================================================
 import React, { useState, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sun, Moon, Menu, X, Clapperboard } from "lucide-react";
+import { Sun, Moon, Menu, X } from "lucide-react";
 
 const links = [
   { path: "/",          label: "Discover" },
@@ -15,25 +15,42 @@ const links = [
   { path: "/profile",   label: "Profile" },
 ];
 
+/* Umbrify logotype — dotted icon + wordmark */
+function UmbrifyLogo() {
+  return (
+    <span className="flex items-center gap-2">
+      {/* Favicon SVG as logo mark */}
+      <img
+        src="/favicon.svg"
+        alt="Umbrify"
+        className="h-6 w-6"
+        onError={(e) => { e.target.style.display = "none"; }}
+      />
+      <span
+        className="text-base font-bold tracking-tight lowercase text-slate-900 dark:text-white"
+        style={{ fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.01em" }}
+      >
+        umbrify
+      </span>
+    </span>
+  );
+}
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  /* Detect system preference on mount */
   const [dark, setDark] = useState(() => {
     if (typeof window === "undefined") return false;
-    // Check class first (set by previous toggle), then system preference
     if (document.documentElement.classList.contains("dark")) return true;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
 
-  /* Apply dark class on mount */
   useEffect(() => {
     if (dark) document.documentElement.classList.add("dark");
     else       document.documentElement.classList.remove("dark");
-  }, []); // run once to sync initial state
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Scroll shadow */
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 8);
     window.addEventListener("scroll", handler, { passive: true });
@@ -60,12 +77,9 @@ export default function Navbar() {
         {/* Brand */}
         <Link
           to="/"
-          className="flex items-center gap-2 text-slate-800 no-underline hover:text-slate-900 dark:text-slate-100 dark:hover:text-white"
+          className="flex items-center no-underline hover:opacity-80 transition-opacity"
         >
-          <Clapperboard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-          <span className="text-base font-semibold tracking-tight">
-            Cine<span className="text-indigo-600 dark:text-indigo-400">Suggest</span>
-          </span>
+          <UmbrifyLogo />
         </Link>
 
         {/* Desktop nav */}
@@ -90,7 +104,6 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-2">
-          {/* Theme toggle */}
           <button
             onClick={toggleTheme}
             className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
@@ -99,7 +112,6 @@ export default function Navbar() {
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          {/* Mobile menu toggle */}
           <button
             className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 md:hidden"
             onClick={() => setOpen((v) => !v)}

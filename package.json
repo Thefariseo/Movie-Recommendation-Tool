@@ -2,7 +2,7 @@
   "name": "movie-recommend-tool",
   "version": "1.0.0",
   "private": true,
-  "description": "Static React app for personalised movie recommendations (CineSuggest)",
+  "description": "Umbrify — intelligent movie recommendations shaped by your taste",
   "author": "Matteo Niessner",
   "license": "MIT",
   "type": "module",
