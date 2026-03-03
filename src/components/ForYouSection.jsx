@@ -9,11 +9,12 @@
 // • Staggered entrance for picks carousel
 // =====================================================
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   RefreshCw, Sparkles, Play, Plus, Check,
   SlidersHorizontal, X, Shuffle, User, Film,
-  Video, ChevronDown, Globe, Tv, Compass,
+  Video, ChevronDown, Globe, Tv,
 } from "lucide-react";
 import { useModal }        from "@/hooks/useModal";
 import useRecommend        from "@/hooks/useRecommend";
@@ -192,12 +193,18 @@ function PersonChip({ label, icon: Icon, onRemove }) {
   );
 }
 
-/* Debounced person search */
+/* Debounced person search
+ * FIX: The preferences panel uses overflow-hidden for its collapse animation,
+ * which clips position:absolute dropdowns. We fix this by rendering the
+ * dropdown via React portal at document.body with position:fixed, so it is
+ * never clipped by any ancestor's overflow setting.
+ */
 function PersonSearch({ placeholder, icon: Icon, onSelect }) {
   const [query,   setQuery]   = useState("");
   const [results, setResults] = useState([]);
   const [isOpen,  setIsOpen]  = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 240 });
   const debounceRef           = useRef(null);
   const containerRef          = useRef(null);
 
@@ -225,6 +232,18 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
     setQuery(""); setResults([]); setIsOpen(false);
   };
 
+  // Recalculate dropdown position whenever it opens or results change
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropPos({
+        top:   rect.bottom + 4,
+        left:  rect.left,
+        width: Math.max(rect.width, 240),
+      });
+    }
+  }, [isOpen, results]);
+
   useEffect(() => {
     const fn = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
@@ -232,6 +251,52 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
+
+  // Dropdown rendered into document.body via portal — escapes overflow:hidden ancestors
+  const dropdown = (
+    <AnimatePresence>
+      {isOpen && results.length > 0 && (
+        <motion.ul
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.15 }}
+          style={{
+            position: "fixed",
+            top:      dropPos.top,
+            left:     dropPos.left,
+            width:    dropPos.width,
+            zIndex:   9999,
+          }}
+          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+        >
+          {results.map((p) => (
+            <li key={p.id}>
+              <button
+                onClick={() => handleSelect(p)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+              >
+                {p.profile_path ? (
+                  <img src={`https://image.tmdb.org/t/p/w45${p.profile_path}`} alt={p.name}
+                    className="h-7 w-7 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
+                    <User className="h-4 w-4 text-slate-400" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-800 dark:text-slate-200">{p.name}</p>
+                  {p.known_for_department && (
+                    <p className="truncate text-[10px] text-slate-400">{p.known_for_department}</p>
+                  )}
+                </div>
+              </button>
+            </li>
+          ))}
+        </motion.ul>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <div ref={containerRef} className="relative">
@@ -248,42 +313,8 @@ function PersonSearch({ placeholder, icon: Icon, onSelect }) {
           <span className="h-3 w-3 animate-spin rounded-full border border-indigo-400 border-t-transparent" />
         )}
       </div>
-
-      <AnimatePresence>
-        {isOpen && results.length > 0 && (
-          <motion.ul
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
-          >
-            {results.map((p) => (
-              <li key={p.id}>
-                <button
-                  onClick={() => handleSelect(p)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
-                >
-                  {p.profile_path ? (
-                    <img src={`https://image.tmdb.org/t/p/w45${p.profile_path}`} alt={p.name}
-                      className="h-7 w-7 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
-                      <User className="h-4 w-4 text-slate-400" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-slate-800 dark:text-slate-200">{p.name}</p>
-                    {p.known_for_department && (
-                      <p className="truncate text-[10px] text-slate-400">{p.known_for_department}</p>
-                    )}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
+      {/* Portal: renders outside overflow:hidden ancestors */}
+      {typeof document !== "undefined" && createPortal(dropdown, document.body)}
     </div>
   );
 }
