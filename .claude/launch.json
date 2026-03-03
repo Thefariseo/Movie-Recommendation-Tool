@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/Users/matteoniessner/.nvm/versions/node/v22.16.0/bin/node",
+      "runtimeArgs": ["node_modules/.bin/vite", "--host", "0.0.0.0", "--port", "5173"],
+      "port": 5173
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "/Users/matteoniessner/.nvm/versions/node/v22.16.0/bin/node",
+      "runtimeArgs": ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "4173"],
+      "port": 4173
+    }
+  ]
+}

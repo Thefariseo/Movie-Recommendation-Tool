@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/matteoniessner remote -v)",
+      "Bash(git -C /Users/matteoniessner add Desktop/movie-recommend-tool/src Desktop/movie-recommend-tool/public Desktop/movie-recommend-tool/index.html Desktop/movie-recommend-tool/package.json Desktop/movie-recommend-tool/package-lock.json Desktop/movie-recommend-tool/vite.config.js Desktop/movie-recommend-tool/tailwind.config.cjs Desktop/movie-recommend-tool/postcss.config.cjs Desktop/movie-recommend-tool/README.md Desktop/movie-recommend-tool/.gitignore)",
+      "Bash(git -C /Users/matteoniessner diff --cached --stat)",
+      "Bash(git -C:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node --version)",
+      "Bash(/Users/matteoniessner/.nvm/versions/node/v22.16.0/bin/node /Users/matteoniessner/.nvm/versions/node/v22.16.0/bin/npm --prefix /Users/matteoniessner/Desktop/movie-recommend-tool run build)",
+      "Bash(/Users/matteoniessner/.nvm/versions/node/v22.16.0/bin/node node_modules/.bin/vite build)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
