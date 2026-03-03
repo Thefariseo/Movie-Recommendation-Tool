@@ -179,17 +179,9 @@ export default function LetterboxdImport() {
     [parseFile]
   );
 
-  /* ---- ZIP drop handler ---- */
-  const handleZipDrop = useCallback(async (e) => {
-    e.preventDefault();
-    setZipDragging(false);
+  /* ---- Shared ZIP processor — used by both drag-and-drop and file picker ---- */
+  const processZipFile = useCallback(async (file) => {
     setZipError(null);
-
-    const file = Array.from(e.dataTransfer.files).find(
-      (f) => f.name.endsWith(".zip") || f.type === "application/zip"
-    );
-    if (!file) { setZipError("Please drop a .zip file."); return; }
-
     try {
       const csvFiles = await extractCsvFromZip(file);
       let found = false;
@@ -209,13 +201,31 @@ export default function LetterboxdImport() {
         setZipError("No ratings.csv or watched.csv found inside the ZIP. Make sure you exported from Letterboxd.");
         return;
       }
-
       setPhase("preview");
     } catch (err) {
       console.error("ZIP extraction failed", err);
       setZipError(`Could not read ZIP: ${err.message}`);
     }
   }, []);
+
+  /* ---- ZIP drag-and-drop handler ---- */
+  const handleZipDrop = useCallback(async (e) => {
+    e.preventDefault();
+    setZipDragging(false);
+    const file = Array.from(e.dataTransfer.files).find(
+      (f) => f.name.endsWith(".zip") || f.type === "application/zip"
+    );
+    if (!file) { setZipError("Please drop a .zip file."); return; }
+    await processZipFile(file);
+  }, [processZipFile]);
+
+  /* ---- ZIP file picker (click / tap to browse) ---- */
+  const handleZipInput = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // allow re-selecting the same file
+    await processZipFile(file);
+  }, [processZipFile]);
 
   /* ---- Merged preview stats ---- */
   const merged = React.useMemo(() => {
@@ -325,7 +335,7 @@ export default function LetterboxdImport() {
               <div className="mb-5 space-y-3">
                 <Step num={1} label="Go to your Letterboxd export page" />
                 <Step num={2} label="Download the ZIP file" />
-                <Step num={3} label="Drop it here — we extract the CSVs for you" />
+                <Step num={3} label="Tap the box below to choose it (or drag & drop) — we extract the CSVs for you" />
               </div>
 
               {/* CTA: open export page */}
@@ -342,8 +352,9 @@ export default function LetterboxdImport() {
                 <ArrowRight className="h-4 w-4 opacity-60" />
               </a>
 
-              {/* ZIP drop zone */}
+              {/* ZIP drop zone — also works as file picker on mobile */}
               <label
+                htmlFor="lbxd-zip-input"
                 onDragOver={(e) => { e.preventDefault(); setZipDragging(true); }}
                 onDragLeave={() => setZipDragging(false)}
                 onDrop={handleZipDrop}
@@ -356,12 +367,19 @@ export default function LetterboxdImport() {
                 <Archive className={`h-8 w-8 ${zipDragging ? "text-indigo-500" : "text-slate-400"}`} />
                 <div className="text-center">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Drop the Letterboxd ZIP here
+                    {zipDragging ? "Drop here!" : "Tap to choose the ZIP file"}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-400">
-                    We'll find ratings.csv & watched.csv inside automatically
+                    or drag & drop it — we'll extract ratings.csv & watched.csv automatically
                   </p>
                 </div>
+                <input
+                  id="lbxd-zip-input"
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  className="hidden"
+                  onChange={handleZipInput}
+                />
               </label>
 
               {zipError && (

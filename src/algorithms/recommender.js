@@ -789,8 +789,6 @@ export async function getRecommendations({
         } else {
           reason = `Because you loved "${seedTitle}"`;
         }
-      } else if (criterionBoost > 0) {
-        reason = `Criterion / Radiance title — curated world cinema`;
       } else if (matching.length > 0) {
         const topG      = [...matching].sort(
           (a, b) => (genreAffinity.get(b) || 0) - (genreAffinity.get(a) || 0)

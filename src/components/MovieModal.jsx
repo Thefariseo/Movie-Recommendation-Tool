@@ -220,7 +220,7 @@ export default function MovieModal({ movie, onClose }) {
             <div className="absolute right-4 top-4">
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-600/90 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm shadow">
                 <Award className="h-3 w-3" />
-                Criterion / Radiance
+                Criterion Collection
               </span>
             </div>
           )}
