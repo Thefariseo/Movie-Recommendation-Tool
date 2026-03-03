@@ -1,6 +1,7 @@
 // =====================================================
 // File: MovieCard.jsx
-// Description: Movie tile with hover overlay, rating badge, and watchlist toggle.
+// Movie tile with hover overlay, rating badge, watchlist toggle.
+// + Genre-based glow shadow on hover (v7)
 // =====================================================
 import React from "react";
 import { useModal } from "@/hooks/useModal";
@@ -9,11 +10,43 @@ import { Plus, Check } from "lucide-react";
 import useWatchlist from "../hooks/useWatchlist";
 import { useToast } from "@/contexts/ToastContext";
 
+/* Genre ID → glow color (rgba) */
+const GENRE_GLOW = {
+  28:    "rgba(249,115,22,0.55)",   // Action → orange
+  12:    "rgba(234,179,8,0.45)",    // Adventure → yellow
+  16:    "rgba(132,204,22,0.40)",   // Animation → lime
+  35:    "rgba(250,204,21,0.40)",   // Comedy → yellow
+  80:    "rgba(168,85,247,0.50)",   // Crime → purple
+  99:    "rgba(20,184,166,0.40)",   // Documentary → teal
+  18:    "rgba(139,92,246,0.48)",   // Drama → violet
+  10751: "rgba(74,222,128,0.40)",   // Family → green
+  14:    "rgba(249,115,22,0.40)",   // Fantasy → orange
+  36:    "rgba(251,191,36,0.40)",   // History → amber
+  27:    "rgba(220,38,38,0.60)",    // Horror → red
+  10402: "rgba(6,182,212,0.40)",    // Music → cyan
+  9648:  "rgba(99,102,241,0.50)",   // Mystery → indigo
+  10749: "rgba(244,114,182,0.55)",  // Romance → pink
+  878:   "rgba(6,182,212,0.55)",    // Sci-Fi → cyan
+  10770: "rgba(168,85,247,0.40)",   // TV Movie → purple
+  53:    "rgba(107,114,128,0.50)",  // Thriller → slate
+  10752: "rgba(75,85,99,0.50)",     // War → gray
+  37:    "rgba(180,83,9,0.50)",     // Western → brown
+};
+
+const DEFAULT_GLOW = "rgba(99,102,241,0.35)"; // indigo fallback
+
 export default function MovieCard({ movie, showActions = true }) {
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { open } = useModal();
   const { addToast } = useToast();
   const inList = isInWatchlist(movie.id);
+
+  // Primary genre for glow
+  const primaryGenreId =
+    (movie.genre_ids && movie.genre_ids[0]) ||
+    (movie.genres && movie.genres[0]?.id) ||
+    null;
+  const glowColor = GENRE_GLOW[primaryGenreId] || DEFAULT_GLOW;
 
   const handleWatchlistClick = (e) => {
     e.stopPropagation();
@@ -28,7 +61,11 @@ export default function MovieCard({ movie, showActions = true }) {
 
   return (
     <motion.div
-      whileHover={{ scale: 1.04 }}
+      whileHover={{
+        scale: 1.05,
+        boxShadow: `0 0 22px 5px ${glowColor}`,
+        transition: { duration: 0.22 },
+      }}
       onClick={() => open(movie)}
       className="relative cursor-pointer overflow-hidden rounded-xl shadow-md"
     >

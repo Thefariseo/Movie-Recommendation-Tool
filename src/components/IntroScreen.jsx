@@ -1,14 +1,15 @@
 // =====================================================
 // IntroScreen – cinematic intro overlay
-// • Fetches trending backdrops and crossfades between them
+// • Fetches backdrops from 3 TMDB endpoints, deduplicates & shuffles
+// • Starts from a random position in the pool — always looks different
+// • Crossfades between images every 2.4 s
 // • Word-by-word phrase reveal with blur animation
-// • Auto-advances after 4s; click/tap anywhere to skip
-// • Cross-browser: unique SVG filter ID, webkit prefix, AnimatePresence mode sync
-// • Shows on every page load (no sessionStorage guard)
+// • Auto-advances after 4.5 s; click/tap anywhere to skip
+// • Cross-browser: unique SVG filter ID per mount
 // =====================================================
 import React, { useEffect, useId, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { trendingMovies } from "../utils/api";
+import { trendingMovies, topRatedMovies } from "../utils/api";
 
 /* ---- Phrase animation variants ---- */
 const sentence = {
@@ -32,6 +33,16 @@ const PHRASE   = "What do you want to watch tonight?";
 const words    = PHRASE.split(" ");
 const DURATION = 4500; // ms before auto-advance
 const SWAP_MS  = 2400; // backdrop crossfade interval
+
+/* ---- Shuffle array in-place (Fisher-Yates) ---- */
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 /* ---- Film-grain overlay — unique ID per mount prevents clashes in StrictMode ---- */
 function GrainOverlay({ filterId }) {
@@ -67,17 +78,34 @@ export default function IntroScreen({ onDone }) {
     onDone();
   }, [onDone]);
 
-  /* ---- Fetch trending movie backdrops ---- */
+  /* ---- Fetch backdrops from 3 sources, deduplicate, shuffle ---- */
   useEffect(() => {
-    trendingMovies("week")
-      .then((data) => {
-        const imgs = (data.results || [])
-          .filter((m) => m.backdrop_path)
-          .slice(0, 10)
-          .map((m) => `https://image.tmdb.org/t/p/w1280${m.backdrop_path}`);
-        setBackdrops(imgs);
-      })
-      .catch(() => {});
+    Promise.all([
+      trendingMovies("week").catch(() => ({ results: [] })),
+      trendingMovies("day").catch(() => ({ results: [] })),
+      topRatedMovies(1).catch(() => ({ results: [] })),
+      topRatedMovies(2).catch(() => ({ results: [] })),
+    ]).then(([week, day, top1, top2]) => {
+      const seen = new Set();
+      const imgs = [];
+
+      for (const result of [week, day, top1, top2]) {
+        for (const m of (result.results || [])) {
+          if (m.backdrop_path && !seen.has(m.id)) {
+            seen.add(m.id);
+            imgs.push(`https://image.tmdb.org/t/p/w1280${m.backdrop_path}`);
+          }
+        }
+      }
+
+      // Shuffle and pick up to 30 images
+      const shuffled = shuffle(imgs).slice(0, 30);
+
+      // Start from a random position so each visit looks different
+      const startIdx = Math.floor(Math.random() * Math.min(shuffled.length, 8));
+      setBackdrops(shuffled);
+      setActiveIdx(startIdx);
+    });
   }, []);
 
   /* ---- Crossfade backdrops ---- */

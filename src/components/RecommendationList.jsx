@@ -1,37 +1,42 @@
 // =====================================================
 // RecommendationList – collapsible horizontal carousel
+// v2: Uses api.js helpers (trendingMovies / topRatedMovies / upcomingMovies)
+//     instead of raw axios.get() calls — benefits from the shared cache
+//     and MAX_CONCURRENT queue in api.js.
 // =====================================================
 import React, { useEffect, useState } from "react";
 import MovieCard from "./MovieCard";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import { trendingMovies, topRatedMovies, upcomingMovies } from "@/utils/api";
 
 const scrollAmount = 500;
 
-export default function RecommendationList({ title, endpoint, defaultOpen = false }) {
+/* Map type identifier → fetcher function */
+const FETCHERS = {
+  trending:  () => trendingMovies("week"),
+  top_rated: () => topRatedMovies(1),
+  upcoming:  () => upcomingMovies(1),
+};
+
+export default function RecommendationList({ title, type, defaultOpen = false }) {
   const [movies, setMovies]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen]   = useState(defaultOpen);
 
   useEffect(() => {
     let cancelled = false;
+    const fetcher = FETCHERS[type];
+    if (!fetcher) return;
 
-    async function fetchMovies() {
-      setLoading(true);
-      try {
-        const res = await axios.get(endpoint);
-        if (!cancelled) setMovies(res.data.results);
-      } catch (err) {
-        console.error("Failed fetching movies", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+    setLoading(true);
+    fetcher()
+      .then((data) => { if (!cancelled) setMovies(data.results || []); })
+      .catch((err) => console.error("Failed fetching movies", err))
+      .finally(() => { if (!cancelled) setLoading(false); });
 
-    fetchMovies();
     return () => (cancelled = true);
-  }, [endpoint]);
+  }, [type]);
 
   return (
     <section className="mb-2">
@@ -69,17 +74,17 @@ export default function RecommendationList({ title, endpoint, defaultOpen = fals
                 whileTap={{ scale: 0.9 }}
                 className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-r-lg bg-white/70 p-2 shadow hover:bg-white dark:bg-slate-800 dark:hover:bg-slate-700"
                 onClick={() =>
-                  document.getElementById(title)?.scrollBy({ left: -scrollAmount, behavior: "smooth" })
+                  document.getElementById(`rl-${title}`)?.scrollBy({ left: -scrollAmount, behavior: "smooth" })
                 }
                 aria-label="Scroll Left"
               >
                 <ChevronLeft className="h-6 w-6" />
               </motion.button>
 
-              <div id={title} className="scrollbar-hide flex gap-4 overflow-x-auto px-8">
+              <div id={`rl-${title}`} className="scrollbar-hide flex gap-4 overflow-x-auto px-8">
                 {loading ? (
                   <div className="mx-auto flex w-full items-center justify-center py-12">
-                    <span className="loading loading-bars loading-lg" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
                   </div>
                 ) : (
                   movies.slice(0, 10).map((m) => (
@@ -92,7 +97,7 @@ export default function RecommendationList({ title, endpoint, defaultOpen = fals
                 whileTap={{ scale: 0.9 }}
                 className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-l-lg bg-white/70 p-2 shadow hover:bg-white dark:bg-slate-800 dark:hover:bg-slate-700"
                 onClick={() =>
-                  document.getElementById(title)?.scrollBy({ left: scrollAmount, behavior: "smooth" })
+                  document.getElementById(`rl-${title}`)?.scrollBy({ left: scrollAmount, behavior: "smooth" })
                 }
                 aria-label="Scroll Right"
               >

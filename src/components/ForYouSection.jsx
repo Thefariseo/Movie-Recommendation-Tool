@@ -1,18 +1,19 @@
 // =====================================================
-// ForYouSection – Cinematic discovery hero v3
+// ForYouSection – Cinematic discovery hero v4
 // • Mood bar ("Tonight I feel like…")
 // • Geographic origin country filter
 // • Individual decade buckets from 1920s to 2020s
-// • Streaming provider badges on hero
-// • Critic-friend narrative with readable text overlay
+// • Streaming provider badges on hero (with pulse animation)
+// • FIXED: Narrative readability — dark frosted glass panel
 // • Director/actor person search with filmography filter
+// • Staggered entrance for picks carousel
 // =====================================================
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   RefreshCw, Sparkles, Play, Plus, Check,
   SlidersHorizontal, X, Shuffle, User, Film,
-  Video, ChevronDown, Globe,
+  Video, ChevronDown, Globe, Tv,
 } from "lucide-react";
 import { useModal }        from "@/hooks/useModal";
 import useRecommend        from "@/hooks/useRecommend";
@@ -76,11 +77,26 @@ const COUNTRIES = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* Framer Motion variants for staggered picks entrance                 */
+/* ------------------------------------------------------------------ */
+const carouselContainer = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
+  },
+};
+
+const carouselItem = {
+  hidden:  { opacity: 0, y: 24, scale: 0.95 },
+  visible: { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] } },
+};
+
+/* ------------------------------------------------------------------ */
 /* Sub-components                                                       */
 /* ------------------------------------------------------------------ */
 
 /* Secondary pick card */
-function PickCard({ movie, index }) {
+function PickCard({ movie }) {
   const { open } = useModal();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { addToast } = useToast();
@@ -99,10 +115,8 @@ function PickCard({ movie, index }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={{ scale: 1.04, y: -3 }}
+      variants={carouselItem}
+      whileHover={{ scale: 1.05, y: -4 }}
       onClick={() => open(movie)}
       className="relative shrink-0 w-36 cursor-pointer overflow-hidden rounded-xl shadow-lg"
     >
@@ -559,7 +573,7 @@ export default function ForYouSection() {
                 </div>
                 {(directorPick || actorPick) && (
                   <p className="mt-1.5 text-[10px] text-slate-400">
-                    Showing films from their full filmography. Country filter is not applied in this mode.
+                    Showing films from their full filmography. Country filter not applied in this mode.
                   </p>
                 )}
               </div>
@@ -612,10 +626,10 @@ export default function ForYouSection() {
                 <div className="absolute inset-0 bg-slate-800" />
               )}
 
-              {/* Gradient scrim — stronger at bottom */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/65 to-black/15" />
+              {/* Gradient scrim — very strong at bottom for readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/10" />
 
-              {/* ── Streaming providers (top-right) ── */}
+              {/* ── Streaming providers (top-right) with pulse glow ── */}
               {providers.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -623,16 +637,22 @@ export default function ForYouSection() {
                   transition={{ delay: 0.4 }}
                   className="absolute right-4 top-4 flex items-center gap-1.5"
                 >
-                  {providers.slice(0, 4).map((p) => (
-                    <img
-                      key={p.provider_id}
-                      src={`https://image.tmdb.org/t/p/w45${p.logo_path}`}
-                      alt={p.provider_name}
-                      title={p.provider_name}
-                      className="h-7 w-7 rounded-lg object-cover shadow-md ring-1 ring-white/20"
-                    />
-                  ))}
-                  <span className="text-[10px] text-white/50 ml-0.5">streaming</span>
+                  <motion.div
+                    animate={{ boxShadow: ["0 0 0 0 rgba(99,102,241,0)", "0 0 0 6px rgba(99,102,241,0.3)", "0 0 0 0 rgba(99,102,241,0)"] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="flex items-center gap-1.5 rounded-xl bg-black/60 px-2 py-1.5 backdrop-blur-sm"
+                  >
+                    <Tv className="h-3 w-3 text-indigo-400" />
+                    {providers.slice(0, 4).map((p) => (
+                      <img
+                        key={p.provider_id}
+                        src={`https://image.tmdb.org/t/p/w45${p.logo_path}`}
+                        alt={p.provider_name}
+                        title={p.provider_name}
+                        className="h-6 w-6 rounded-md object-cover shadow-md ring-1 ring-white/20"
+                      />
+                    ))}
+                  </motion.div>
                 </motion.div>
               )}
 
@@ -664,7 +684,6 @@ export default function ForYouSection() {
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.1 }}
                         className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-indigo-300"
-                        style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
                       >
                         {dirName}
                       </motion.p>
@@ -678,7 +697,7 @@ export default function ForYouSection() {
                       className="line-clamp-2 text-2xl font-bold leading-tight text-white sm:text-3xl md:text-4xl"
                       style={{
                         fontFamily: "'Playfair Display', Georgia, serif",
-                        textShadow: "0 2px 12px rgba(0,0,0,0.95)",
+                        textShadow: "0 2px 12px rgba(0,0,0,0.9)",
                       }}
                     >
                       {pick.title}
@@ -691,33 +710,34 @@ export default function ForYouSection() {
                       transition={{ delay: 0.22 }}
                       className="mt-2 flex flex-wrap items-center gap-2 text-xs"
                     >
-                      {year && <span className="font-medium text-white/80" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>{year}</span>}
+                      {year && <span className="font-medium text-white/80">{year}</span>}
                       {voteLabel && (
-                        <span className="font-semibold text-amber-400" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
-                          {voteLabel}
-                        </span>
+                        <span className="font-semibold text-amber-400">{voteLabel}</span>
                       )}
                       {heroGenres.map((g) => (
                         <span
                           key={g.id}
-                          className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/75 backdrop-blur-sm"
+                          className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white/80 backdrop-blur-sm"
                         >
                           {g.name}
                         </span>
                       ))}
                     </motion.div>
 
-                    {/* Narrative — readable with text-shadow */}
+                    {/* ── NARRATIVE — dark frosted glass panel for guaranteed readability ── */}
                     {heroText && (
-                      <motion.p
+                      <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.3, duration: 0.4 }}
-                        className="mt-3 line-clamp-3 max-w-xl text-sm font-light leading-relaxed text-white/90 sm:line-clamp-4"
-                        style={{ textShadow: "0 1px 8px rgba(0,0,0,0.95), 0 2px 16px rgba(0,0,0,0.85)" }}
+                        className="mt-3 max-w-xl"
                       >
-                        {heroText}
-                      </motion.p>
+                        <div className="rounded-xl bg-black/65 px-3.5 py-2.5 backdrop-blur-md">
+                          <p className="line-clamp-3 text-sm font-normal leading-relaxed text-white sm:line-clamp-4">
+                            {heroText}
+                          </p>
+                        </div>
+                      </motion.div>
                     )}
                   </div>
 
@@ -747,17 +767,22 @@ export default function ForYouSection() {
             </motion.div>
           </AnimatePresence>
 
-          {/* ── More picks carousel ── */}
+          {/* ── More picks carousel — staggered entrance ── */}
           {list.length > 0 && (
             <div>
               <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                 More picks for you
               </h3>
-              <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-                {list.map((m, i) => (
-                  <PickCard key={m.id} movie={m} index={i} />
+              <motion.div
+                variants={carouselContainer}
+                initial="hidden"
+                animate="visible"
+                className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide"
+              >
+                {list.map((m) => (
+                  <PickCard key={m.id} movie={m} />
                 ))}
-              </div>
+              </motion.div>
             </div>
           )}
         </>

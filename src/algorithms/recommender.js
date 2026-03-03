@@ -1,13 +1,14 @@
 // =====================================================
-// Recommendation engine v6
-// – Hard era + genre filters applied AFTER scoring
-// – Mood-based filtering (genre combos per mood)
-// – Geographic origin filter (with_origin_country)
-// – Individual decade buckets from 1920s to 2020s
-// – Watched films HARD-excluded (not just penalised)
-// – Director affinity used in scoring
-// – Director filmography via personMovieCredits
-// – Diversity jitter to avoid identical results
+// Recommendation engine v7
+// NEW vs v6:
+// – Actor affinity extracted from same director-credit fetches (no extra calls)
+// – Top-3 actor filmographies added to candidate pool (like directors)
+// – Actor bonus in scoring formula (0.10 weight)
+// – Actor reason tags ("Because you love {actor}'s films")
+// – Country filter BUG FIXED: applied to pool BEFORE scoring (raw available)
+// – Skip trending/upcoming when country filter active → more discover pages
+// – Diversity enforcement: max 2 films per director in final results
+// – Score weights rebalanced: genre 0.28 + vote 0.18 + decade 0.10 + director 0.18 + actor 0.10 + prestige 0.08 + jitter 0.02
 // =====================================================
 import {
   trendingMovies,
@@ -91,6 +92,7 @@ export async function getRecommendations({
 
   /* ================================================================= */
   /* 1. Taste DNA: genre + decade affinity from LIKED films only        */
+  /*    Bayesian-smoothed: small library → more conservative estimates  */
   /* ================================================================= */
 
   const likedFilms = watched.filter((m) => !m.rated || m.rated >= 6);
@@ -101,7 +103,9 @@ export async function getRecommendations({
   const decadeCount     = new Map();
 
   likedFilms.forEach((m) => {
-    const w = m.rated ? (m.rated >= 8 ? 1.5 : 1.0) * (m.rated / 10) : 0.5;
+    // Rating confidence: higher ratings → bigger weight; no rating → small weight
+    const ratingFactor = m.rated ? (m.rated >= 8 ? 1.5 : m.rated >= 6 ? 1.0 : 0.6) : 0.4;
+    const w = ratingFactor * (m.rated ? m.rated / 10 : 0.5);
 
     m.genres?.forEach((g) => {
       genreWeightSum.set(g, (genreWeightSum.get(g) || 0) + w);
@@ -115,9 +119,15 @@ export async function getRecommendations({
     }
   });
 
+  // Bayesian smoothing: blend raw affinity toward 0.5 for genres with few observations
+  const SMOOTHING_ALPHA = 2; // pseudo-counts
   const genreAffinity = new Map();
   genreWeightSum.forEach((total, g) => {
-    genreAffinity.set(g, total / genreCount.get(g));
+    const count = genreCount.get(g);
+    // Weighted average of observed score and prior (0.5), weighted by count
+    const observed = total / count;
+    const smoothed  = (total + SMOOTHING_ALPHA * 0.5) / (count + SMOOTHING_ALPHA);
+    genreAffinity.set(g, smoothed);
   });
 
   const decadeAffinity = new Map();
@@ -132,20 +142,24 @@ export async function getRecommendations({
   const favGenres = sortedGenres.slice(0, 8);
 
   /* ================================================================= */
-  /* 2. Director affinity from top-15 highest-rated films               */
+  /* 2. Director + Actor affinity — merged from same credit fetches     */
+  /*    Only top-15 highest-rated watched films (both ≥8)               */
   /* ================================================================= */
 
-  const directorAffinity = new Map(); // id → { sum, count, name }
+  const directorAffinity = new Map(); // dirId → { sum, count, name }
+  const actorAffinity    = new Map(); // actorId → { sum, count, name }
 
-  const topRatedForDirs = [...watched]
+  const topRatedForCredits = [...watched]
     .filter((m) => m.rated >= 8)
     .sort((a, b) => (b.rated || 0) - (a.rated || 0))
     .slice(0, 15);
 
   await Promise.all(
-    topRatedForDirs.map(async (m) => {
+    topRatedForCredits.map(async (m) => {
       try {
         const credits = await movieCredits(m.id);
+
+        // Director affinity
         const director = credits?.crew?.find((p) => p.job === "Director");
         if (director) {
           const prev = directorAffinity.get(director.id) || { sum: 0, count: 0, name: director.name };
@@ -155,10 +169,22 @@ export async function getRecommendations({
             name:  director.name,
           });
         }
+
+        // Actor affinity — top 5 billed cast
+        const topCast = (credits?.cast || []).slice(0, 5);
+        topCast.forEach((actor) => {
+          const prev = actorAffinity.get(actor.id) || { sum: 0, count: 0, name: actor.name };
+          actorAffinity.set(actor.id, {
+            sum:   prev.sum + (m.rated || 8) / 10,
+            count: prev.count + 1,
+            name:  actor.name,
+          });
+        });
       } catch { /* ignore */ }
     })
   );
 
+  // Director scores + avg star display
   const dirScores   = new Map();
   const dirAvgStars = new Map();
 
@@ -168,6 +194,16 @@ export async function getRecommendations({
   });
 
   const topDirs = [...dirScores.entries()]
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, 3);
+
+  // Actor scores — only actors who appear in ≥2 top-rated films are "affinity" actors
+  const actorScores = new Map();
+  actorAffinity.forEach(({ sum, count, name }, id) => {
+    if (count >= 2) actorScores.set(id, { score: sum / count, name });
+  });
+
+  const topActors = [...actorScores.entries()]
     .sort((a, b) => b[1].score - a[1].score)
     .slice(0, 3);
 
@@ -185,7 +221,6 @@ export async function getRecommendations({
   /* ================================================================= */
 
   const eraRanges = {
-    // Individual decades
     "1920s": { "primary_release_date.gte": "1920-01-01", "primary_release_date.lte": "1929-12-31" },
     "1930s": { "primary_release_date.gte": "1930-01-01", "primary_release_date.lte": "1939-12-31" },
     "1940s": { "primary_release_date.gte": "1940-01-01", "primary_release_date.lte": "1949-12-31" },
@@ -197,7 +232,7 @@ export async function getRecommendations({
     "2000s": { "primary_release_date.gte": "2000-01-01", "primary_release_date.lte": "2009-12-31" },
     "2010s": { "primary_release_date.gte": "2010-01-01", "primary_release_date.lte": "2019-12-31" },
     "2020s": { "primary_release_date.gte": "2020-01-01" },
-    // Legacy aliases (kept for backward compat)
+    // Legacy aliases (backward compat)
     classic: { "primary_release_date.lte": "1979-12-31" },
     "80s90s": { "primary_release_date.gte": "1980-01-01", "primary_release_date.lte": "1999-12-31" },
     recent:  { "primary_release_date.gte": "2020-01-01" },
@@ -218,7 +253,6 @@ export async function getRecommendations({
   /* ================================================================= */
 
   const moodGenres = prefs.mood ? (MOOD_GENRES[prefs.mood] || []) : [];
-  // Mood overrides explicit genres (they're mutually exclusive in the UI)
   const effectiveGenres = moodGenres.length > 0 ? moodGenres :
                           (prefs.genres?.length > 0 ? prefs.genres : []);
 
@@ -230,7 +264,7 @@ export async function getRecommendations({
 
   // a) Watchlist — always included
   watchlist.forEach((m) =>
-    candidates.set(m.id, { id: m.id, raw: m, source: "watchlist", dirScore: 0 })
+    candidates.set(m.id, { id: m.id, raw: m, source: "watchlist", dirScore: 0, actorScore: 0 })
   );
 
   /* ── Person-filter path ── */
@@ -243,7 +277,7 @@ export async function getRecommendations({
         const directed = (credits.crew || []).filter((m) => m.job === "Director");
         directed.forEach((m) => {
           if (!candidates.has(m.id))
-            candidates.set(m.id, { id: m.id, raw: m, source: "director-pick", dirScore: 0 });
+            candidates.set(m.id, { id: m.id, raw: m, source: "director-pick", dirScore: 0, actorScore: 0 });
         });
       } catch { /* ignore */ }
     }
@@ -253,7 +287,7 @@ export async function getRecommendations({
         const credits = await personMovieCredits(prefs.actorId);
         (credits.cast || []).forEach((m) => {
           if (!candidates.has(m.id))
-            candidates.set(m.id, { id: m.id, raw: m, source: "actor-pick", dirScore: 0 });
+            candidates.set(m.id, { id: m.id, raw: m, source: "actor-pick", dirScore: 0, actorScore: 0 });
         });
       } catch { /* ignore */ }
     }
@@ -277,24 +311,34 @@ export async function getRecommendations({
       discoverParams["with_origin_country"] = prefs.country;
     }
 
-    const [disc1, disc2, trend, upc] = await Promise.all([
+    // When country is selected: skip trending/upcoming (mixed countries), fetch more discover pages
+    // When no country filter: include trending + upcoming for freshness
+    const withCountry = !!prefs.country;
+
+    const discoverFetches = [
       discoverMovies({ ...discoverParams, page: 1 }),
       discoverMovies({ ...discoverParams, page: 2 }),
-      trendingMovies("week"),
-      upcomingMovies(),
+      discoverMovies({ ...discoverParams, page: 3 }),
+    ];
+
+    const [disc1, disc2, disc3, trend, upc] = await Promise.all([
+      ...discoverFetches,
+      withCountry ? Promise.resolve({ results: [] }) : trendingMovies("week"),
+      withCountry ? Promise.resolve({ results: [] }) : upcomingMovies(),
     ]);
 
     [
       ...(disc1.results || []),
       ...(disc2.results || []),
+      ...(disc3.results || []),
       ...(trend.results || []),
       ...(upc.results   || []),
     ].forEach((m) => {
       if (!candidates.has(m.id))
-        candidates.set(m.id, { id: m.id, raw: m, source: "discover", dirScore: 0 });
+        candidates.set(m.id, { id: m.id, raw: m, source: "discover", dirScore: 0, actorScore: 0 });
     });
 
-    // Director-filtered filmography for top-3 loved directors
+    // Director filmographies for top-3 loved directors
     if (topDirs.length > 0) {
       const dirDiscover = await Promise.all(
         topDirs.map(([dirId]) =>
@@ -313,7 +357,39 @@ export async function getRecommendations({
               dirScore: score,
               dirName: name,
               dirId,
+              actorScore: 0,
             });
+          }
+        });
+      });
+    }
+
+    // Actor filmographies for top-3 affinity actors
+    if (topActors.length > 0) {
+      const actorDiscover = await Promise.all(
+        topActors.map(([actorId]) =>
+          personMovieCredits(actorId).catch(() => ({ cast: [] }))
+        )
+      );
+      actorDiscover.forEach((credits, i) => {
+        const [actorId, { name, score }] = topActors[i];
+        (credits.cast || []).forEach((m) => {
+          if (!candidates.has(m.id)) {
+            candidates.set(m.id, {
+              id: m.id,
+              raw: m,
+              source: "actor",
+              dirScore: 0,
+              actorScore: score,
+              actorName: name,
+              actorId,
+            });
+          } else {
+            // Boost existing candidate that happens to star an affinity actor
+            const existing = candidates.get(m.id);
+            if (existing.actorScore < score) {
+              candidates.set(m.id, { ...existing, actorScore: score, actorName: name, actorId });
+            }
           }
         });
       });
@@ -329,7 +405,7 @@ export async function getRecommendations({
       const d = await movieDetails(m.id);
       (d.recommendations?.results || []).forEach((r) => {
         if (!candidates.has(r.id))
-          candidates.set(r.id, { id: r.id, raw: r, source: `similar:${m.title}`, dirScore: 0 });
+          candidates.set(r.id, { id: r.id, raw: r, source: `similar:${m.title}`, dirScore: 0, actorScore: 0 });
       });
     }
   }
@@ -337,38 +413,59 @@ export async function getRecommendations({
   const pool = [...candidates.values()].slice(0, maxCandidates);
 
   /* ================================================================= */
-  /* 7. Score each candidate                                             */
+  /* 7. Apply country filter to pool (raw available here!)              */
+  /*    FIX: Previously applied after scoring where raw was undefined   */
+  /* ================================================================= */
+
+  let filteredPool = pool;
+  if (prefs.country && !hasPersonFilter) {
+    filteredPool = pool.filter(({ raw }) => {
+      const countries = raw?.origin_country;
+      // Strict: if origin_country is missing or doesn't include the target, exclude
+      if (!Array.isArray(countries) || countries.length === 0) return false;
+      return countries.includes(prefs.country);
+    });
+  }
+
+  /* ================================================================= */
+  /* 8. Score each candidate                                             */
   /* ================================================================= */
 
   const watchedIds     = new Set(watched.map((m) => m.id));
   const voteCountFloor = watched.length >= 100 ? 100 : 50;
 
-  const scored = pool
-    .filter(({ id }) => !watchedIds.has(id))           // ← Hard-exclude already-watched films
+  const scored = filteredPool
+    .filter(({ id })  => !watchedIds.has(id))           // Hard-exclude already-watched
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
     .filter(({ raw }) => (raw.vote_average || 0) >= 5.5)
-    .map(({ id, raw, source, dirScore, dirName, dirId }) => {
+    .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId }) => {
       const genreIds    = raw.genre_ids || [];
       const movieYear   = parseInt((raw.release_date || "").slice(0, 4), 10) || 2000;
       const movieDecade = decade(movieYear);
 
+      // Genre score: cosine-similarity style — weighted match over all matching genres
       const matching = genreIds.filter((g) => favGenres.includes(g));
       const genreScore =
         matching.length > 0
-          ? matching.reduce((s, g) => s + (genreAffinity.get(g) || 0), 0) / matching.length
+          ? matching.reduce((s, g) => s + (genreAffinity.get(g) || 0), 0) /
+            Math.sqrt(matching.length * favGenres.length) // normalize by vector lengths
           : 0;
 
-      const voteScore     = Math.min(1, (raw.vote_average || 0) / 10);
-      const decScore      = decadeAffinity.get(movieDecade) || 0;
-      const directorScore = dirScore > 0 ? dirScore : 0;
-      const isPrestige    = (raw.vote_average || 0) >= 7.5 && (raw.vote_count || 0) >= 500;
+      const voteScore   = Math.min(1, (raw.vote_average || 0) / 10);
+      const decScore    = decadeAffinity.get(movieDecade) || 0;
+      const dirBonus    = dirScore > 0 ? Math.min(dirScore, 1) : 0;
+      const actorBonus  = actorScore > 0 ? Math.min(actorScore * 0.85, 0.85) : 0;
+      const isPrestige  = (raw.vote_average || 0) >= 7.5 && (raw.vote_count || 0) >= 500;
       const prestigeBoost = isPrestige ? 0.08 : 0;
 
+      // Rebalanced weights (sum ≈ 1.0):
+      // genre 0.28 + vote 0.18 + decade 0.10 + director 0.18 + actor 0.10 + prestige 0.08 + jitter 0.02
       const score =
-        genreScore    * 0.32 +
-        voteScore     * 0.18 +
-        decScore      * 0.12 +
-        directorScore * 0.20 +
+        genreScore  * 0.28 +
+        voteScore   * 0.18 +
+        decScore    * 0.10 +
+        dirBonus    * 0.18 +
+        actorBonus  * 0.10 +
         prestigeBoost +
         jitter();
 
@@ -386,6 +483,16 @@ export async function getRecommendations({
           reason = `${dirName}'s work — you rate it ${avgStr}★ on avg`;
         } else {
           reason = `Because you love ${dirName}'s films`;
+        }
+      } else if (source === "actor" && actorName) {
+        const actScore = actorId != null ? actorScores.get(actorId)?.score : null;
+        if (actScore != null) {
+          const stars = ((actScore * 5) % 1 === 0)
+            ? (actScore * 5).toFixed(0)
+            : (actScore * 5).toFixed(1);
+          reason = `${actorName}'s films — you rate them ${stars}★`;
+        } else {
+          reason = `Starring ${actorName}`;
         }
       } else if (source?.startsWith("similar:")) {
         const seedTitle = source.slice(8);
@@ -407,11 +514,11 @@ export async function getRecommendations({
         reason = `Your top ${genreName} taste — ${ql} (${scoreStr}/10)`;
       }
 
-      return { id, score, reason, year: movieYear, genreIds };
+      return { id, score, reason, year: movieYear, genreIds, dirName: dirName || null };
     });
 
   /* ================================================================= */
-  /* 8. Sort then apply HARD filters                                     */
+  /* 9. Sort → hard filters → diversity enforcement                     */
   /* ================================================================= */
 
   let results = scored.sort((a, b) => b.score - a.score);
@@ -432,11 +539,21 @@ export async function getRecommendations({
     );
   }
 
-  // Hard country filter (only in standard path — person filmography lacks origin_country)
-  if (prefs.country && !hasPersonFilter) {
-    results = results.filter(({ raw }) =>
-      !raw?.origin_country || raw.origin_country.includes(prefs.country)
-    );
+  // Diversity enforcement: max 2 films per director in final results
+  // (skip when user explicitly picks a director — they WANT that filmography)
+  if (!hasPersonFilter) {
+    const dirCount = new Map();
+    const diverse  = [];
+    for (const item of results) {
+      if (item.dirName) {
+        const cnt = dirCount.get(item.dirName) || 0;
+        if (cnt >= 2) continue; // cap at 2 per director
+        dirCount.set(item.dirName, cnt + 1);
+      }
+      diverse.push(item);
+      if (diverse.length >= top * 2) break; // build 2× pool then trim
+    }
+    results = diverse;
   }
 
   return results.slice(0, top);

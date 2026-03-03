@@ -11,21 +11,11 @@ import RecommendationList from "../components/RecommendationList";
 import ForYouSection from "../components/ForYouSection";
 import useWatched from "@/hooks/useWatched";
 
-const API_KEY = import.meta.env.VITE_TMDB_KEY;
-
+/* Carousels use typed identifiers — RecommendationList maps them to api.js helpers */
 const categories = [
-  {
-    title: "Trending This Week",
-    endpoint: `https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}`,
-  },
-  {
-    title: "Top Rated",
-    endpoint: `https://api.themoviedb.org/3/movie/top_rated?api_key=${API_KEY}&language=en-US`,
-  },
-  {
-    title: "Coming Soon",
-    endpoint: `https://api.themoviedb.org/3/movie/upcoming?api_key=${API_KEY}&language=en-US`,
-  },
+  { title: "Trending This Week", type: "trending"  },
+  { title: "Top Rated",          type: "top_rated" },
+  { title: "Coming Soon",        type: "upcoming"  },
 ];
 
 /* ---- Film-grain overlay (pure SVG) ---- */
@@ -157,8 +147,8 @@ export default function Home() {
       </div>
 
       {/* Curated carousels — secondary, collapsed by default */}
-      {categories.map(({ title, endpoint }) => (
-        <RecommendationList key={title} title={title} endpoint={endpoint} defaultOpen={false} />
+      {categories.map(({ title, type }) => (
+        <RecommendationList key={type} title={title} type={type} defaultOpen={false} />
       ))}
     </main>
   );
