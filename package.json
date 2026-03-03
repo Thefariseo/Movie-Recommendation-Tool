@@ -17,6 +17,7 @@
     "format": "prettier --write \"src/**/*.{js,jsx,css,json,md}\""
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "axios": "^1.10.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.18.2",
