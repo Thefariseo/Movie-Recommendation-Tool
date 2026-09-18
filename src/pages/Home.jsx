@@ -6,6 +6,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Film, BookmarkPlus, Sparkles, TrendingUp, Clapperboard } from "lucide-react";
+import CommunityPicks from "../components/CommunityPicks";
 import SearchBar from "../components/SearchBar";
 import RecommendationList from "../components/RecommendationList";
 import ForYouSection from "../components/ForYouSection";
@@ -143,7 +144,7 @@ export default function Home() {
 
       {/* Primary discovery section */}
       <div className="px-4 md:px-6 lg:px-10">
-        {hasHistory ? <ForYouSection /> : <OnboardingBanner />}
+        <div className="space-y-6"><CommunityPicks />{hasHistory ? <ForYouSection /> : <OnboardingBanner />}</div>
       </div>
 
       {/* Curated carousels — secondary, collapsed by default */}
@@ -153,3 +154,4 @@ export default function Home() {
     </main>
   );
 }
+

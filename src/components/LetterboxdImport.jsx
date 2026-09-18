@@ -258,7 +258,7 @@ export default function LetterboxdImport() {
     });
 
     if (!controller.signal.aborted) {
-      bulkAdd(batch);
+      if (!await bulkAdd(batch)) { setZipError("Could not save the import. Please retry."); setPhase("idle"); return; }
       setNewCount(batch.length);
       setFailedTitles(failed);
       setPhase("done");
@@ -565,3 +565,4 @@ export default function LetterboxdImport() {
     </div>
   );
 }
+

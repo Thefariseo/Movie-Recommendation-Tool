@@ -2,10 +2,14 @@
 // Root component – providers + routes + cinematic intro
 // =====================================================
 import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
 import IntroScreen from "./components/IntroScreen";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { LibraryProvider } from "./contexts/LibraryContext";
+import ChatPage from "./pages/ChatPage";
+import AuthCallback from "./pages/AuthCallback";
 import Home from "./pages/Home";
 import WatchlistPage from "./pages/WatchlistPage";
 import FriendsPage from "./pages/FriendsPage";
@@ -20,13 +24,23 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 export default function App() {
+  return <AuthProvider><AppContent /></AuthProvider>;
+}
+
+function AppContent() {
+  const {user, loading} = useAuth();
+  const {pathname} = useLocation();
   // Show intro on every page load / refresh
   const [showIntro, setShowIntro] = useState(true);
 
   const handleIntroDone = () => setShowIntro(false);
 
+  // Keep the email callback outside the account-keyed tree and analytics.
+  if (pathname === "/auth/callback") return <AuthCallback />;
+
   return (
     <ToastProvider>
+      <LibraryProvider key={loading ? "loading" : user?.id || "guest"}>
       <WatchedProvider>
         <WatchlistProvider>
           <ModalProvider>
@@ -43,6 +57,8 @@ export default function App() {
                 <Route path="/watched"    element={<WatchedPage />} />
                 <Route path="/stats"      element={<StatsPage />} />
                 <Route path="/friends"    element={<FriendsPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/profile"    element={<Profile />} />
                 {/* 404 */}
                 <Route path="*" element={<Navigate to="/" replace />} />
@@ -53,6 +69,8 @@ export default function App() {
           </ModalProvider>
         </WatchlistProvider>
       </WatchedProvider>
+      </LibraryProvider>
     </ToastProvider>
   );
 }
+

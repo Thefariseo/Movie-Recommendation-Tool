@@ -29,7 +29,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       open: true,
-      strictPort: true
+      strictPort: true,
+      proxy: { "/api": "http://127.0.0.1:3001" }
     },
     build: {
       target: "es2018",

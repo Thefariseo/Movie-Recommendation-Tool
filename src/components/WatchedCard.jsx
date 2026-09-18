@@ -14,8 +14,8 @@ export default function WatchedCard({ movie }) {
   const { addToast } = useToast();
   const { open } = useModal();
 
-  const handleRating = (rating) => {
-    updateRating(movie.id, rating);
+  const handleRating = async (rating) => {
+    if (!await updateRating(movie.id, rating)) return;
     addToast("Rating saved ✓");
   };
 
@@ -74,3 +74,4 @@ export default function WatchedCard({ movie }) {
     </div>
   );
 }
+

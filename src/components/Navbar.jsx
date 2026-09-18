@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../contexts/AuthContext";
 import { Sun, Moon, Menu, X } from "lucide-react";
 
 const links = [
@@ -12,6 +13,7 @@ const links = [
   { path: "/watched",   label: "Watched" },
   { path: "/stats",     label: "Stats" },
   { path: "/friends",   label: "Friends" },
+  { path: "/chat", label: "Chat" },
   { path: "/profile",   label: "Profile" },
 ];
 
@@ -37,6 +39,7 @@ function UmbrifyLogo() {
 }
 
 export default function Navbar() {
+  const {user} = useAuth();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -97,7 +100,7 @@ export default function Navbar() {
                 }`
               }
             >
-              {label}
+              {path === "/profile" && !user ? "Sign in" : label}
             </NavLink>
           ))}
         </nav>
@@ -147,7 +150,7 @@ export default function Navbar() {
                     }`
                   }
                 >
-                  {label}
+                  {path === "/profile" && !user ? "Sign in" : label}
                 </NavLink>
               ))}
             </div>
@@ -157,3 +160,4 @@ export default function Navbar() {
     </header>
   );
 }
+

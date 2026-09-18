@@ -1,0 +1,77 @@
+\set ON_ERROR_STOP on
+begin;
+create function public.test_assert(ok boolean,message text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'FAILED: %',message;end if;end$$;
+insert into auth.users(id) values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333'),('44444444-4444-4444-8444-444444444444');
+select public.test_assert((select count(*)=4 from public.profiles),'signup profile trigger');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=1 from public.profiles),'private profiles are hidden');
+select public.apply_library('[{"op":"put","movie_id":1,"kind":"watched","version":0,"rating":9,"movie":{"id":1,"title":"Film One"}}]');
+select public.test_assert((select count(*)=1 from public.user_movies),'owner can read saved film');
+-- A stale device cannot overwrite an existing rating. The batch rolls back.
+do $$begin
+ begin perform public.apply_library('[{"op":"rate","movie_id":1,"kind":"watched","version":0,"rating":1}]');raise exception 'Missing conflict';exception when serialization_failure then null;end;
+end$$;
+select public.test_assert((select rating=9 from public.user_movies where movie_id=1),'conflict preserves current rating');
+select public.apply_library('[{"op":"remove","movie_id":1,"kind":"watched","version":1}]');
+select public.apply_library('[{"op":"put","movie_id":1,"kind":"watched","version":0,"rating":1,"movie":{"title":"Old import"}}]',true);
+select public.test_assert((select deleted and version=2 from public.user_movies where movie_id=1),'reimport cannot resurrect tombstone');
+select public.apply_library('[{"op":"put","movie_id":2,"kind":"watched","version":0,"rating":2,"movie":{"title":"Film Two"}},{"op":"put","movie_id":3,"kind":"watched","version":0,"rating":5,"movie":{"title":"Film Three"}},{"op":"put","movie_id":4,"kind":"watched","version":0,"rating":8,"movie":{"title":"Film Four"}}]');
+-- Direct writes are forbidden; all catalogue mutations use the versioned RPC.
+do $$begin
+ begin update public.user_movies set rating=1;raise exception 'Unexpected direct write';exception when insufficient_privilege then null;end;
+ begin perform public.training_ratings(0);raise exception 'Dataset leaked';exception when insufficient_privilege then null;end;
+ begin perform public.current_model();raise exception 'Model leaked';exception when insufficient_privilege then null;end;
+ begin select encrypted_token from public.integration_tokens;raise exception 'Token leaked';exception when insufficient_privilege then null;end;
+end$$;
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=0 from public.user_movies),'other account cannot read private catalogue');
+update public.profiles set discoverable=true,share_activity=true where id=auth.uid();
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+update public.profiles set discoverable=true,share_activity=true where id=auth.uid();
+insert into public.follows values(auth.uid(),'22222222-2222-4222-8222-222222222222');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=0 from public.user_movies),'one-way follow does not expose catalogue');
+insert into public.follows values(auth.uid(),'11111111-1111-4111-8111-111111111111');
+select public.test_assert((select count(*)=4 from public.user_movies),'mutual friends can read opted-in catalogue');
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.create_shared_list('Friday films',array['22222222-2222-4222-8222-222222222222'::uuid]) as list_id \gset
+insert into public.list_movies(list_id,movie_id,movie,added_by) values(:'list_id',55,'{"id":55,"title":"A shared film"}',auth.uid());
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=1 from public.shared_lists),'member sees shared list');
+insert into public.list_movies(list_id,movie_id,movie,added_by) values(:'list_id',56,'{"id":56,"title":"Another film"}',auth.uid());
+select public.test_assert((select count(*)=2 from public.list_movies),'member can contribute');
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=0 from public.shared_lists),'stranger cannot read shared list');
+select public.test_assert((select count(*)=0 from public.list_movies),'stranger cannot read list entries');
+do $$begin
+ begin perform public.create_shared_list('Bad',array['11111111-1111-4111-8111-111111111111'::uuid]);raise exception 'Non-friend added';exception when insufficient_privilege then null;end;
+end$$;
+insert into public.chat_sessions(user_id,title) values(auth.uid(),'Private conversation');
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=0 from public.chat_sessions),'other account cannot read chats');
+-- Real collaborative rankings from consenting peers, without peer identity.
+reset role;
+update public.profiles set collaborative=true where id<>'11111111-1111-4111-8111-111111111111';
+insert into public.user_movies(user_id,movie_id,kind,movie,rating)
+select p.id,r.movie_id,'watched',jsonb_build_object('title','Rated film'),r.rating from public.profiles p cross join (values(2,2),(3,5),(4,8),(99,10))r(movie_id,rating) where p.collaborative;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=1 from public.collaborative_candidates() where movie_id=99 and support=3),'collaborative unseen pick from three similar users');
+reset role;
+insert into public.recommendation_models(consent_epoch,artifact,metrics) select consent_epoch,'{}','{}' from public.learning_state;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+update public.profiles set collaborative=false where id=auth.uid();
+reset role;
+select public.test_assert((select count(*)=0 from public.recommendation_models),'consent revocation removes learned artifacts');
+select public.test_assert((select count(*)=8 from public.training_ratings(0)),'training only includes two consenting peers');
+set local role anon;
+select set_config('request.jwt.claim.sub','',true);
+do $$begin
+ begin perform public.apply_library('[]');raise exception 'Anonymous write allowed';exception when insufficient_privilege then null;end;
+ begin select count(*) from public.profiles;raise exception 'Anonymous read allowed';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+rollback;
+\echo 'Database authorization, sync, social and learning tests passed.'

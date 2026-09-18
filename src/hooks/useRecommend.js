@@ -13,6 +13,7 @@
 // – Overview first sentence extracted and used in fallback patterns.
 // =====================================================
 import { useCallback, useEffect, useRef, useState } from "react";
+import {useAuth} from "../contexts/AuthContext";
 import useWatched   from "@/hooks/useWatched";
 import useWatchlist from "./useWatchlist";
 import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recommender";
@@ -413,6 +414,8 @@ function buildNarrative({
 /* ------------------------------------------------------------------ */
 
 export default function useRecommend({ prefs = {}, top = 10 } = {}) {
+  const {profile} = useAuth();
+  const region = profile?.country || detectCountry();
   const { watched }   = useWatched();
   const { watchlist } = useWatchlist();
 
@@ -490,7 +493,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
       // Streaming providers for hero only
       if (scored.length > 0) {
         try {
-          const country   = detectCountry();
+          const country   = region;
           const providers = await movieWatchProviders(scored[0].id, country);
           scored[0]       = { ...scored[0], _providers: providers };
         } catch { /* optional */ }
@@ -505,7 +508,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watched, watchlist, prefsKey, top]);
+  }, [watched, watchlist, prefsKey, top, region]);
 
   useEffect(() => {
     refresh();
@@ -519,3 +522,4 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
     refresh,
   };
 }
+

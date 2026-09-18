@@ -35,8 +35,8 @@ export default function CSVImport() {
           const year = Number(
             r.Year || r.year || r["Release Year"] || r["release year"]
           );
-          const ratedRaw = Number(r.Rating || r.rating || r["Rating10"]);
-          const rated = ratedRaw ? +(ratedRaw / 2).toFixed(1) : undefined; // 10 ➜ 5
+          const ratedRaw = r.Rating10 ? Number(r.Rating10) : Number(r.Rating || r.rating) * 2;
+          const rated = Number.isInteger(ratedRaw) && ratedRaw >= 1 && ratedRaw <= 10 ? ratedRaw : undefined;
           return title ? { title, year, rated } : null;
        })
         .filter(Boolean);      // scarta righe vuote
@@ -61,7 +61,7 @@ export default function CSVImport() {
             }
           }
 
-          bulkAdd(resolved);
+          if (!await bulkAdd(resolved)) throw new Error("Could not save imported films.");
           setStatus(`Imported ${resolved.length} movies`);
         } catch (err) {
           console.error(err);

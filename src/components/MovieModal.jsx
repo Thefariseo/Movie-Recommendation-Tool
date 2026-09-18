@@ -21,6 +21,7 @@ import {
 import useWatchlist from "@/hooks/useWatchlist";
 import useWatched from "@/hooks/useWatched";
 import { externalIds, rottenScore, movieDetails, movieWatchProviders } from "@/utils/api";
+import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 
@@ -33,6 +34,8 @@ function detectCountry() {
 }
 
 export default function MovieModal({ movie, onClose }) {
+  const {profile} = useAuth();
+  const country = profile?.country || detectCountry();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { isWatched, addWatched, removeWatched, updateRating, watched } = useWatched();
   const { addToast } = useToast();
@@ -54,14 +57,14 @@ export default function MovieModal({ movie, onClose }) {
     externalIds(movie.id).then((ids) => {
       if (ids?.imdb_id) {
         setImdbID(ids.imdb_id);
-        rottenScore(ids.imdb_id).then(setTomato);
+        rottenScore(ids.imdb_id).then(setTomato).catch(() => {});
       }
-    });
+    }).catch(() => {});
 
-    movieWatchProviders(movie.id, detectCountry())
+    movieWatchProviders(movie.id, country)
       .then(setProviders)
       .catch(() => {});
-  }, [movie.id]);
+  }, [movie.id, country]);
 
   /* ---- Full details + trailer ---- */
   const [details,      setDetails]      = useState(null);
@@ -91,34 +94,35 @@ export default function MovieModal({ movie, onClose }) {
   }, [movie.id]);
 
   /* ---- Actions ---- */
-  const toggleWatchlist = () => {
+  const toggleWatchlist = async () => {
     if (inWatchlist) {
-      removeFromWatchlist(movie.id);
+      if (!await removeFromWatchlist(movie.id)) return;
       addToast("Removed from Watchlist", "info");
     } else {
-      addToWatchlist(movie);
+      if (!await addToWatchlist(movie)) return;
       addToast("Added to Watchlist ✓");
     }
   };
 
-  const toggleWatched = () => {
+  const toggleWatched = async () => {
     if (alreadyWatched) {
-      removeWatched(movie.id);
+      if (!await removeWatched(movie.id)) return;
       addToast("Removed from Watched", "info");
     } else {
-      addWatched({
+      const saved = await addWatched({
         id:     movie.id,
         title:  movie.title,
         poster: movie.poster_path ?? null,
         genres: movie.genre_ids ?? details?.genres?.map((g) => g.id) ?? [],
         year:   parseInt((movie.release_date || details?.release_date || "").slice(0, 4), 10) || null,
       });
+      if (!saved) return;
       addToast("Marked as Watched ✓");
     }
   };
 
-  const handleRating = (rating) => {
-    updateRating(movie.id, rating);
+  const handleRating = async (rating) => {
+    if (!await updateRating(movie.id, rating)) return;
     addToast(`Rating saved: ${rating / 2}/5 ✓`);
   };
 
@@ -151,6 +155,7 @@ export default function MovieModal({ movie, onClose }) {
       onClick={(e) => e.stopPropagation()}
       className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
     >
+      <p className="px-4 py-2 text-[10px] text-slate-500">Streaming availability for {country} · <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="underline">JustWatch</a> via TMDB</p>
       {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>
         {showingTrailer && (
@@ -483,3 +488,4 @@ export default function MovieModal({ movie, onClose }) {
     </motion.div>
   );
 }
+

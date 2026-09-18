@@ -48,13 +48,13 @@ export default function MovieCard({ movie, showActions = true }) {
     null;
   const glowColor = GENRE_GLOW[primaryGenreId] || DEFAULT_GLOW;
 
-  const handleWatchlistClick = (e) => {
+  const handleWatchlistClick = async (e) => {
     e.stopPropagation();
     if (inList) {
-      removeFromWatchlist(movie.id);
+      if (!await removeFromWatchlist(movie.id)) return;
       addToast("Removed from Watchlist", "info");
     } else {
-      addToWatchlist(movie);
+      if (!await addToWatchlist(movie)) return;
       addToast("Added to Watchlist ✓");
     }
   };
@@ -118,3 +118,4 @@ export default function MovieCard({ movie, showActions = true }) {
     </motion.div>
   );
 }
+

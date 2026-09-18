@@ -106,13 +106,13 @@ function PickCard({ movie }) {
   const { addToast } = useToast();
   const inList = isInWatchlist(movie.id);
 
-  const handleWL = (e) => {
+  const handleWL = async (e) => {
     e.stopPropagation();
     if (inList) {
-      removeFromWatchlist(movie.id);
+      if (!await removeFromWatchlist(movie.id)) return;
       addToast("Removed from Watchlist", "info");
     } else {
-      addToWatchlist(movie);
+      if (!await addToWatchlist(movie)) return;
       addToast("Added to Watchlist ✓");
     }
   };
@@ -419,14 +419,14 @@ export default function ForYouSection() {
 
   const inList = pick ? isInWatchlist(pick.id) : false;
 
-  const handleWL = (e) => {
+  const handleWL = async (e) => {
     e.stopPropagation();
     if (!pick) return;
     if (inList) {
-      removeFromWatchlist(pick.id);
+      if (!await removeFromWatchlist(pick.id)) return;
       addToast("Removed from Watchlist", "info");
     } else {
-      addToWatchlist(pick);
+      if (!await addToWatchlist(pick)) return;
       addToast("Added to Watchlist ✓");
     }
   };
@@ -688,6 +688,7 @@ export default function ForYouSection() {
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-black/10" />
 
               {/* Streaming providers */}
+              <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="text-[10px] text-slate-400 underline">Availability by JustWatch via TMDB</a>
               {providers.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -858,3 +859,4 @@ export default function ForYouSection() {
     </section>
   );
 }
+
