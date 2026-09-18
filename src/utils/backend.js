@@ -6,11 +6,12 @@ export async function backend(path, data, {
   signal,
   account = accountId
 } = {}) {
+  const publicAuth = path === 'auth' || /^auth\?action=(session|login|signup|recover|google|email-callback)(?:&|$)/.test(path);
   const response = await fetch(`/api/${path}`, {
     credentials: 'same-origin',
     signal,
     headers: {
-      ...(!path.startsWith('auth') && account ? {
+      ...(!publicAuth && account ? {
         'X-Umbrify-Account': account
       } : {}),
       ...(data === undefined ? {} : {

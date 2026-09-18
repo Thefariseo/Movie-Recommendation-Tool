@@ -293,3 +293,22 @@ test('expired sessions refresh safely and still enforce the expected account', a
   assert.equal(dataRequests, 1);
   assert(!JSON.stringify(await result.json()).includes('new-access'));
 });
+
+test('account-changing auth actions are also bound to the active tab account',async()=>{
+  const {backend,setBackendAccount}=await import('../src/utils/backend.js');
+  setBackendAccount(id);
+  const headers=[];
+  globalThis.fetch=async(url,options)=>{headers.push(options.headers);return json({ok:true});};
+  await backend('auth?action=password',{password:'new-password'});
+  await backend('auth?action=logout',{});
+  await backend('auth');
+  await backend('auth?action=login',{email:'a@b.com',password:'password123'});
+  assert.equal(headers[0]['X-Umbrify-Account'],id);assert.equal(headers[1]['X-Umbrify-Account'],id);
+  assert.equal(headers[2]['X-Umbrify-Account'],undefined);assert.equal(headers[3]['X-Umbrify-Account'],undefined);
+  setBackendAccount(null);
+});
+test('stale-tab password changes are blocked before the provider update',async()=>{
+  let calls=0;globalThis.fetch=async()=>{calls++;return json({id:'22222222-2222-4222-8222-222222222222'});};
+  const result=await execute(request('auth?action=password',{password:'a-new-password'},{Cookie:'umbrify_access=new-account','X-Umbrify-Account':id}),auth);
+  assert.equal(result.status,409);assert.equal(calls,1);
+});
