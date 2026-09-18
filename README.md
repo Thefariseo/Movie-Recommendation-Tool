@@ -74,7 +74,7 @@ Set environment variables separately for Vercel Preview and Production. Each pre
 ## Library consistency and sharing
 
 - Guest data stays in the existing `watched` and `watchlist` browser keys. Signing in never silently uploads those keys to another person's account.
-- Account data is kept in memory, not a shared localStorage catalogue. Switching accounts remounts the library tree. Signing out removes the account view.
+- Account data is kept in memory, not a shared localStorage catalogue. Switching accounts remounts the library tree. Signing out removes the account view. Account-bound request headers prevent a stale tab from writing into an account that was switched in another tab.
 - Library mutations are serialized in the browser and use server-side compare-and-swap versions per film/list. Concurrent stale writes return 409 and refresh the affected client instead of silently winning. Different films can be changed independently.
 - Deletions remain as tombstones. Imports use insert-if-absent semantics and cannot overwrite newer cloud ratings or resurrect deleted films. A deliberate “add” after deletion can recreate the film with the current version.
 - Imports commit in batches of 500. Retrying after a partial failure is safe. The guest copy is removed only after every batch is confirmed. Account edits require a connection; failed writes are reported rather than silently being marked saved. This is not an offline mutation queue.

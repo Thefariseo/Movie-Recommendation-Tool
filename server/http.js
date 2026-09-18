@@ -77,12 +77,21 @@ export async function authRequest(path, body, token) {
     } : {})
   });
 }
+function checkAccount(ctx, user) {
+  const expected = ctx.request.headers.get("x-umbrify-account");
+  if (expected && expected !== user.id) {
+    const error = new HttpError(409, "Your account changed in another tab. Refreshing your session…");
+    error.code = "account_changed";
+    throw error;
+  }
+}
 export async function identify(ctx, required = true) {
   const c = cookies(ctx.request);
   let token = c.umbrify_access;
   if (token) {
     try {
       const user = await authRequest('user', null, token);
+      checkAccount(ctx, user);
       ctx.user = user;
       ctx.token = token;
       return user;
@@ -97,6 +106,7 @@ export async function identify(ctx, required = true) {
       });
       const user = await authRequest('user', null, session.access_token);
       saveSession(ctx, session);
+      checkAccount(ctx, user);
       ctx.user = user;
       ctx.token = session.access_token;
       return user;
@@ -193,7 +203,10 @@ export async function execute(request, work, methods = ['GET', 'POST']) {
     // Never log auth tokens, provider payloads, message content, or rating matrices.
     if (status === 500) console.error('Umbrify request failed:', e.name);
     result = {
-      error: status === 500 ? 'Something went wrong. Please try again.' : e.message
+      error: status === 500 ? 'Something went wrong. Please try again.' : e.message,
+      ...(e.code === 'account_changed' ? {
+        code: e.code
+      } : {})
     };
   }
   const headers = new Headers({

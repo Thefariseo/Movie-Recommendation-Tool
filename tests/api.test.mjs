@@ -245,3 +245,51 @@ test('Google callback rejects mismatched state without exchanging the code', asy
   assert.equal(result.status, 303);
   assert(result.headers.get('location').includes('auth_error=1'));
 });
+test('a stale tab cannot write into an account switched in another tab', async () => {
+  let dataRequests = 0;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/user')) return json({
+      id: '22222222-2222-4222-8222-222222222222'
+    });
+    dataRequests++;
+    return json([]);
+  };
+  const result = await execute(request('library', {
+    changes: []
+  }, {
+    Cookie: 'umbrify_access=new-account',
+    'X-Umbrify-Account': id
+  }), library);
+  assert.equal(result.status, 409);
+  assert.equal((await result.json()).code, 'account_changed');
+  assert.equal(dataRequests, 0);
+});
+test('expired sessions refresh safely and still enforce the expected account', async () => {
+  let dataRequests = 0;
+  globalThis.fetch = async (url, options) => {
+    const path = String(url);
+    if (path.includes('grant_type=refresh_token')) return json({
+      access_token: 'new-access',
+      refresh_token: 'new-refresh',
+      expires_in: 3600
+    });
+    if (path.endsWith('/user')) {
+      if (options.headers.Authorization === 'Bearer expired') return json({
+        message: 'Expired JWT'
+      }, 401);
+      return json({
+        id
+      });
+    }
+    dataRequests++;
+    return json([]);
+  };
+  const result = await execute(request('library', undefined, {
+    Cookie: 'umbrify_access=expired; umbrify_refresh=refresh',
+    'X-Umbrify-Account': id
+  }), library);
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.getSetCookie().length, 2);
+  assert.equal(dataRequests, 1);
+  assert(!JSON.stringify(await result.json()).includes('new-access'));
+});

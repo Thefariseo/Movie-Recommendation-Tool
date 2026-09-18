@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { backend } from '../utils/backend';
+import { backend, setBackendAccount } from '../utils/backend';
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({
@@ -17,11 +17,14 @@ export function AuthProvider({
     const id = ++requestId.current;
     try {
       const result = await backend('auth');
-      if (id === requestId.current) setState({
-        ...result,
-        loading: false,
-        error: null
-      });
+      if (id === requestId.current) {
+        setBackendAccount(result.user?.id || null);
+        setState({
+          ...result,
+          loading: false,
+          error: null
+        });
+      }
     } catch (error) {
       if (id === requestId.current) setState(prev => ({
         ...prev,
@@ -33,15 +36,26 @@ export function AuthProvider({
   useEffect(() => {
     reload();
     window.addEventListener('focus', reload);
+    window.addEventListener('umbrify-account-changed', reload);
     return () => {
       requestId.current++;
       window.removeEventListener('focus', reload);
+      window.removeEventListener('umbrify-account-changed', reload);
     };
   }, [reload]);
+  useEffect(() => {
+    setBackendAccount(state.user?.id || null);
+  }, [state.user?.id]);
   const signOut = async () => {
     await backend('auth?action=logout', {});
     requestId.current++;
-    setState(previous => ({...previous, user: null, profile: null, error: null}));
+    setBackendAccount(null);
+    setState(previous => ({
+      ...previous,
+      user: null,
+      profile: null,
+      error: null
+    }));
   };
   return <AuthContext.Provider value={{
     ...state,

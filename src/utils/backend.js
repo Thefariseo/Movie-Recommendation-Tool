@@ -1,12 +1,22 @@
+let accountId = null;
+export function setBackendAccount(id) {
+  accountId = id;
+}
 export async function backend(path, data, {
-  signal
+  signal,
+  account = accountId
 } = {}) {
   const response = await fetch(`/api/${path}`, {
     credentials: 'same-origin',
     signal,
-    headers: data === undefined ? {} : {
-      'Content-Type': 'application/json',
-      'X-Umbrify-Request': '1'
+    headers: {
+      ...(!path.startsWith('auth') && account ? {
+        'X-Umbrify-Account': account
+      } : {}),
+      ...(data === undefined ? {} : {
+        'Content-Type': 'application/json',
+        'X-Umbrify-Request': '1'
+      })
     },
     ...(data === undefined ? {} : {
       method: 'POST',
@@ -20,6 +30,7 @@ export async function backend(path, data, {
     throw new Error('The account service is unavailable. Please try again later.');
   }
   if (!response.ok) {
+    if (result.code === 'account_changed') window.dispatchEvent(new Event('umbrify-account-changed'));
     const error = new Error(result.error || 'Request failed.');
     error.status = response.status;
     throw error;

@@ -45,7 +45,9 @@ export function LibraryProvider({
       return;
     }
     try {
-      const result = await backend('library');
+      const result = await backend('library', undefined, {
+        account: user.id
+      });
       if (alive.current) {
         accept(result.rows);
         setReady(true);
@@ -141,6 +143,8 @@ export function LibraryProvider({
         const result = await backend('library', {
           changes: changes.slice(start, start + 500),
           importing: operation === 'import'
+        }, {
+          account: user.id
         });
         if (!alive.current) return false;
         accept(result.rows);
@@ -169,6 +173,8 @@ export function LibraryProvider({
         const result = await backend('library', {
           changes: changes.slice(i, i + 500),
           importing: true
+        }, {
+          account: user.id
         });
         if (!alive.current) return false;
         accept(result.rows);
