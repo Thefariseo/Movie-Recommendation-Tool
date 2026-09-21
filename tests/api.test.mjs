@@ -1,6 +1,6 @@
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { execute, allRows } from '../server/http.js';
+import { execute, allRows, HttpError } from '../server/http.js';
 import { auth } from '../api/auth.js';
 import { library } from '../api/library.js';
 import { social } from '../api/social.js';
@@ -311,4 +311,34 @@ test('stale-tab password changes are blocked before the provider update',async()
   let calls=0;globalThis.fetch=async()=>{calls++;return json({id:'22222222-2222-4222-8222-222222222222'});};
   const result=await execute(request('auth?action=password',{password:'a-new-password'},{Cookie:'umbrify_access=new-account','X-Umbrify-Account':id}),auth);
   assert.equal(result.status,409);assert.equal(calls,1);
+});
+test('same-origin requests are accepted without Origin, cross-site ones never are', async () => {
+  const post = headers => new Request('https://umbrify.test/api/library', {
+    method: 'POST',
+    headers,
+    body: '{}'
+  });
+  const reached = () => {
+    throw new HttpError(418, 'reached the handler');
+  };
+  const status = async headers => (await execute(post(headers), reached)).status;
+  const signed = {
+    'X-Umbrify-Request': '1',
+    'Content-Type': 'application/json'
+  };
+  // Browsers that omit Origin on same-origin calls still prove first-party intent.
+  assert.equal(await status({ ...signed, 'Sec-Fetch-Site': 'same-origin' }), 418);
+  assert.equal(await status({ ...signed, Referer: 'https://umbrify.test/profile' }), 418);
+  assert.equal(await status({ ...signed, Origin: 'https://umbrify.test' }), 418);
+  // Anything that names another site, or names nothing at all, is refused.
+  assert.equal(await status({ ...signed, 'Sec-Fetch-Site': 'cross-site' }), 403);
+  assert.equal(await status({ ...signed, 'Sec-Fetch-Site': 'same-site' }), 403);
+  assert.equal(await status({ ...signed, Referer: 'https://evil.test/umbrify.test' }), 403);
+  assert.equal(await status({ ...signed, Referer: 'not-a-url' }), 403);
+  assert.equal(await status(signed), 403);
+  // A present but wrong Origin is never rescued by a same-origin fallback header.
+  assert.equal(await status({ ...signed, Origin: 'https://evil.test', 'Sec-Fetch-Site': 'same-origin' }), 403);
+  assert.equal(await status({ ...signed, Origin: 'https://evil.test', Referer: 'https://umbrify.test/profile' }), 403);
+  // The unforgeable custom header stays mandatory whatever else is supplied.
+  assert.equal(await status({ Origin: 'https://umbrify.test', 'Sec-Fetch-Site': 'same-origin' }), 403);
 });

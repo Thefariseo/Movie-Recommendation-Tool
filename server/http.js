@@ -169,7 +169,36 @@ export async function body(ctx) {
   }
 }
 export function csrf(request) {
-  if (request.headers.get('origin') !== settings().origin || request.headers.get('x-umbrify-request') !== '1') throw new HttpError(403, 'Request origin could not be verified.');
+  const {
+    origin
+  } = settings();
+  const deny = () => {
+    throw new HttpError(403, 'Request origin could not be verified.');
+  };
+  // No cross-site caller can set this: it forces a preflight, and the API answers
+  // with no CORS headers, so the preflight fails before the request is sent.
+  if (request.headers.get('x-umbrify-request') !== '1') deny();
+  // A missing Origin is not proof of a cross-site caller; browsers are inconsistent
+  // about sending it on same-origin requests. Sec-Fetch-Site and Referer are just as
+  // unforgeable from another site, so check those before refusing a first-party call.
+  const sent = request.headers.get('origin');
+  if (sent) {
+    if (sent !== origin) deny();
+    return;
+  }
+  const site = request.headers.get('sec-fetch-site');
+  if (site) {
+    if (site !== 'same-origin') deny();
+    return;
+  }
+  const referer = request.headers.get('referer');
+  let refererOrigin = null;
+  try {
+    refererOrigin = referer ? new URL(referer).origin : null;
+  } catch {
+    refererOrigin = null;
+  }
+  if (refererOrigin !== origin) deny();
 }
 export function uuid(value) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || '')) throw new HttpError(400, 'Invalid identifier.');
