@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy · Umbrify</title>
+<meta name="description" content="How Umbrify handles your account, film library and the third-party services it relies on." />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="stylesheet" href="/legal.css" />
+</head>
+<body>
+<main>
+  <p class="eyebrow">Umbrify</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 21 September 2026</p>
+
+  <p>Umbrify is a film recommendation service that keeps your watched films, ratings and watchlist so they follow you across devices. This page describes exactly what it stores, why, and which other companies see your data. It describes what the service actually does today, not what it might do later.</p>
+
+  <h2>Who is responsible</h2>
+  <p>Umbrify is run by Matteo Niessner as an individual, non-commercial project. For any question about your data, or to exercise any of the rights below, write to <a href="mailto:matteo.niessner@gmail.com">matteo.niessner@gmail.com</a>.</p>
+
+  <h2>Using Umbrify without an account</h2>
+  <p>You can use Umbrify as a guest. In that case your watched films and watchlist are stored only in your own browser, using <code>localStorage</code>, and are never sent to our database. They stay on that one device and are lost if you clear your browser data. Nothing is uploaded unless you create an account and explicitly choose <em>Import device library</em>.</p>
+
+  <h2>What we store when you have an account</h2>
+  <table>
+    <tr><th>Data</th><th>Why</th></tr>
+    <tr><td>Email address</td><td>To identify your account and let you sign in</td></tr>
+    <tr><td>Display name</td><td>Shown to you, and to people you follow each other with. Taken from your Google profile name when you sign in with Google, otherwise from what you type</td></tr>
+    <tr><td>Country</td><td>To show where a film can be streamed in your country</td></tr>
+    <tr><td>Watched films, watchlist, ratings from 1 to 10, and when each changed</td><td>The core of the service, and the basis of your recommendations</td></tr>
+    <tr><td>Who you follow and who follows you</td><td>To show friend activity and build group recommendations</td></tr>
+    <tr><td>Shared lists you create or join</td><td>To let a list be edited by its members</td></tr>
+    <tr><td>Saved chat conversations and the film preferences drawn from them</td><td>So the assistant remembers your constraints between sessions</td></tr>
+    <tr><td>Per-account request counters</td><td>To limit abuse. No IP address is stored for this</td></tr>
+    <tr><td>Your Trakt access token, encrypted</td><td>Only if you connect Trakt. Stored encrypted with AES-256-GCM and never shown back to you or to anyone else</td></tr>
+  </table>
+  <p>We do not ask for, and do not store, your date of birth, your address, your phone number or any payment details. Umbrify is free and has no payments.</p>
+
+  <h2>What you choose to share</h2>
+  <p>Three settings in your profile are off by default and stay off until you turn them on:</p>
+  <ul>
+    <li><strong>Discoverable</strong> — whether other members can find you to follow you.</li>
+    <li><strong>Share activity</strong> — whether the films you log appear in the activity feed of people you and they follow each other with. Activity is never public.</li>
+    <li><strong>Contribute to recommendations</strong> — whether your ratings may be used, aggregated with other members', to train the recommendation model.</li>
+  </ul>
+  <p>Turning the third one off stops future use of your ratings and invalidates the model trained with them, so a later model is built without your data.</p>
+
+  <h2>Cookies</h2>
+  <p>Umbrify sets no advertising or tracking cookies. It sets only what signing in requires:</p>
+  <ul>
+    <li><code>umbrify_access</code> and <code>umbrify_refresh</code> — your session. They are <code>HttpOnly</code>, so page scripts cannot read them, and <code>Secure</code>. Signing out deletes them.</li>
+    <li><code>umbrify_pkce</code> and <code>umbrify_oauth_state</code> — set only while a Google sign-in is in progress, valid for ten minutes, and deleted as soon as it finishes.</li>
+  </ul>
+  <p>Your browser's <code>localStorage</code> also holds your guest library and interface preferences. That never leaves your device.</p>
+
+  <h2>Other companies that see your data</h2>
+  <p>Umbrify is built on services run by other companies. Some hold your data on our behalf; others receive a request directly from your browser, which necessarily reveals your IP address to them.</p>
+
+  <h3>Holding data on our behalf</h3>
+  <ul>
+    <li><strong>Supabase</strong> — stores your account and everything in the table above, and handles sign-in.</li>
+    <li><strong>Vercel</strong> — hosts the site and runs its server code. Our server functions currently run in Vercel's <code>iad1</code> region in the United States, so your data is processed outside the European Economic Area under the safeguards Vercel and Supabase publish in their own terms.</li>
+  </ul>
+
+  <h3>Measuring use of the site</h3>
+  <p>We use <strong>Vercel Web Analytics</strong> and <strong>Vercel Speed Insights</strong>. They record page views, referrer, country, browser and device type, and loading performance, in aggregate and without cookies or a persistent identifier. They are not used to build a profile of you, and they are not tied to your account.</p>
+
+  <h3>Contacted directly by your browser</h3>
+  <ul>
+    <li><strong>The Movie Database (TMDB)</strong> — film data, posters and images. TMDB receives your IP address and the titles you look at.</li>
+    <li><strong>Google Fonts</strong> — the page's typefaces are requested from Google, which receives your IP address.</li>
+    <li><strong>YouTube</strong> — trailer thumbnails are loaded from YouTube. If you actually play a trailer, an embedded YouTube player loads and YouTube may set its own cookies at that point.</li>
+    <li><strong>OMDb</strong> — used, where enabled, to show a Rotten Tomatoes score.</li>
+  </ul>
+
+  <h3>Only if you ask for it</h3>
+  <ul>
+    <li><strong>Trakt</strong> — contacted only after you connect your Trakt account, to import or export what you choose.</li>
+    <li><strong>OpenAI</strong> — if the AI assistant is enabled, the text of your message is sent to OpenAI to interpret it. This is not enabled at the time of writing, and the assistant runs on Umbrify's own logic instead.</li>
+  </ul>
+  <p class="note">Links to Letterboxd, JustWatch and IMDb are ordinary outbound links: those sites only learn about you if you follow one. A Letterboxd import is a file you upload yourself; it is read to create your entries and not sent anywhere else.</p>
+
+  <h2>Why we are allowed to hold it</h2>
+  <p>We hold your account and library because you asked for an account and it is what makes the service work — without it there is nothing to sync. The three sharing settings above, and connecting Trakt, rest on your consent, which you can withdraw at any time in your profile. Request counters exist for our legitimate interest in keeping the service usable and resisting abuse.</p>
+
+  <h2>How long we keep it</h2>
+  <p>Your data is kept while your account exists. Sign-in state kept for a Google redirect expires after ten minutes. Deleting your account removes your profile, library, follows, list memberships, conversations and any stored integration token; ratings already aggregated into a trained model cannot be picked back out of it, but withdrawing the recommendation consent invalidates that model, as described above.</p>
+
+  <h2>Your rights</h2>
+  <p>You can ask to see what we hold, correct it, take it elsewhere, restrict or object to how it is used, withdraw a consent, or have your account deleted. You can also complain to your data protection authority; in Italy that is the <a href="https://www.garanteprivacy.it/" rel="noopener">Garante per la protezione dei dati personali</a>.</p>
+  <p>Two of these you can do yourself, immediately: the sharing settings are in your profile, and you can export your library as a CSV file at any time. <strong>Account deletion is not yet a button in the app.</strong> Write to the address above and it will be done; we mention this plainly rather than describe a feature that does not exist yet.</p>
+
+  <h2>Security</h2>
+  <p>Traffic is encrypted in transit. Session cookies cannot be read by page scripts. Every row in the database is protected by row-level security, so one account cannot read another's library, conversations or private profile. Third-party access tokens are encrypted before storage. No system is perfect, and we will not claim otherwise.</p>
+
+  <h2>Children</h2>
+  <p>Umbrify is not directed at children and we do not knowingly create accounts for anyone under 16. If you believe a child has an account, write to us and we will remove it.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the date at the top changes with it. If a change is significant we will say so in the app rather than quietly amend this page.</p>
+</main>
+<footer>
+  <a href="/">Umbrify</a>
+  <a href="/terms">Terms of Service</a>
+</footer>
+</body>
+</html>
