@@ -44,7 +44,9 @@ export async function auth(ctx) {
         redirect: `${origin}/profile?auth_error=1`
       };
     };
-    if (reported) return abandon('the provider refused the sign-in');
+    // The provider's refusal is an OAuth error code, not member data: without it a
+    // refusal after a granted consent is indistinguishable from a rejected credential.
+    if (reported) return abandon(`the provider refused the sign-in: ${reported.slice(0, 200)}`);
     if (!code) return abandon('the callback carried no authorization code');
     if (!state) return abandon('the callback carried no state');
     if (!c.umbrify_pkce || !c.umbrify_oauth_state) return abandon('the sign-in cookies did not survive the redirect back');

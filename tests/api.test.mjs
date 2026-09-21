@@ -359,7 +359,8 @@ test('the sign-in callback distinguishes why it failed and records only the reas
       assert.equal(result.headers.get('Location'), 'https://umbrify.test/profile?auth_error=1');
       return logged.join(' ');
     };
-    assert.match(await reasonOf('error=access_denied'), /provider refused/);
+    assert.match(await reasonOf('error=access_denied'), /provider refused the sign-in: access_denied/);
+    assert.match(await reasonOf('error=invalid_client&error_description=Unauthorized'), /provider refused the sign-in: Unauthorized/);
     assert.match(await reasonOf('state=state-value', pair), /no authorization code/);
     assert.match(await reasonOf('code=abc', pair), /no state/);
     assert.match(await reasonOf('code=abc&state=state-value'), /cookies did not survive/);
