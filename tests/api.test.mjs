@@ -342,3 +342,41 @@ test('same-origin requests are accepted without Origin, cross-site ones never ar
   // The unforgeable custom header stays mandatory whatever else is supplied.
   assert.equal(await status({ Origin: 'https://umbrify.test', 'Sec-Fetch-Site': 'same-origin' }), 403);
 });
+test('the sign-in callback distinguishes why it failed and records only the reason', async () => {
+  const logged = [];
+  const error = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    const callback = (query, cookie) => execute(new Request(`https://umbrify.test/api/auth?action=callback&${query}`, {
+      method: 'GET',
+      ...(cookie ? { headers: { Cookie: cookie } } : {})
+    }), auth);
+    const pair = 'umbrify_pkce=verifier-value; umbrify_oauth_state=state-value';
+    const reasonOf = async (query, cookie) => {
+      logged.length = 0;
+      const result = await callback(query, cookie);
+      assert.equal(result.status, 303);
+      assert.equal(result.headers.get('Location'), 'https://umbrify.test/profile?auth_error=1');
+      return logged.join(' ');
+    };
+    assert.match(await reasonOf('error=access_denied'), /provider refused/);
+    assert.match(await reasonOf('state=state-value', pair), /no authorization code/);
+    assert.match(await reasonOf('code=abc', pair), /no state/);
+    assert.match(await reasonOf('code=abc&state=state-value'), /cookies did not survive/);
+    assert.match(await reasonOf('code=abc&state=other', pair), /older attempt/);
+    globalThis.fetch = () => new Response(JSON.stringify({ error_description: 'invalid flow state' }), { status: 400 });
+    const rejected = await reasonOf('code=abc&state=state-value', pair);
+    assert.match(rejected, /exchange was rejected: invalid flow state/);
+    // The verifier and the authorization code must never reach the log.
+    assert.ok(!/verifier-value|abc/.test(rejected), 'secrets must not be logged');
+    globalThis.fetch = () => new Response(JSON.stringify({
+      access_token: 'a',
+      refresh_token: 'r',
+      expires_in: 3600
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const ok = await callback('code=abc&state=state-value', pair);
+    assert.equal(ok.headers.get('Location'), 'https://umbrify.test/profile');
+  } finally {
+    console.error = error;
+  }
+});
