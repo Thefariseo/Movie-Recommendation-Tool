@@ -63,6 +63,13 @@ function AppContent() {
                 {/* 404 */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              {/* Plain anchors, not router Links: these pages are static HTML outside
+                  the app, so the router must not claim them and redirect home. */}
+              <footer className="mx-auto max-w-5xl px-4 pb-10 pt-4 text-sm text-[rgb(var(--color-fg-muted))]">
+                <a className="hover:underline" href="/privacy">Privacy</a>
+                <span aria-hidden="true"> · </span>
+                <a className="hover:underline" href="/terms">Terms</a>
+              </footer>
               <Analytics />
               <SpeedInsights />
             </div>
