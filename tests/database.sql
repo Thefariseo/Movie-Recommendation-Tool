@@ -3,6 +3,25 @@ begin;
 create function public.test_assert(ok boolean,message text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'FAILED: %',message;end if;end$$;
 insert into auth.users(id) values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222'),('33333333-3333-4333-8333-333333333333'),('44444444-4444-4444-8444-444444444444');
 select public.test_assert((select count(*)=4 from public.profiles),'signup profile trigger');
+
+-- Google sends the provider's own claims, never `display_name`. Each signup shape
+-- must still reach the members' real name rather than the generic default.
+insert into auth.users(id,email,raw_user_meta_data) values
+  ('55555555-5555-4555-8555-555555555555','ada@example.com','{"display_name":"Ada"}'),
+  ('66666666-6666-4666-8666-666666666666','grace@example.com','{"full_name":"Grace Hopper","name":"Grace","picture":"https://example.com/g.jpg"}'),
+  ('77777777-7777-4777-8777-777777777777','alan@example.com','{"name":"Alan Turing"}'),
+  ('88888888-8888-4888-8888-888888888888','edsger@example.com','{"given_name":"Edsger"}'),
+  ('99999999-9999-4999-8999-999999999999','katherine@example.com','{}'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',null,'{"full_name":"   "}');
+select public.test_assert((select display_name='Ada' from public.profiles where id='55555555-5555-4555-8555-555555555555'),'explicit display_name wins');
+select public.test_assert((select display_name='Grace Hopper' from public.profiles where id='66666666-6666-4666-8666-666666666666'),'google full_name preferred over name');
+select public.test_assert((select display_name='Alan Turing' from public.profiles where id='77777777-7777-4777-8777-777777777777'),'google name used when full_name absent');
+select public.test_assert((select display_name='Edsger' from public.profiles where id='88888888-8888-4888-8888-888888888888'),'google given_name used as last claim');
+select public.test_assert((select display_name='katherine' from public.profiles where id='99999999-9999-4999-8999-999999999999'),'email local part used without claims');
+select public.test_assert((select display_name='Film lover' from public.profiles where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),'blank claims fall back to the default');
+select public.test_assert((select bool_and(length(display_name) between 1 and 60) from public.profiles),'derived names respect the length limit');
+delete from auth.users where id >= '55555555-5555-4555-8555-555555555555';
+select public.test_assert((select count(*)=4 from public.profiles),'profile fixtures restored');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select public.test_assert((select count(*)=1 from public.profiles),'private profiles are hidden');

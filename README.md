@@ -36,14 +36,15 @@ Vite serves `http://localhost:5173` and proxies `/api` to the local Node server 
 
 ## Database and authentication setup
 
-1. Create a Supabase project. Apply `supabase/migrations/202609180001_umbrify.sql` using the SQL editor or your normal migration process. The migration adds `profiles`, per-film libraries, follows, shared lists, chat sessions, rate limits, encrypted integration storage and private model storage. It also backfills profiles for any existing auth users. Apply it once.
+1. Create a Supabase project. Apply every file in `supabase/migrations/` in filename order, using the SQL editor or your normal migration process. The migration adds `profiles`, per-film libraries, follows, shared lists, chat sessions, rate limits, encrypted integration storage and private model storage. It also backfills profiles for any existing auth users. Apply each migration once.
+   `202609210001_oauth_profile_names.sql` derives the profile name from whichever claim the provider sent (`display_name`, `full_name`, `name`, `given_name`, then the email local part). Google never sends `display_name`, so without this migration every Google member is created as "Film lover"; it also re-derives existing profiles still sitting on that default.
 2. Set the Supabase Auth Site URL to your deployed `APP_URL`.
 3. Add these redirect URLs to Supabase Auth's allow list, using the real origin:
    - `https://YOUR-DOMAIN/auth/callback` for email confirmation and recovery.
    - `https://YOUR-DOMAIN/api/auth?action=callback&state=*` for Google PKCE (the query state is random). Supabase uses glob matching: verify the actual callback URL is allowed. For a dedicated trusted origin, `https://YOUR-DOMAIN/**` is an alternative; do not allow arbitrary origins.
    - Equivalent localhost URLs for development only.
 4. Keep email confirmation enabled. Configure your production SMTP sender and auth rate limits in Supabase. The standard email templates must use Supabase's confirmation URL so it redirects to `/auth/callback`; customized templates must preserve that flow.
-5. For Google, register a web OAuth client in Google Cloud. Its authorized redirect URI is `https://YOUR-PROJECT.supabase.co/auth/v1/callback`. Put its client ID/secret in Supabase's Google provider and set `GOOGLE_AUTH_ENABLED=true` on Vercel. No Google secret belongs in the frontend.
+5. For Google, register a web OAuth client in Google Cloud. Its authorized redirect URI is `https://YOUR-PROJECT.supabase.co/auth/v1/callback`. Put its client ID/secret in Supabase's Google provider and set `GOOGLE_AUTH_ENABLED=true` on Vercel. No Google secret belongs in the frontend. Redeploy after changing the variable: Vercel applies environment changes only to new deployments. Until then the button stays hidden rather than failing.
 
 The API verifies access tokens with Supabase Auth before reading data. Browser requests to Vercel use same-origin cookies; mutations also require an exact `Origin` match and `X-Umbrify-Request`. Tokens are not returned by session/login API responses. Email confirmation tokens pass transiently through the standard callback fragment, are removed from the URL immediately, and are exchanged for HttpOnly cookies. Google uses a server-held PKCE verifier and single-use state cookie.
 
