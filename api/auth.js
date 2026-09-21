@@ -32,21 +32,31 @@ export async function auth(ctx) {
     const c = cookies(ctx.request);
     const code = ctx.url.searchParams.get('code');
     const state = ctx.url.searchParams.get('state');
+    const reported = ctx.url.searchParams.get('error_description') || ctx.url.searchParams.get('error');
     setCookie(ctx, 'umbrify_pkce', '', 0);
     setCookie(ctx, 'umbrify_oauth_state', '', 0);
-    if (!code || !state || state !== c.umbrify_oauth_state || !c.umbrify_pkce) return {
-      redirect: `${origin}/profile?auth_error=1`
+    // Every branch below used to collapse into one silent redirect, which left no way
+    // to tell a dropped cookie from a rejected exchange. Only the reason is recorded:
+    // never the code, the verifier or the state, and never the provider's payload.
+    const abandon = reason => {
+      console.error('Umbrify sign-in callback failed:', reason);
+      return {
+        redirect: `${origin}/profile?auth_error=1`
+      };
     };
+    if (reported) return abandon('the provider refused the sign-in');
+    if (!code) return abandon('the callback carried no authorization code');
+    if (!state) return abandon('the callback carried no state');
+    if (!c.umbrify_pkce || !c.umbrify_oauth_state) return abandon('the sign-in cookies did not survive the redirect back');
+    if (state !== c.umbrify_oauth_state) return abandon('the state did not match its cookie, so this redirect belongs to an older attempt');
     try {
       const session = await authRequest('token?grant_type=pkce', {
         auth_code: code,
         code_verifier: c.umbrify_pkce
       });
       saveSession(ctx, session);
-    } catch {
-      return {
-        redirect: `${origin}/profile?auth_error=1`
-      };
+    } catch (e) {
+      return abandon(`the code exchange was rejected: ${e.message}`);
     }
     return {
       redirect: `${origin}/profile`
