@@ -21,7 +21,50 @@ export function tasteProfile(movies) {
   const shrink = map => new Map([...map].map(([key, {sum, count}]) => [key, sum / (count + 3)]));
   return { genres: shrink(genres), decades: shrink(decades), count: rated.length, mean };
 }
+// IMDb and Rotten Tomatoes are the reference for a film's quality. TMDB's own
+// average is kept only for films no external source has rated yet, so a film is
+// never held back merely because its ratings have not been fetched.
+const present = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+export function externalRatings(movie) {
+  const imdb = present(movie?.imdb_rating) ? Number(movie.imdb_rating) : null;
+  const rt = present(movie?.rt_score) ? Number(movie.rt_score) : null;
+  return {
+    imdb: imdb != null && imdb >= 1 && imdb <= 10 ? imdb : null,
+    rt: rt != null && rt >= 0 && rt <= 100 ? rt : null,
+    votes: present(movie?.imdb_votes) ? Math.max(0, Number(movie.imdb_votes)) : 0
+  };
+}
+// Rotten Tomatoes is the share of positive reviews, not a mark. 0% maps to 4 and
+// 100% to 9.5, so unanimous acclaim lands where an excellent IMDb score does.
+const rtOnTen = rt => 4 + .055 * rt;
+// IMDb's weight when both exist. It covers almost every film; RT is sparser and
+// driven by fewer, professional reviews.
+const IMDB_SHARE = .6;
+/** The mark a reader would see, on a 10-point scale, without any shrinkage. */
+export function criticAverage(movie) {
+  const { imdb, rt } = externalRatings(movie);
+  if (imdb != null && rt != null) return IMDB_SHARE * imdb + (1 - IMDB_SHARE) * rtOnTen(rt);
+  if (imdb != null) return imdb;
+  if (rt != null) return rtOnTen(rt);
+  return Math.max(0, Math.min(10, Number(movie?.vote_average) || 0));
+}
+/** How many people a mark rests on, in TMDB-sized units so thresholds keep meaning. */
+export function ratingReach(movie) {
+  const { imdb, votes } = externalRatings(movie);
+  // IMDb audiences run roughly an order of magnitude above TMDB's.
+  return imdb != null && votes ? votes / 10 : Math.max(0, Number(movie?.vote_count) || 0);
+}
 export function qualityScore(movie) {
+  const { imdb, rt, votes } = externalRatings(movie);
+  if (imdb != null || rt != null) {
+    // Thin IMDb samples are shrunk towards a typical film. The prior of 1,000
+    // votes is TMDB's former 100 scaled to IMDb's larger audience, so a
+    // well-liked art-house film is not flattened for being little known.
+    const imdbPart = imdb == null ? null : (votes * imdb + 1000 * 6.4) / (votes + 1000);
+    const rtPart = rt == null ? null : rtOnTen(rt);
+    if (imdbPart != null && rtPart != null) return IMDB_SHARE * imdbPart + (1 - IMDB_SHARE) * rtPart;
+    return imdbPart ?? rtPart;
+  }
   const count = Math.max(0, Number(movie.vote_count) || 0);
   const average = Math.max(0, Math.min(10, Number(movie.vote_average) || 0));
   return (count * average + 100 * 6.2) / (count + 100);

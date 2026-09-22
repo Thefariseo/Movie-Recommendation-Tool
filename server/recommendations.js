@@ -1,16 +1,9 @@
-import { database, allRows, HttpError, uuid, remote } from './http.js';
+import { database, allRows, HttpError, uuid } from './http.js';
 import { predict, groupScore } from '../shared/model.js';
 import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridScore } from '../shared/taste.js';
-export async function tmdb(path, params = {}) {
-  const key = process.env.TMDB_KEY || process.env.VITE_TMDB_KEY;
-  if (!key) throw new HttpError(503, 'Film discovery is not configured yet.');
-  const query = new URLSearchParams({
-    api_key: key,
-    language: 'en-US',
-    ...params
-  });
-  return remote(`https://api.themoviedb.org/3/${path}?${query}`);
-}
+import { tmdb } from './tmdb.js';
+import { attachRatings } from './ratings.js';
+export { tmdb };
 const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
 export const contentScore = tasteScore;
 export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
@@ -91,6 +84,9 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const discovery = await Promise.allSettled([1, 2, 3].map(page => tmdb('discover/movie', {...discoveryParams, page: String(page)})));
   for (const r of discovery) if (r.status === 'fulfilled') add(r.value.results);
   if (!candidateMap.size && discovery.every(r => r.status === 'rejected')) throw new HttpError(502, 'Film discovery is temporarily unavailable. Please try again.');
+  // IMDb and Rotten Tomatoes drive quality inside tasteScore. A few uncached
+  // films are filled per request, so coverage grows as Umbrify is used.
+  for (const m of await attachRatings([...candidateMap.values()], { fill: 4 })) candidateMap.set(Number(m.id), m);
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(

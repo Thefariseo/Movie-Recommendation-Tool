@@ -8,7 +8,8 @@ import {
   movieCredits,
   personMovieCredits,
 } from "../utils/api";
-import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks } from "../../shared/taste.js";
+import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
+import { loadRatings, withRatings } from "../utils/ratings";
 import { GENRE_MAP } from "../utils/genres";
 
 /* ------------------------------------------------------------------ */
@@ -614,6 +615,10 @@ export async function getRecommendations({
 
   // Apply country/person constraints to every source, including saved watchlists.
   let pool = [...candidates.values()].slice(0, maxCandidates);
+  // IMDb and Rotten Tomatoes, not TMDB, decide how good a candidate is. A film
+  // not yet in the shared cache keeps TMDB's figures until it is.
+  const ratings = await loadRatings(pool.map((p) => p.id));
+  pool = pool.map((p) => ({ ...p, raw: withRatings(p.raw, ratings.get(Number(p.id))) }));
   if (prefs.country || hasPersonFilter) {
     pool = pool.filter(({id, raw}) => !watched.some(m => Number(m.id) === Number(id)) && !raw.adult)
       .sort((a,b) => qualityScore(b.raw)-qualityScore(a.raw)).slice(0,80);
@@ -624,7 +629,7 @@ export async function getRecommendations({
       if (prefs.country && !(d.origin_country || d.production_countries?.map(c => c.iso_3166_1) || []).includes(prefs.country)) return null;
       if (prefs.directorId && !d.credits?.crew?.some(p => p.job === 'Director' && Number(p.id) === Number(prefs.directorId))) return null;
       if (prefs.actorId && !d.credits?.cast?.some(p => Number(p.id) === Number(prefs.actorId))) return null;
-      return {...item, raw: {...d, genre_ids: genreIds(d)}};
+      return {...item, raw: {...item.raw, ...d, genre_ids: genreIds(d)}};
       })));
     }
     pool = checked.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
@@ -642,13 +647,16 @@ export async function getRecommendations({
     .filter(({ id  }) => !watchedIds.has(Number(id)))
     .filter(({ raw }) => !raw.adult && (!raw.release_date || raw.release_date <= new Date().toISOString().slice(0, 10)))
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
-    .filter(({ raw }) => (raw.vote_average || 0) >= 5.0)
+    .filter(({ raw }) => criticAverage(raw) >= 5.0)
     .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId }) => {
       const genreIds    = raw.genre_ids || raw.genres?.map(g => g.id ?? g) || [];
       const movieYear   = parseInt((raw.release_date || "").slice(0, 4), 10) || 2000;
       const movieDecade = decade(movieYear);
+      // TMDB's count measures popularity, which every candidate has; quality
+      // comes from IMDb and Rotten Tomatoes whenever they are known.
       const voteCount   = raw.vote_count   || 0;
-      const voteAvg     = raw.vote_average || 0;
+      const voteAvg     = criticAverage(raw);
+      const reach       = ratingReach(raw);
 
       // ── Genre score (cosine-similarity) × specificity multiplier ──
       const matching = genreIds.filter((g) => favGenres.includes(g));
@@ -668,8 +676,8 @@ export async function getRecommendations({
       // ── Film quality categories ──
       let qualityBoost = 0;
       if      (voteAvg >= 8.5)                               qualityBoost = 0.22;
-      else if (voteAvg >= 7.8 && voteCount >= 5000)          qualityBoost = 0.14;
-      else if (voteAvg >= 7.5 && voteCount >= 50 && voteCount < 2000) qualityBoost = 0.16;
+      else if (voteAvg >= 7.8 && reach >= 5000)              qualityBoost = 0.14;
+      else if (voteAvg >= 7.5 && reach >= 50 && reach < 2000) qualityBoost = 0.16;
       else if (voteAvg >= 7.2)                               qualityBoost = 0.06;
 
       // ── Criterion / Radiance label boost ──
@@ -754,8 +762,10 @@ export async function getRecommendations({
         )[0];
         const genreName = GENRE_MAP[topG] || "this genre";
         const ql        = qualityLabel(voteAvg);
-        const scoreStr  = voteAvg.toFixed(1);
-        reason = `Your top ${genreName} taste — ${ql} (${scoreStr}/10)`;
+        // Quote a real source's figure, never the blend used for ranking.
+        const { imdb, rt } = externalRatings(raw);
+        const cited     = imdb != null ? `IMDb ${imdb.toFixed(1)}` : rt != null ? `${rt}% on Rotten Tomatoes` : null;
+        reason = cited ? `Your top ${genreName} taste — ${ql} (${cited})` : `Your top ${genreName} taste — ${ql}`;
       }
 
       return { id, score, reason, year: movieYear, genreIds, dirName: dirName || null, isCriterion: criterionBoost > 0 };

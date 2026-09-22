@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { Plus, Check } from "lucide-react";
 import useWatchlist from "../hooks/useWatchlist";
 import { useToast } from "@/contexts/ToastContext";
+import FilmRatings from "./FilmRatings";
 
 /* Genre ID → glow color (rgba) */
 const GENRE_GLOW = {
@@ -81,12 +82,11 @@ export default function MovieCard({ movie, showActions = true }) {
         loading="lazy"
       />
 
-      {/* TMDB rating badge */}
-      {movie.vote_average > 0 && (
-        <span className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-amber-400">
-          ★ {movie.vote_average.toFixed(1)}
-        </span>
-      )}
+      {/* IMDb / Rotten Tomatoes badge */}
+      <FilmRatings
+        movieId={movie.id}
+        className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white"
+      />
 
       {/* Always-visible title strip */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-2 pb-2 pt-6">

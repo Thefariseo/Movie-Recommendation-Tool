@@ -92,5 +92,31 @@ do $$begin
  begin select count(*) from public.profiles;raise exception 'Anonymous read allowed';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Film ratings are public reference data: readable by anyone, writable only by the server.
+insert into public.film_ratings(tmdb_id,imdb_id,imdb_rating,imdb_votes,rt_score) values(27205,'tt1375666',8.8,2600000,87),(999001,null,null,null,null);
+set local role anon;
+select public.test_assert((select count(*)=2 from public.film_ratings),'anyone can read cached film ratings');
+do $$begin
+ begin insert into public.film_ratings(tmdb_id) values(5);raise exception 'Anonymous rating write allowed';exception when insufficient_privilege then null;end;
+ begin perform public.claim_omdb_budget(1,10);raise exception 'Anonymous budget claim allowed';exception when insufficient_privilege then null;end;
+ begin select count(*) from public.omdb_budget;raise exception 'Anonymous budget read allowed';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $$begin
+ begin update public.film_ratings set imdb_rating=1 where tmdb_id=27205;raise exception 'Member rating write allowed';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+-- The daily allowance is never exceeded, however the claims are split.
+select public.test_assert(public.claim_omdb_budget(6,10)=6,'budget grants a claim within the cap');
+select public.test_assert(public.claim_omdb_budget(6,10)=4,'budget grants only what is left');
+select public.test_assert(public.claim_omdb_budget(3,10)=0,'budget grants nothing once spent');
+select public.test_assert(public.claim_omdb_budget(0,10)=0 and public.claim_omdb_budget(-2,10)=0,'budget ignores non-positive claims');
+select public.test_assert((select used=10 from public.omdb_budget where day=current_date),'budget records exactly the cap');
+do $$begin
+ begin insert into public.film_ratings(tmdb_id,imdb_id) values(7,'not-an-id');raise exception 'Malformed IMDb id accepted';exception when check_violation then null;end;
+ begin insert into public.film_ratings(tmdb_id,rt_score) values(8,101);raise exception 'Out-of-range RT score accepted';exception when check_violation then null;end;
+end$$;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

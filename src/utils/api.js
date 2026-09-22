@@ -74,20 +74,6 @@ export function externalIds(id) {
   return get(`/movie/${id}/external_ids`);
 }
 
-/** Rotten Tomatoes score via OMDb (requires VITE_OMDB_KEY in .env) */
-export async function rottenScore(imdbID) {
-  const key = import.meta.env.VITE_OMDB_KEY;
-  if (!key) return null;
-  try {
-    const url = `https://www.omdbapi.com/?apikey=${key}&i=${imdbID}`;
-    const { Ratings } = await (await fetch(url)).json();
-    const rt = Ratings?.find((r) => r.Source === "Rotten Tomatoes");
-    return rt ? rt.Value : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * TMDB /discover/movie.
  * Default vote_count.gte is intentionally low (30) so world cinema and
