@@ -56,7 +56,7 @@ function firstSentence(text) {
 // Explanations use recorded evidence and provider metadata, not invented
 // claims about a film's emotional tone or an actor's importance in it.
 function buildNarrative({ reason, directorName, overview }) {
-  return [reason, directorName ? `Directed by ${directorName}.` : null, firstSentence(overview)].filter(Boolean).join(' ');
+  return [reason ? `${reason.replace(/[.!?]$/, "")}.` : null, directorName ? `Directed by ${directorName}.` : null, firstSentence(overview)].filter(Boolean).join(' ');
 }
 async function buildKeywordProfile(likedFilms) {
   const map = new Map();

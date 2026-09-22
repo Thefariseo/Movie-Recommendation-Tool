@@ -728,7 +728,7 @@ export async function getRecommendations({
           reason = `Because you love ${dirName}'s films`;
         }
       } else if (source === "cinephile_seed" && dirName) {
-        reason = `${dirName} — a cornerstone of world cinema`;
+        reason = "A world-cinema discovery to explore";
       } else if (source === "actor" && actorName) {
         const actScore = actorId != null ? actorScores.get(actorId)?.score : null;
         if (actScore != null) {
