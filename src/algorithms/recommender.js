@@ -1,20 +1,5 @@
-// =====================================================
-// Recommendation engine v10
-//
-// MAJOR IMPROVEMENTS over v9:
-// – Criterion/Radiance label boost (+0.28): films from these curated labels
-//   get a significant score advantage, surfacing the highest quality world cinema
-// – Expanded CINEPHILE_DIRECTORS (40 directors): 6 random seeds per call
-//   → much more variety between refreshes
-// – Nanocrowd-inspired keyword scoring: TMDB keyword tags are used as a proxy
-//   for viewer-vocabulary matching (themes, moods, style). Passed in via prefs.
-// – Tripled random page range (pages 2–15): prevents candidate pool stagnation
-// – Higher jitter (±0.12): more genuine ranking variation per refresh
-// – Country filter: still STRICT (Discover-only with with_origin_country)
-// – Genre/mood hard filter: unchanged (MOOD_GENRES stays precise)
-// – Decade diversity: max 3 films per decade in final results
-// – Raised maxCandidates default to 600
-// =====================================================
+// Personalised discovery: signed taste evidence, confidence-aware quality,
+// diverse seeds and soft repeat penalties.
 import {
   trendingMovies,
   upcomingMovies,
@@ -23,6 +8,7 @@ import {
   movieCredits,
   personMovieCredits,
 } from "../utils/api";
+import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks } from "../../shared/taste.js";
 import { GENRE_MAP } from "../utils/genres";
 
 /* ------------------------------------------------------------------ */
@@ -261,11 +247,6 @@ function decade(year) {
   return Math.floor(year / 10) * 10;
 }
 
-// Raised jitter ±0.12 — more genuine ranking variation on each refresh
-function jitter() {
-  return (Math.random() - 0.5) * 0.24;
-}
-
 function qualityLabel(avg) {
   if (avg >= 8.5) return "a true masterpiece";
   if (avg >= 7.8) return "critically acclaimed";
@@ -322,46 +303,12 @@ export async function getRecommendations({
   /* 1. Taste DNA: genre + decade affinity from liked films             */
   /* ================================================================= */
 
-  const likedFilms = watched.filter((m) => !m.rated || m.rated >= 6);
-
-  const genreWeightSum  = new Map();
-  const genreCount      = new Map();
-  const decadeWeightSum = new Map();
-  const decadeCount     = new Map();
-
-  likedFilms.forEach((m) => {
-    const ratingFactor = m.rated ? (m.rated >= 8 ? 1.5 : m.rated >= 6 ? 1.0 : 0.6) : 0.4;
-    const w = ratingFactor * (m.rated ? m.rated / 10 : 0.5);
-
-    m.genres?.forEach((g) => {
-      genreWeightSum.set(g, (genreWeightSum.get(g) || 0) + w);
-      genreCount.set(g, (genreCount.get(g) || 0) + 1);
-    });
-
-    const dec = decade(m.year);
-    if (dec) {
-      decadeWeightSum.set(dec, (decadeWeightSum.get(dec) || 0) + w);
-      decadeCount.set(dec, (decadeCount.get(dec) || 0) + 1);
-    }
-  });
-
-  const SMOOTHING_ALPHA = 2;
-  const genreAffinity = new Map();
-  genreWeightSum.forEach((total, g) => {
-    const count    = genreCount.get(g);
-    const smoothed = (total + SMOOTHING_ALPHA * 0.5) / (count + SMOOTHING_ALPHA);
-    genreAffinity.set(g, smoothed);
-  });
-
-  const decadeAffinity = new Map();
-  decadeWeightSum.forEach((total, d) => {
-    decadeAffinity.set(d, total / decadeCount.get(d));
-  });
-
-  const favGenres = [...genreAffinity.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([g]) => g)
-    .slice(0, 8);
+  const likedFilms = watched.filter(m => Number(m.rated) >= 6);
+  const taste = tasteProfile(watched);
+  const genreAffinity = taste.genres;
+  const decadeAffinity = taste.decades;
+  const favGenres = [...genreAffinity].filter(([, score]) => score > 0)
+    .sort((a,b) => b[1] - a[1]).slice(0, 8).map(([id]) => id);
 
   // Strong affinity genres: user has ≥3 films rated ≥8★
   const strongAffinityGenres = new Set();
@@ -490,9 +437,13 @@ export async function getRecommendations({
 
   const candidates = new Map();
 
-  watchlist.forEach((m) =>
-    candidates.set(m.id, { id: m.id, raw: m, source: "watchlist", dirScore: 0, actorScore: 0 })
-  );
+  const hydratedWatchlist = await Promise.allSettled(watchlist.slice(0, 20).map(m => movieDetails(m.id)));
+  hydratedWatchlist.forEach(r => {
+    if (r.status === 'fulfilled') {
+      const m = r.value;
+      candidates.set(m.id, {id: m.id, raw: {...m, genre_ids: genreIds(m)}, source: 'watchlist', dirScore: 0, actorScore: 0});
+    }
+  });
 
   const hasPersonFilter = !!(prefs.directorId || prefs.actorId);
   const withCountry     = !!prefs.country;
@@ -630,7 +581,7 @@ export async function getRecommendations({
       });
     }
 
-    // ── Cinephile seed injection — 6 random auteurs per call (was 3) ──
+    // Exploration candidates still have to earn their place through taste scoring.
     const shuffled  = [...CINEPHILE_DIRECTORS].sort(() => Math.random() - 0.5);
     const seedDirs  = shuffled.slice(0, 6);
 
@@ -643,20 +594,17 @@ export async function getRecommendations({
         if (!candidates.has(m.id)) {
           candidates.set(m.id, {
             id: m.id, raw: m, source: "cinephile_seed",
-            dirScore: 0.55, dirName: name, actorScore: 0,
+            dirScore: 0, dirName: name, actorScore: 0,
           });
         }
       });
     });
 
     // ── TMDB recommendations from top-10 highest-rated watched films ──
-    const seedFilms = [...watched]
-      .filter((m) => m.rated >= 8)
-      .sort((a, b) => (b.rated || 0) - (a.rated || 0))
-      .slice(0, 10);
+    const seedFilms = seedMovies(watched, 8);
 
     for (const m of seedFilms) {
-      const d = await movieDetails(m.id);
+      const d = await movieDetails(m.id).catch(() => ({}));
       (d.recommendations?.results || []).forEach((r) => {
         if (!candidates.has(r.id))
           candidates.set(r.id, { id: r.id, raw: r, source: `similar:${m.title}`, dirScore: 0, actorScore: 0 });
@@ -664,23 +612,39 @@ export async function getRecommendations({
     }
   }
 
-  const pool = [...candidates.values()].slice(0, maxCandidates);
+  // Apply country/person constraints to every source, including saved watchlists.
+  let pool = [...candidates.values()].slice(0, maxCandidates);
+  if (prefs.country || hasPersonFilter) {
+    pool = pool.filter(({id, raw}) => !watched.some(m => Number(m.id) === Number(id)) && !raw.adult)
+      .sort((a,b) => qualityScore(b.raw)-qualityScore(a.raw)).slice(0,80);
+    const checked = [];
+    for (let offset = 0; offset < pool.length; offset += 6) {
+      checked.push(...await Promise.allSettled(pool.slice(offset, offset + 6).map(async item => {
+      const d = await movieDetails(item.id);
+      if (prefs.country && !(d.origin_country || d.production_countries?.map(c => c.iso_3166_1) || []).includes(prefs.country)) return null;
+      if (prefs.directorId && !d.credits?.crew?.some(p => p.job === 'Director' && Number(p.id) === Number(prefs.directorId))) return null;
+      if (prefs.actorId && !d.credits?.cast?.some(p => Number(p.id) === Number(prefs.actorId))) return null;
+      return {...item, raw: {...d, genre_ids: genreIds(d)}};
+      })));
+    }
+    pool = checked.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+  }
 
   /* ================================================================= */
   /* 8. Score each candidate                                             */
   /* ================================================================= */
 
-  const watchedIds = new Set(watched.map((m) => m.id));
+  const watchedIds = new Set(watched.map((m) => Number(m.id)));
 
   const voteCountFloor = watched.length >= 100 ? 80 : 30;
 
   const scored = pool
-    .filter(({ id  }) => !watchedIds.has(id))
-    .filter(({ id  }) => !recentlyShown.has(id))
+    .filter(({ id  }) => !watchedIds.has(Number(id)))
+    .filter(({ raw }) => !raw.adult && (!raw.release_date || raw.release_date <= new Date().toISOString().slice(0, 10)))
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
     .filter(({ raw }) => (raw.vote_average || 0) >= 5.0)
     .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId }) => {
-      const genreIds    = raw.genre_ids || [];
+      const genreIds    = raw.genre_ids || raw.genres?.map(g => g.id ?? g) || [];
       const movieYear   = parseInt((raw.release_date || "").slice(0, 4), 10) || 2000;
       const movieDecade = decade(movieYear);
       const voteCount   = raw.vote_count   || 0;
@@ -688,18 +652,14 @@ export async function getRecommendations({
 
       // ── Genre score (cosine-similarity) × specificity multiplier ──
       const matching = genreIds.filter((g) => favGenres.includes(g));
-      const rawGenreScore =
-        matching.length > 0
-          ? matching.reduce((s, g) => s + (genreAffinity.get(g) || 0), 0) /
-            Math.sqrt(matching.length * favGenres.length)
-          : 0;
+      const rawGenreScore = genreIds.length ? genreIds.reduce((s,g) => s + (genreAffinity.get(g) || 0), 0) / Math.sqrt(genreIds.length) : 0;
       const maxSpecificity = genreIds.reduce(
         (mx, g) => Math.max(mx, GENRE_SPECIFICITY[g] || 1.0), 1.0
       );
       const genreScore = rawGenreScore * maxSpecificity;
 
       // ── Sigmoid vote score ──
-      const voteScore = sigmoidVoteScore(voteAvg);
+      const voteScore = sigmoidVoteScore(qualityScore(raw));
 
       const decScore   = decadeAffinity.get(movieDecade) || 0;
       const dirBonus   = dirScore  > 0 ? Math.min(dirScore,          1) : 0;
@@ -713,9 +673,8 @@ export async function getRecommendations({
       else if (voteAvg >= 7.2)                               qualityBoost = 0.06;
 
       // ── Criterion / Radiance label boost ──
-      // Films from these curated labels receive a significant advantage.
-      // They represent the finest of world cinema and editorial taste-making.
-      const criterionBoost = CRITERION_RADIANCE_IDS.has(id) ? 0.28 : 0;
+      // A small editorial tie-breaker must not override personal preferences.
+      const criterionBoost = CRITERION_RADIANCE_IDS.has(id) ? 0.03 : 0;
 
       // ── Strong affinity boost ──
       const strongAffinityBoost = genreIds.some((g) => strongAffinityGenres.has(g)) ? 0.08 : 0;
@@ -724,7 +683,7 @@ export async function getRecommendations({
       const mainstreamPenalty = voteCount > 50000 ? 0.08 : voteCount > 30000 ? 0.05 : 0;
 
       // ── Cinephile seed boost ──
-      const cinephileBoost = source === "cinephile_seed" ? 0.07 : 0;
+      const cinephileBoost = source === "cinephile_seed" ? 0.01 : 0;
 
       // ── Keyword / nanogenre score (Nanocrowd-inspired) ──
       // keywordMap: Map<keywordId, {name, weight}> built from liked films' keywords
@@ -740,7 +699,7 @@ export async function getRecommendations({
 
       // ── Final score ──
       const score =
-        genreScore         * 0.28 +
+        genreScore         * 0.55 +
         voteScore          * 0.14 +
         decScore           * 0.07 +
         dirBonus           * 0.18 +
@@ -751,7 +710,7 @@ export async function getRecommendations({
         cinephileBoost           +
         keywordScore             -
         mainstreamPenalty        +
-        jitter();
+        0;
 
       /* ---- Reason tag ---- */
       let reason = null;
@@ -764,7 +723,7 @@ export async function getRecommendations({
         const avgStars = dirId != null ? dirAvgStars.get(dirId) : null;
         if (avgStars != null && avgStars > 0) {
           const avgStr = avgStars % 1 === 0 ? avgStars.toFixed(0) : avgStars.toFixed(1);
-          reason = `${dirName}'s work — you rate it ${avgStr}★ on avg`;
+          reason = `From ${dirName}, a director among your highly rated films`;
         } else {
           reason = `Because you love ${dirName}'s films`;
         }
@@ -775,7 +734,7 @@ export async function getRecommendations({
         if (actScore != null) {
           const stars = ((actScore * 5) % 1 === 0)
             ? (actScore * 5).toFixed(0) : (actScore * 5).toFixed(1);
-          reason = `${actorName}'s films — you rate them ${stars}★`;
+          reason = `Features ${actorName}, who appears in films you rated highly`;
         } else {
           reason = `Starring ${actorName}`;
         }
@@ -824,28 +783,5 @@ export async function getRecommendations({
     );
   }
 
-  // Diversity: max 2 films per director + max 4 films per decade
-  if (!hasPersonFilter) {
-    const dirCount    = new Map();
-    const decadeCount = new Map();
-    const diverse     = [];
-    for (const item of results) {
-      if (item.dirName) {
-        const cnt = dirCount.get(item.dirName) || 0;
-        if (cnt >= 2) continue;
-        dirCount.set(item.dirName, cnt + 1);
-      }
-      const dec = decade(item.year);
-      if (dec) {
-        const dcnt = decadeCount.get(dec) || 0;
-        if (dcnt >= 4) continue;
-        decadeCount.set(dec, dcnt + 1);
-      }
-      diverse.push(item);
-      if (diverse.length >= top * 2) break;
-    }
-    results = diverse;
-  }
-
-  return results.slice(0, top);
+  return diversePicks(results.map(m => ({...m, genre_ids: m.genreIds, _score: m.score})), top, {recent: new Set([...recentlyShown].map(Number)), strength: hasPersonFilter ? .06 : .12});
 }
