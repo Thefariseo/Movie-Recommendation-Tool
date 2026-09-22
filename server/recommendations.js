@@ -1,5 +1,6 @@
 import { database, allRows, HttpError, uuid, remote } from './http.js';
 import { predict, groupScore } from '../shared/model.js';
+import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridScore } from '../shared/taste.js';
 export async function tmdb(path, params = {}) {
   const key = process.env.TMDB_KEY || process.env.VITE_TMDB_KEY;
   if (!key) throw new HttpError(503, 'Film discovery is not configured yet.');
@@ -10,20 +11,9 @@ export async function tmdb(path, params = {}) {
   });
   return remote(`https://api.themoviedb.org/3/${path}?${query}`);
 }
-function genreProfile(rows) {
-  const scores = new Map();
-  for (const row of rows.filter(r => r.kind === 'watched')) {
-    const weight = (row.rating || 6) - 5;
-    for (const id of row.movie.genre_ids || []) scores.set(id, (scores.get(id) || 0) + weight);
-  }
-  return scores;
-}
-export function contentScore(movie, profile) {
-  const g = (movie.genre_ids || movie.genres?.map(x => x.id) || []).map(id => profile.get(id) || 0);
-  const affinity = g.length ? g.reduce((a, b) => a + b, 0) / g.length : 0;
-  return Math.max(1, Math.min(10, 5 + Math.tanh(affinity / 12) * 2 + (Number(movie.vote_average || 6) - 6) * .4));
-}
-export async function recommendations(ctx, members = [], constraints = {}) {
+const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
+export const contentScore = tasteScore;
+export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
   const ids = [...new Set([ctx.user.id, ...members.map(uuid)])],
     db = database(ctx.token);
@@ -59,7 +49,7 @@ export async function recommendations(ctx, members = [], constraints = {}) {
   }) : [];
   const candidateMap = new Map();
   const add = movies => {
-    for (const m of movies || []) if (m.id && !excluded.has(Number(m.id))) candidateMap.set(Number(m.id), m);
+    for (const m of movies || []) if (m.id && !excluded.has(Number(m.id))) candidateMap.set(Number(m.id), {...candidateMap.get(Number(m.id)), ...m, genre_ids: genreIds(m)});
   };
   const modelIds = model ? [...new Set(ids.flatMap(id => Object.keys(model.items).map(mid => ({
     id: Number(mid),
@@ -74,31 +64,40 @@ export async function recommendations(ctx, members = [], constraints = {}) {
     }]);
   }
   for (const rows of libraries) {
-    const liked = rows.filter(r => r.kind === 'watched' && r.rating >= 7).sort((a, b) => b.rating - a.rating).slice(0, 2);
-    const results = await Promise.allSettled(liked.map(r => tmdb(`movie/${r.movie_id}/recommendations`)));
+    const liked = seedMovies(watchedMovies(rows), 4);
+    const results = await Promise.allSettled(liked.map(r => tmdb(`movie/${r.id}/recommendations`)));
     for (const r of results) if (r.status === 'fulfilled') add(r.value.results);
-    add(rows.filter(r => r.kind === 'watchlist').map(r => r.movie));
+    const saved = rows.filter(r => r.kind === 'watchlist' && !excluded.has(Number(r.movie_id))).slice(0, 12);
+    for (let i = 0; i < saved.length; i += 6) {
+      const details = await Promise.allSettled(saved.slice(i, i + 6).map(r => tmdb(`movie/${r.movie_id}`)));
+      for (const r of details) if (r.status === 'fulfilled') add([r.value]);
+    }
   }
-  const profiles = libraries.map(genreProfile);
-  const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...profiles[0]].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => id);
-  const discovery = await tmdb('discover/movie', {
+  const profiles = libraries.map(rows => tasteProfile(watchedMovies(rows)));
+  const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...new Set(profiles.flatMap(p => [...p.genres].filter(([,score]) => score > 0).sort((a,b) => b[1] - a[1]).slice(0, 2).map(([id]) => id)))].slice(0, 6);
+  const discoveryParams = {
     sort_by: 'vote_average.desc',
     'vote_count.gte': '50',
     include_adult: 'false',
+    'primary_release_date.lte': new Date().toISOString().slice(0, 10),
+    ...(constraints.avoid_genres?.length ? { without_genres: constraints.avoid_genres.join(',') } : {}),
     ...(genres.length ? {
       with_genres: genres.join('|')
     } : {}),
     ...(constraints.max_runtime ? {
       'with_runtime.lte': String(constraints.max_runtime)
     } : {})
-  });
-  add(discovery.results);
+  };
+  const discovery = await Promise.allSettled([1, 2, 3].map(page => tmdb('discover/movie', {...discoveryParams, page: String(page)})));
+  for (const r of discovery) if (r.status === 'fulfilled') add(r.value.results);
+  if (!candidateMap.size && discovery.every(r => r.status === 'rejected')) throw new HttpError(502, 'Film discovery is temporarily unavailable. Please try again.');
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
-  let movies = [...candidateMap.values()].filter(m => !m.adult).map(m => {
-    const scores = ids.map((id, index) => predict(model || {
-      users: {},
-      items: {}
-    }, id, m.id) ?? (index === 0 ? neighborMap.get(m.id)?.score : null) ?? contentScore(m, profiles[index]));
+  let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
+    const scores = ids.map((id, index) => hybridScore(
+      contentScore(m, profiles[index]),
+      predict(model || {users: {}, items: {}}, id, m.id),
+      index === 0 ? neighborMap.get(m.id) : null
+    ));
     const learned = ids.some(id => predict(model || {
         users: {},
         items: {}
@@ -108,7 +107,7 @@ export async function recommendations(ctx, members = [], constraints = {}) {
       ...m,
       _score: groupScore(scores),
       _engine: learned ? 'matrix-factorization' : neighbor ? 'collaborative' : 'content',
-      _reason: ids.length > 1 ? 'Balances the group’s film tastes' : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : 'Based on your film tastes',
+      _reason: ids.length > 1 ? 'Balances the group’s film tastes' : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
       _support: neighbor ? Number(neighbor.support) : undefined
     };
   }).sort((a, b) => b._score - a._score);
@@ -125,9 +124,13 @@ export async function recommendations(ctx, members = [], constraints = {}) {
         }))
       })));
       for (const r of part) if (r.status === 'fulfilled') enriched.push(r.value);
-      if (enriched.length >= 18 && !constraints.avoid_violence && !constraints.theme) break;
+      // Check the whole bounded shortlist: early non-matches must not hide later matches.
     }
     movies = enriched.filter(m => {
+      if (m.adult || (m.release_date && m.release_date > new Date().toISOString().slice(0, 10))) return false;
+      const genres = genreIds(m);
+      if (constraints.genre_ids?.length && !genres.some(g => constraints.genre_ids.includes(g))) return false;
+      if (constraints.avoid_genres?.some(g => genres.includes(g))) return false;
       if (constraints.max_runtime && (!m.runtime || m.runtime > constraints.max_runtime)) return false;
       const keywords = m.keywords?.keywords || [];
       const text = `${m.overview || ''} ${keywords.map(k => k.name).join(' ')}`.toLowerCase();
@@ -136,6 +139,7 @@ export async function recommendations(ctx, members = [], constraints = {}) {
       return true;
     });
   }
+  movies = diversePicks(movies, 12, { recent: new Set(recentIds.map(Number)) });
   const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : 'content';
   return {
     movies: movies.slice(0, 12),

@@ -19,6 +19,14 @@ A film discovery app built with React 18, Vite and Tailwind. Guest mode remains 
 
 These are code paths, not proof that the remote services have been provisioned. This implementation does not create a Supabase project, deploy the SQL, configure OAuth providers, train on production users, or publish a production deployment by itself.
 
+## Recommendation ranking update
+
+Local and account recommendations now learn genre and decade preferences from both high and low ratings. Unrated history is excluded from preference learning. Sparse evidence is shrunk toward neutral, and TMDB scores are weighted by vote count. Curated labels are a small tie-breaker rather than the main ranking signal.
+
+Account picks blend content, neighbour evidence and available trained predictions instead of replacing content with a single source. Group discovery draws candidate genres from every member; the existing least-misery group score and watched-film exclusions remain. Diverse seed selection and final reranking reduce near-identical picks. **Other picks** de-prioritises recently displayed titles without emptying a narrowly filtered result set. Genre and runtime controls apply to every candidate source, including watchlists; explicit constraints are never relaxed to fill the list.
+
+These changes are covered by deterministic ranking and mocked provider regression tests. They are not a measured improvement on real-user satisfaction: that requires feedback and a larger consenting evaluation cohort. The existing model-training quality gate remains unchanged.
+
 ## Local development
 
 Requires Node 22+.
