@@ -13,14 +13,14 @@ import {
   Clock,
   Play,
   X,
-  Star,
   Sparkles,
   Tv,
   Award,
 } from "lucide-react";
 import useWatchlist from "@/hooks/useWatchlist";
 import useWatched from "@/hooks/useWatched";
-import { externalIds, rottenScore, movieDetails, movieWatchProviders } from "@/utils/api";
+import { externalIds, movieDetails, movieWatchProviders } from "@/utils/api";
+import FilmRatings from "./FilmRatings";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
@@ -44,21 +44,18 @@ export default function MovieModal({ movie, onClose }) {
   const alreadyWatched = isWatched(movie.id);
   const watchedEntry   = watched.find((m) => m.id === movie.id);
 
-  /* ---- External IDs + Rotten Tomatoes ---- */
+  /* ---- External IDs (IMDb link) ---- */
+  // IMDb and Rotten Tomatoes figures come from our server's cache through
+  // FilmRatings, so the OMDb key never reaches the browser.
   const [imdbID,    setImdbID]    = useState(null);
-  const [tomato,    setTomato]    = useState(null);
   const [providers, setProviders] = useState(null);
 
   useEffect(() => {
     setImdbID(null);
-    setTomato(null);
     setProviders(null);
 
     externalIds(movie.id).then((ids) => {
-      if (ids?.imdb_id) {
-        setImdbID(ids.imdb_id);
-        rottenScore(ids.imdb_id).then(setTomato).catch(() => {});
-      }
+      if (ids?.imdb_id) setImdbID(ids.imdb_id);
     }).catch(() => {});
 
     movieWatchProviders(movie.id, country)
@@ -274,13 +271,7 @@ export default function MovieModal({ movie, onClose }) {
                   <Clock className="h-3 w-3" /> {runtime} min
                 </span>
               )}
-              {movie.vote_average > 0 && (
-                <span className="flex items-center gap-1 font-semibold text-amber-500">
-                  <Star className="h-3 w-3 fill-amber-500" />
-                  {movie.vote_average.toFixed(1)}
-                </span>
-              )}
-              {tomato && <span className="text-red-500">🍅 {tomato}</span>}
+              <FilmRatings movieId={movie.id} className="font-semibold text-slate-700 dark:text-slate-200" />
             </div>
 
             {director && (

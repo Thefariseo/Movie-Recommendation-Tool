@@ -23,6 +23,7 @@ import useWatched          from "@/hooks/useWatched";
 import { useToast }        from "@/contexts/ToastContext";
 import { GENRE_MAP }       from "@/utils/genres";
 import { searchPeople }    from "@/utils/api";
+import FilmRatings         from "./FilmRatings";
 
 /* ------------------------------------------------------------------ */
 /* Static data                                                          */
@@ -135,11 +136,10 @@ function PickCard({ movie }) {
         loading="lazy"
       />
 
-      {movie.vote_average > 0 && (
-        <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
-          ★ {movie.vote_average.toFixed(1)}
-        </span>
-      )}
+      <FilmRatings
+        movieId={movie.id}
+        className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white"
+      />
 
       {/* Criterion badge */}
       {movie._isCriterion && (
@@ -439,7 +439,6 @@ export default function ForYouSection() {
     : null;
 
   const year       = (pick?.release_date || "").slice(0, 4);
-  const voteLabel  = pick?.vote_average > 0 ? `★ ${pick.vote_average.toFixed(1)}` : null;
   const heroText   = pick?._narrative || pick?.overview || null;
   const dirName    = pick?._director  || null;
   const heroGenres = pick?.genres?.slice(0, 3) || [];
@@ -781,9 +780,7 @@ export default function ForYouSection() {
                       className="mt-2 flex flex-wrap items-center gap-2 text-xs"
                     >
                       {year && <span className="font-medium text-white/80">{year}</span>}
-                      {voteLabel && (
-                        <span className="font-semibold text-amber-400">{voteLabel}</span>
-                      )}
+                      {pick?.id && <FilmRatings movieId={pick.id} className="font-semibold text-white" />}
                       {heroGenres.map((g) => (
                         <span
                           key={g.id}

@@ -66,7 +66,7 @@ The API verifies access tokens with Supabase Auth before reading data. Browser r
 | `SUPABASE_SERVICE_ROLE_KEY` | Server/training process only | Trakt token storage and trained-model access/publication |
 | `VITE_TMDB_KEY` | Browser-visible | Existing film search and guest recommendations |
 | `TMDB_KEY` | Server | New recommendation/chat endpoints; falls back to existing `VITE_TMDB_KEY` |
-| `VITE_OMDB_KEY` | Browser-visible | Optional Rotten Tomatoes scores |
+| `OMDB_KEY` | Server | IMDb ratings and Rotten Tomatoes scores, the quality reference for display and ranking. Cached per film in `film_ratings` under a daily cap of 900 lookups; `VITE_OMDB_KEY` is still read as a fallback but is no longer sent to the browser |
 | `GOOGLE_AUTH_ENABLED` | Server | Enable the Google button after provider setup |
 | `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET` | Server | Trakt OAuth |
 | `INTEGRATION_ENCRYPTION_KEY` | Server | AES-256-GCM encryption for Trakt token pairs |
