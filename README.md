@@ -106,6 +106,25 @@ Withdrawing learning consent or removing contributed ratings invalidates saved m
 
 Group suggestions require each selected friend to allow library sharing and to have ratings. They exclude every participant's watched films and favor balanced scores (`60% minimum + 40% mean`) over a film one participant strongly dislikes.
 
+## Taste space
+
+Every recommendation path also places the member in a **taste space**: a 24-dimensional vector per film, learned offline with implicit ALS from MovieLens 32M (200,000 people, 32 million ratings; 16,012 films with at least 50 ratings, keyed by TMDB id). A rating counts as liking from 7/10 up, more so the higher it is. The member's vector is solved from their own loved films (and, more weakly, their watchlist) in a few milliseconds, so there is no training per member and nothing about them leaves Umbrify.
+
+- `scripts/taste-space/train.py` rebuilds `public/models/taste-space.bin` (0.6 MB, int8 factors) from the dataset; the docstring has the steps.
+- `shared/tasteSpace.js` parses it, places a member, scores every film and splits a film's score into one share per loved film, which is what the reason names (`Fans of "Ran" love it — you gave 5★`).
+- The browser fetches the file lazily; Edge functions fetch it from `APP_URL`. Without it, picks carry on from the member's own evidence.
+- Group picks rank the space by each film's weakest match among the members.
+
+Offline, on 2,000 held-out MovieLens users who reveal 5, 10 or 20 random ratings, recall@20 of their hidden 4.5★+ films:
+
+| Revealed ratings | Popularity | Genre + quality (like the old ranking) | Taste space |
+|---|---|---|---|
+| 5 | 0.253 | 0.117 | **0.285** |
+| 10 | 0.251 | 0.116 | **0.324** |
+| 20 | 0.249 | 0.113 | **0.347** |
+
+MovieLens is licensed for non-commercial research use and requires acknowledgement: F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM TiiS 5, 4, Article 19. GroupLens does not endorse Umbrify. **Commercial use needs GroupLens' permission, or the space retrained on Umbrify's own consenting ratings.**
+
 ## Trakt, Letterboxd and streaming
 
 Register this exact callback in your Trakt application:

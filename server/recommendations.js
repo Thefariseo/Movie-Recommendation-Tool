@@ -3,7 +3,9 @@ import { predict, groupScore } from '../shared/model.js';
 import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridScore } from '../shared/taste.js';
 import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
-import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf } from '../shared/evidence.js';
+import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
+import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
+import { loadTasteSpace } from './tasteSpace.js';
 export { tmdb };
 const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
 const filmDetails = id => tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
@@ -24,6 +26,11 @@ async function memberEvidence(movies) {
 // the same proportions the browser recommender uses against its genre weight.
 const EVIDENCE_WEIGHT = { language: .65, director: 1.5, cast: .5, keywords: 1.3, country: .35 };
 const SHORTLIST = 24;
+// The taste space on the same scale: a film six standard deviations above a
+// member's ordinary match gains over 2 points, as much as a strongly liked genre.
+const PEER_WEIGHT = 3;
+const PEER_PICKS = 20;
+const peerPoints = z => PEER_WEIGHT * peerStrength(z);
 export const contentScore = tasteScore;
 export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
@@ -67,7 +74,30 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     id: Number(mid),
     score: predict(model, id, mid)
   })).filter(x => x.score != null && !excluded.has(x.id)).sort((a, b) => b.score - a.score).slice(0, 20).map(x => x.id)))] : [];
-  const detailIds = [...new Set([...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 40);
+  // Every member is placed in the taste space from their own ratings. It costs
+  // no provider calls, so group picks use it for everyone.
+  const space = await loadTasteSpace();
+  const placed = space ? libraries.map(rows => {
+    const member = placeMember(space, watchedMovies(rows), rows.filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
+    return member && { member, z: affinities(space, member) };
+  }) : [];
+  const peerZ = (index, id) => {
+    const i = space?.index.get(Number(id));
+    return i == null || !placed[index] ? null : placed[index].z[i];
+  };
+  // The films the whole group would love most: each film is only as strong as
+  // its weakest match among the members the space could place.
+  const spaceIds = [];
+  if (placed.some(Boolean)) {
+    const ranked = [];
+    for (let i = 0; i < space.n; i++) {
+      if (space.counts[i] < 200 || excluded.has(space.tmdb[i])) continue;
+      const zs = placed.filter(Boolean).map(p => p.z[i]);
+      ranked.push([space.tmdb[i], Math.min(...zs)]);
+    }
+    spaceIds.push(...ranked.sort((a, b) => b[1] - a[1]).slice(0, PEER_PICKS).map(([id]) => id));
+  }
+  const detailIds = [...new Set([...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 50);
   for (let i = 0; i < detailIds.length; i += 5) {
     const results = await Promise.allSettled(detailIds.slice(i, i + 5).map(id => tmdb(`movie/${id}`)));
     for (const r of results) if (r.status === 'fulfilled') add([{
@@ -113,7 +143,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(
-      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0),
+      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)),
       predict(model || {users: {}, items: {}}, id, m.id),
       index === 0 ? neighborMap.get(m.id) : null
     ));
@@ -122,11 +152,16 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
         items: {}
       }, id, m.id) != null),
       neighbor = neighborMap.get(m.id);
+    // A single member's strong match names the loved films that pull it up.
+    const z = peerZ(0, m.id);
+    const peer = ids.length === 1 && z != null && z >= 1.5 ? peerReason(becauseOf(space, placed[0].member, space.index.get(Number(m.id)))) : null;
+    const peerAll = ids.length > 1 && placed.length && placed.every(Boolean) && ids.every((_, index) => (peerZ(index, m.id) ?? -Infinity) >= 1);
     return {
       ...m,
       _score: groupScore(scores),
-      _engine: learned ? 'matrix-factorization' : neighbor ? 'collaborative' : 'content',
-      _reason: ids.length > 1 ? 'Balances the group’s film tastes' : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
+      _engine: learned ? 'matrix-factorization' : neighbor ? 'collaborative' : peer || peerAll ? 'taste-space' : 'content',
+      ...(peer ? { _reasonDetail: peer.full, _peer: true } : {}),
+      _reason: peerAll ? 'People with each of your tastes love it' : ids.length > 1 ? 'Balances the group’s film tastes' : peer ? peer.short : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
       _support: neighbor ? Number(neighbor.support) : undefined
     };
   }).sort((a, b) => b._score - a._score);
@@ -144,7 +179,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       m._score += EVIDENCE_WEIGHT.director * match.director + EVIDENCE_WEIGHT.cast * match.cast
         + EVIDENCE_WEIGHT.keywords * match.keywords + EVIDENCE_WEIGHT.country * match.country;
       const cited = evidenceReason(match.because);
-      if (cited) { m._reason = cited.short; m._reasonDetail = cited.full; }
+      // The taste-space reason names loved films too; only a loved director or actor is more specific.
+      if (cited && (!m._peer || match.because.director || match.because.actor)) { m._reason = cited.short; m._reasonDetail = cited.full; }
       // Lets the diversity pass avoid three films by one director.
       m.dirName = directorsOf(details[i].value)[0]?.name || m.dirName;
     });
@@ -177,10 +213,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     });
   }
   movies = diversePicks(movies, 12, { recent: new Set(recentIds.map(Number)) });
-  const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : 'content';
+  const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : movies.some(m => m._engine === 'taste-space') ? 'taste-space' : 'content';
   return {
     movies: movies.slice(0, 12),
     engine,
-    message: ids.length > 1 ? 'Picks balance everyone’s taste; films already watched by anyone are excluded.' : engine === 'content' ? 'Not enough shared rating history yet. These picks use your film tastes.' : engine === 'collaborative' ? 'These picks use ratings from people with similar tastes.' : 'These picks include predictions from the trained community model.'
+    message: ids.length > 1 ? 'Picks balance everyone’s taste; films already watched by anyone are excluded.' : engine === 'content' ? 'Not enough shared rating history yet. These picks use your film tastes.' : engine === 'collaborative' ? 'These picks use ratings from people with similar tastes.' : engine === 'taste-space' ? 'These picks draw on what people with your taste love.' : 'These picks include predictions from the trained community model.'
   };
 }
