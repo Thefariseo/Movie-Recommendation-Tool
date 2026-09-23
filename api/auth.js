@@ -1,4 +1,5 @@
 import { nodeHandler, settings, authRequest, identify, body, saveSession, clearSession, cookies, setCookie, HttpError, database, remote } from '../server/http.js';
+import { publicUser } from '../server/user-profile.js';
 import { randomSecret, hash } from '../server/crypto.js';
 export async function auth(ctx) {
   const action = ctx.url.searchParams.get('action') || 'session';
@@ -12,15 +13,12 @@ export async function auth(ctx) {
     const user = await identify(ctx, false);
     const profiles = user ? await database(ctx.token)(`profiles?id=eq.${user.id}&select=*`) : [];
     return {
-      user: user ? {
-        id: user.id,
-        email: user.email
-      } : null,
+      user: user ? publicUser(user) : null,
       profile: profiles[0] || null,
       configured: true,
       google: process.env.GOOGLE_AUTH_ENABLED === 'true',
       trakt: !!process.env.TRAKT_CLIENT_ID,
-      chat: !!process.env.OPENAI_API_KEY
+      chat: !!(process.env.OPENAI_API_KEY && process.env.OPENAI_CHAT_MODEL)
     };
   }
   const {
