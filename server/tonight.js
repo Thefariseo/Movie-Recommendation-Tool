@@ -3,7 +3,7 @@
 // the group's own history, so whoever compromised lately counts a bit more.
 import { database, HttpError, uuid } from './http.js';
 import { recommendations, tmdb } from './recommendations.js';
-import { MOODS, TIMES, VOTES, compromise, fairnessWeights, tally } from '../shared/tonight.js';
+import { MOODS, TIMES, VOTES, compromise, fairnessWeights, tally, passesFilters, avoidedGenres } from '../shared/tonight.js';
 
 const BALLOT = 5;
 const compact = m => ({
@@ -12,11 +12,13 @@ const compact = m => ({
 });
 
 /** Which of the member's services stream a film in their region, by provider id. */
-async function streamedOn(id, region, providers) {
+async function streamedOn(id, region, providers, rent = false) {
   try {
     const data = await tmdb(`movie/${id}/watch/providers`);
-    const offers = data.results?.[region]?.flatrate || [];
-    return offers.filter(p => providers.includes(Number(p.provider_id))).map(p => ({ id: Number(p.provider_id), name: p.provider_name, logo_path: p.logo_path }));
+    const here = data.results?.[region] || {};
+    const offers = [...(here.flatrate || []), ...(rent ? [...(here.rent || []), ...(here.buy || [])] : [])];
+    const found = offers.filter(p => providers.includes(Number(p.provider_id)));
+    return [...new Map(found.map(p => [Number(p.provider_id), { id: Number(p.provider_id), name: p.provider_name, logo_path: p.logo_path }])).values()];
   } catch {
     return [];
   }
@@ -30,23 +32,25 @@ async function history(db, members) {
   return nights.map(n => ({ ...n, votes: votes.filter(v => v.session_id === n.id) }));
 }
 
-export async function createNight(ctx, { members = [], mood = null, time = null, providers = [], region = 'IT' } = {}) {
+export async function createNight(ctx, { members = [], mood = null, time = null, providers = [], region = 'IT', rent = false, era = null, language = null, minRating = null, popularity = null, avoid = [], gentle = false } = {}) {
   if (!Array.isArray(members) || !members.length || members.length > 3) throw new HttpError(400, 'Choose one to three friends.');
   const friends = [...new Set(members.map(uuid))].filter(id => id !== ctx.user.id);
   const genres = MOODS[mood]?.genres || [];
+  const filters = { era, language, minRating: Number(minRating) || null, popularity, avoid: Array.isArray(avoid) ? avoid.map(Number).filter(Number.isSafeInteger).slice(0, 12) : [], gentle: gentle === true };
   const max = TIMES[time]?.max || null;
   // Group picks check that every friend follows back and shares their activity.
-  const picks = await recommendations(ctx, friends, { genre_ids: genres, avoid_genres: [], avoid_violence: false, max_runtime: max, theme: null, marathon_count: 1, excluded_ids: [] });
+  const picks = await recommendations(ctx, friends, { genre_ids: genres, avoid_genres: avoidedGenres(filters), avoid_violence: filters.gentle, max_runtime: max, theme: null, marathon_count: 1, excluded_ids: [] });
   const services = Array.isArray(providers) ? providers.map(Number).filter(Number.isSafeInteger).slice(0, 12) : [];
   const safeRegion = /^[A-Z]{2}$/.test(region) ? region : 'IT';
   let ballot = [];
   for (const m of picks.movies) {
     if (ballot.length >= BALLOT) break;
+    if (!passesFilters(m, filters)) continue;
     if (!services.length) { ballot.push(m); continue; }
-    const on = await streamedOn(m.id, safeRegion, services);
+    const on = await streamedOn(m.id, safeRegion, services, rent === true);
     if (on.length) ballot.push({ ...m, providers: on });
   }
-  if (!ballot.length) throw new HttpError(404, services.length ? 'None of tonight’s picks is streaming on your services. Try more services or another mood.' : 'No picks matched. Try another mood or time.');
+  if (!ballot.length) throw new HttpError(404, services.length ? 'None of tonight’s picks is on your services with these filters. Try more services, fewer filters or another mood.' : 'No picks matched these filters. Try fewer filters, another mood or more time.');
   const db = database(ctx.token);
   const everyone = [ctx.user.id, ...friends];
   const weights = fairnessWeights(compromise(await history(db, everyone), everyone));
