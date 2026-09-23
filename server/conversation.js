@@ -1,5 +1,5 @@
 import { remote } from './http.js';
-import { parseConversation, validateConstraints, GENRES } from '../shared/conversation.js';
+import { parseConversation, validateConstraints, guidedUnderstands, GENRES } from '../shared/conversation.js';
 const schema = {
   type: 'object',
   additionalProperties: false,
@@ -37,7 +37,8 @@ export async function interpret(message, previous, messages, lastIds) {
   const fallback = parseConversation(message, previous, lastIds);
   if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_CHAT_MODEL) return {
     constraints: fallback,
-    mode: 'guided'
+    mode: 'guided',
+    understood: guidedUnderstands(message, previous, lastIds)
   };
   try {
     const response = await remote('https://api.openai.com/v1/responses', {
@@ -77,12 +78,14 @@ export async function interpret(message, previous, messages, lastIds) {
         ...JSON.parse(output),
         excluded_ids: fallback.excluded_ids
       }),
-      mode: 'conversational'
+      mode: 'conversational',
+      understood: true
     };
   } catch {
     return {
       constraints: fallback,
-      mode: 'guided-fallback'
+      mode: 'guided-fallback',
+      understood: guidedUnderstands(message, previous, lastIds)
     };
   }
 }

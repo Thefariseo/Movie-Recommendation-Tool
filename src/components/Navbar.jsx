@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Compass, Library, Users, UserRound, Sun, Moon } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
@@ -81,7 +82,15 @@ export default function Navbar() {
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <NavLink to="/profile" className="account-link">
-              <UserRound size={18} aria-hidden="true" />
+              {user ? (
+                <UserAvatar
+                  user={user}
+                  name={user.full_name}
+                  className="nav-avatar"
+                />
+              ) : (
+                <UserRound size={18} aria-hidden="true" />
+              )}
               <span>{user ? "Account" : "Sign in"}</span>
             </NavLink>
           </div>
