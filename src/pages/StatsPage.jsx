@@ -16,6 +16,7 @@ import useWatched from "@/hooks/useWatched";
 import { GENRE_MAP } from "@/utils/genres";
 import { movieCredits } from "@/utils/api";
 import StarRating from "@/components/StarRating";
+import YourEye from "@/components/YourEye";
 
 /* ---- Cinematic persona based on top genre ---- */
 function derivePersona(topGenreName) {
@@ -238,6 +239,8 @@ export default function StatsPage() {
           </div>
         </div>
       </section>
+
+      <YourEye />
 
       {/* ── Summary numbers ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

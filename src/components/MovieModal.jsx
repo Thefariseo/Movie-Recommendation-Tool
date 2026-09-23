@@ -22,6 +22,7 @@ import useWatched from "@/hooks/useWatched";
 import { externalIds, movieDetails, movieWatchProviders } from "@/utils/api";
 import FilmRatings from "./FilmRatings";
 import CriticVerdict from "./CriticVerdict";
+import FilmLook from "./FilmLook";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
@@ -315,6 +316,7 @@ export default function MovieModal({ movie, onClose }) {
         )}
 
         {user && <CriticVerdict movieId={movie.id} />}
+        <FilmLook movie={movie} />
 
         {/* ── Keywords / nanogenre tags ── */}
         {keywords.length > 0 && (

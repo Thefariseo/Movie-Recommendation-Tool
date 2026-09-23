@@ -9,6 +9,7 @@ import { backend } from "../utils/backend";
 import { watchProviderList } from "../utils/api";
 import { tonightPicks } from "../algorithms/tonight";
 import { MOODS, TIMES } from "../../shared/tonight.js";
+import { LOOKS } from "../../shared/visual.js";
 import MovieCard from "../components/MovieCard";
 
 const SERVICES_KEY = "umbrify_services_v1";
@@ -60,6 +61,7 @@ export default function TonightPage() {
   const [mode, setMode] = useState("solo");
   const [mood, setMood] = useState(null);
   const [time, setTime] = useState("standard");
+  const [look, setLook] = useState(null);
   const [services, setServices] = useState(readServices);
   const [catalogue, setCatalogue] = useState([]);
   const [picks, setPicks] = useState(null);
@@ -88,7 +90,7 @@ export default function TonightPage() {
     setError("");
     setPicks(null);
     try {
-      const found = await tonightPicks({ watched, watchlist, mood, time, providers: services, region: place });
+      const found = await tonightPicks({ watched, watchlist, mood, time, look, providers: services, region: place });
       setPicks(found);
       if (!found.length) setError(services.length ? "Nothing on your services fits tonight. Try another mood, more time or more services." : "Nothing fits tonight. Try another mood or more time.");
     } catch {
@@ -141,6 +143,15 @@ export default function TonightPage() {
           <p className="text-sm font-semibold">How much time do you have?</p>
           <div className="flex flex-wrap gap-2">{Object.entries(TIMES).map(([key, t]) => <Chip key={key} active={time === key} onClick={() => setTime(key)}>{t.label}</Chip>)}</div>
         </div>
+        {mode === "solo" && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">A look? <span className="font-normal text-slate-500">Colour and light</span></p>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={!look} onClick={() => setLook(null)}>Any</Chip>
+              {Object.entries(LOOKS).map(([key, l]) => <Chip key={key} active={look === key} onClick={() => setLook(key)}>{l.label}</Chip>)}
+            </div>
+          </div>
+        )}
         {catalogue.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-semibold">Your services in {place} <span className="font-normal text-slate-500">{services.length ? `· ${serviceNames}` : "· any"}</span></p>
