@@ -124,9 +124,16 @@ select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111'
 insert into public.critic_memory(user_id,notes) values('11111111-1111-4111-8111-111111111111','["Loves slow cinema"]');
 select public.test_assert((select count(*)=1 from public.critic_memory),'member reads own critic memory');
 select public.test_assert((select bool_and(public.consume_limit('critic-minute',1000,1)) from generate_series(1,6)),'six critic calls a minute are allowed');
+select public.test_assert((select bool_and(public.consume_limit('critic-day',1000,1)) from generate_series(1,15)),'fifteen critic questions a day are allowed');
+select public.test_assert(not public.consume_limit('critic-day',1000,1),'the sixteenth critic question of the day is refused');
+insert into public.critic_threads(user_id,title) values('11111111-1111-4111-8111-111111111111','My chat');
 select public.test_assert(not public.consume_limit('critic-minute',1000,1),'the seventh critic call in a minute is refused');
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 select public.test_assert((select count(*)=0 from public.critic_memory),'another member cannot read the critic memory');
+select public.test_assert((select count(*)=0 from public.critic_threads),'another member cannot read the critic chats');
+do $$begin
+ begin insert into public.critic_threads(user_id) values('11111111-1111-4111-8111-111111111111');raise exception 'Created a chat for another member';exception when insufficient_privilege then null;end;
+end$$;
 do $$begin
  begin insert into public.critic_memory(user_id) values('11111111-1111-4111-8111-111111111111');raise exception 'Wrote another member''s critic memory';exception when insufficient_privilege then null;end;
 end$$;

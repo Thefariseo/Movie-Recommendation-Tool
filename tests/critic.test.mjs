@@ -23,14 +23,20 @@ afterEach(() => { globalThis.fetch = originalFetch; });
 const DIARY = [[129, 'Spirited Away', 10], [128, 'Princess Mononoke', 10], [8392, 'My Neighbor Totoro', 9], [550, 'Fight Club', 3], [680, 'Pulp Fiction', 2]];
 const rows = DIARY.map(([movie_id, title, rating]) => ({ kind: 'watched', movie_id, rating, movie: { id: movie_id, title, year: 2001, genre_ids: [16] } }));
 
-function backend({ reply, memory = [] } = {}) {
-  const seen = { openai: [], saved: [] };
+function backend({ reply, replies = null, memory = [], threads = [] } = {}) {
+  const seen = { openai: [], saved: [], threads: [] };
   globalThis.fetch = async (url, options = {}) => {
     const u = new URL(url);
     if (u.pathname.endsWith('/auth/v1/user')) return json({ id });
     if (u.pathname === '/models/taste-space.bin') return new Response(readFileSync(new URL('../public/models/taste-space.bin', import.meta.url)));
     if (u.pathname.endsWith('/rpc/consume_limit')) return json(true);
     if (u.pathname.endsWith('/user_movies')) return json(rows);
+    if (u.pathname.endsWith('/critic_threads')) {
+      if (!options.method || options.method === 'GET') return json(threads);
+      const body = options.method === 'DELETE' ? {} : JSON.parse(options.body);
+      seen.threads.push({ method: options.method, body, query: u.search });
+      return json([{ id: '99999999-9999-4999-8999-999999999999', title: body.title || 'Old chat', version: 0, messages: [], ...body }]);
+    }
     if (u.pathname.endsWith('/critic_memory')) {
       if (!options.method || options.method === 'GET') return json(memory);
       const body = JSON.parse(options.body);
@@ -38,7 +44,7 @@ function backend({ reply, memory = [] } = {}) {
       return json([{ user_id: id, version: 0, messages: [], notes: [], portrait: null, ...body }]);
     }
     if (u.hostname === 'api.groq.test') { const body = JSON.parse(options.body); seen.openai.push({ ...body, input: body.messages[1].content, instructions: body.messages[0].content }); return json({ choices: [{ message: { content: '```json\n' + JSON.stringify(reply) + '\n```' } }] }); }
-    if (u.hostname === 'api.openai.com') { seen.openai.push(JSON.parse(options.body)); return json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(reply) }] }] }); }
+    if (u.hostname === 'api.openai.com') { seen.openai.push(JSON.parse(options.body)); const r = replies ? replies[Math.min(seen.openai.length - 1, replies.length - 1)] : reply; return json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(r) }] }] }); }
     if (u.pathname.endsWith('/search/movie')) {
       const q = u.searchParams.get('query');
       const known = { 'Pulp Fiction': 680, "Howl's Moving Castle": 4935, 'Fight Club': 550 };
@@ -77,8 +83,12 @@ test('the critic reads the diary, remembers notes and never recommends a watched
   assert.deepEqual(res.films.map(f => f.id), [4935], 'the watched film is dropped from the recommendations');
   assert.ok(res.films[0]._fit > 0.4, 'the taste space agrees Howl fits a Ghibli lover');
   assert.equal(res.notes.length, 12, 'memory is capped');
-  assert.equal(seen.saved[0].method, 'POST');
-  assert.deepEqual(seen.saved[0].body.messages.map(m => m.role), ['user', 'assistant']);
+  assert.equal(seen.threads[0].method, 'POST', 'a first message starts a new chat');
+  assert.equal(seen.threads[0].body.title, 'Consigliami qualcosa');
+  assert.deepEqual(seen.threads[0].body.messages.map(m => m.role), ['user', 'assistant']);
+  assert.equal(seen.threads[0].body.messages[1].films[0].id, 4935, 'the reply keeps its posters');
+  assert.equal(res.thread.id, '99999999-9999-4999-8999-999999999999');
+  assert.ok(sent.dossier.already_watched.includes('Fight Club (2001)'), 'the critic is told every film already watched');
 });
 
 test('during the interview, films to rate may be ones the member has seen', async () => {
@@ -150,4 +160,36 @@ test('a spending cap reads as the critic resting, not as the provider\'s error',
   const res = await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
   assert.equal(res.status, 429);
   assert.match((await res.json()).error, /taking a break/);
+});
+
+test('when the critic suggests a film already watched, it is asked once more for unseen ones', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  // Chat mode builds cloud picks too; this test only cares about the critic's answer.
+  const seen = backend({ replies: [
+    { reply: 'Prova Pulp Fiction.', interview_complete: false, films: [{ title: 'Pulp Fiction', year: 1994, why: 'x' }], notes: [] },
+    { reply: 'Prova Howl.', interview_complete: false, films: [{ title: "Howl's Moving Castle", year: 2004, why: 'y' }], notes: [] }
+  ] });
+  const res = await (await execute(request('critic', { action: 'message', message: 'Consigliami', mode: 'interview' }), critic)).json();
+  // Interview films may be seen (they are for rating), so no retry there.
+  assert.equal(seen.openai.length, 1);
+  assert.deepEqual(res.films.map(f => f.id), [680]);
+});
+
+test('a chat continues in its own thread, and old chats can be listed, opened and deleted', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  const old = { id: '99999999-9999-4999-8999-999999999999', user_id: id, title: 'Old chat', version: 3, messages: [{ role: 'user', content: 'ciao' }, { role: 'assistant', content: 'ciao!' }], updated_at: '2026-09-20T10:00:00Z' };
+  const seen = backend({ reply: { reply: 'Ecco.', interview_complete: true, films: [{ title: 'Pulp Fiction', year: 1994, why: 'x' }], notes: [] }, threads: [old] });
+  const state = await (await execute(request('critic'), critic)).json();
+  assert.deepEqual(state.threads.map(t => t.title), ['Old chat']);
+  const opened = await (await execute(request(`critic?thread=${old.id}`), critic)).json();
+  assert.equal(opened.thread.messages.length, 2);
+  await execute(request('critic', { action: 'message', message: 'Altro?', mode: 'interview', thread: old.id }), critic);
+  const patch = seen.threads.find(t => t.method === 'PATCH');
+  assert.match(patch.query, /version=eq\.3/, 'a concurrent edit on another device is not overwritten');
+  assert.equal(patch.body.messages.length, 4);
+  assert.match(JSON.parse(seen.openai[0].input).conversation.map(m => m.content).join(' '), /ciao!/, 'the critic reads that chat');
+  assert.equal(seen.openai.length, 2, 'a recommended film already watched triggers one corrected try');
+  assert.match(JSON.parse(seen.openai[1].input).correction, /Pulp Fiction/);
+  await execute(request('critic', { action: 'delete-thread', thread: old.id }), critic);
+  assert.ok(seen.threads.some(t => t.method === 'DELETE'));
 });

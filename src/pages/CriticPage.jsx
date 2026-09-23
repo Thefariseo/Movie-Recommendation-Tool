@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Feather, RotateCcw, Send, Sparkles, Star } from "lucide-react";
+import { Feather, MessageSquarePlus, RotateCcw, Send, Sparkles, Star, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { backend } from "../utils/backend";
 import useWatched from "../hooks/useWatched";
@@ -116,19 +116,36 @@ export default function CriticPage() {
   const [pending, setPending] = useState(null);
   const seenCount = useRef(null);
   const [interview, setInterview] = useState(false);
+  // The open chat; null is a new one, created by its first message.
+  const [threadId, setThreadId] = useState(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const log = useRef(null);
   const rated = watched.filter((m) => Number(m.rated) > 0).length;
 
+  const showThread = (thread) => {
+    seenCount.current = null;
+    setThreadId(thread?.id || null);
+    setState((s) => ({ ...s, messages: thread?.messages || [] }));
+    // A new member starts with the interview rather than an empty box.
+    setInterview(thread?.messages?.length ? thread.messages.at(-1)?.mode === "interview" : rated < 5);
+  };
+  const openThread = async (id) => {
+    setError("");
+    try {
+      showThread((await backend(`critic?thread=${id}`)).thread);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
   useEffect(() => {
     if (!user) return;
-    backend("critic").then((s) => {
-      setState(s);
-      // A new member starts with the interview rather than an empty box.
-      if (!s.messages.length && rated < 5) setInterview(true);
-      else setInterview(s.messages.at(-1)?.mode === "interview");
+    backend("critic").then(async (s) => {
+      setState({ ...s, messages: [] });
+      // Pick up the latest chat where it was left.
+      if (s.threads?.length) await openThread(s.threads[0].id);
+      else showThread(null);
     }).catch((e) => setError(e.message));
   }, [user?.id]);
   // Scroll the conversation, not the page.
@@ -154,13 +171,15 @@ export default function CriticPage() {
     if (!text.trim() || busy) return;
     setPending(text.trim());
     setMessage("");
-    const result = await call({ action: "message", message: text.trim(), mode: interview ? "interview" : "chat" });
+    const result = await call({ action: "message", message: text.trim(), mode: interview ? "interview" : "chat", thread: threadId });
     setPending(null);
     // On failure the text comes back, so nothing typed is lost.
     if (!result) return setMessage(text);
     // The member's own message was already shown; only the reply animates in.
-    seenCount.current = result.messages.length - 1;
-    setState((s) => ({ ...s, messages: result.messages, notes: result.notes }));
+    const { messages, ...summary } = result.thread;
+    seenCount.current = messages.length - 1;
+    setThreadId(summary.id);
+    setState((s) => ({ ...s, messages, notes: result.notes, threads: [summary, ...(s.threads || []).filter((t) => t.id !== summary.id)] }));
     if (result.interview_complete) setInterview(false);
   };
   // Enter sends; Shift+Enter starts a new line; nothing is sent mid-composition (accents, IME).
@@ -175,12 +194,17 @@ export default function CriticPage() {
     if (result) setState((s) => ({ ...s, portrait: result.portrait }));
   };
   const reset = async () => {
-    if (!window.confirm("Forget this conversation and everything your critic has noted about you?")) return;
+    if (!window.confirm("Forget all your chats and everything your critic has noted about you?")) return;
     if (await call({ action: "reset" })) {
-      setState((s) => ({ ...s, messages: [], notes: [], portrait: null }));
-      seenCount.current = 0;
-      setInterview(rated < 5);
+      setState((s) => ({ ...s, messages: [], notes: [], portrait: null, threads: [] }));
+      showThread(null);
     }
+  };
+  const removeThread = async (id) => {
+    if (!window.confirm("Delete this chat?")) return;
+    if (!(await call({ action: "delete-thread", thread: id }))) return;
+    setState((s) => ({ ...s, threads: (s.threads || []).filter((t) => t.id !== id) }));
+    if (id === threadId) showThread(null);
   };
 
   if (!user) return (
@@ -204,7 +228,7 @@ export default function CriticPage() {
   );
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 pb-24 pt-6">
       <header className="flex items-end justify-between gap-4">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Feather className="h-3.5 w-3.5" /> YOUR PERSONAL CRITIC</p>
@@ -220,7 +244,29 @@ export default function CriticPage() {
         </button>
       )}
 
-      <section className="account-panel space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+      <aside className="account-panel h-fit space-y-3">
+        <button className="account-button flex w-full items-center justify-center gap-1.5" disabled={busy} onClick={() => showThread(null)}>
+          <MessageSquarePlus className="h-4 w-4" /> New chat
+        </button>
+        {state?.threads?.length > 0 && (
+          <details open className="lg:[&>summary]:hidden">
+            <summary className="cursor-pointer text-xs font-semibold uppercase text-slate-500">Your chats ({state.threads.length})</summary>
+            <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto lg:mt-0 lg:max-h-[60vh]">
+              {state.threads.map((t) => (
+                <li key={t.id} className="group flex items-center gap-1">
+                  <button disabled={busy} onClick={() => openThread(t.id)} className={`min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left text-sm ${t.id === threadId ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
+                    <span className="block truncate">{t.title}</span>
+                    <span className="block text-[10px] text-slate-400">{new Date(t.updated_at).toLocaleDateString()}</span>
+                  </button>
+                  <button disabled={busy} onClick={() => removeThread(t.id)} aria-label={`Delete ${t.title}`} className="p-1 text-slate-300 hover:text-red-500 lg:opacity-0 lg:group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </aside>
+      <section className="account-panel min-w-0 space-y-4">
         <div ref={log} className="max-h-[60vh] space-y-4 overflow-y-auto overscroll-contain pr-1" role="log" aria-live="polite">
           {state?.messages?.map((m, i) => <Bubble key={i} message={m} animate={seenCount.current != null && i >= seenCount.current} />)}
           {pending && <Bubble message={{ role: "user", content: pending }} animate />}
@@ -243,7 +289,7 @@ export default function CriticPage() {
             <Send className="h-4 w-4" /><span className="hidden sm:inline">Send</span>
           </button>
         </form>
-        <p className="-mt-2 text-[11px] text-slate-400">Enter to send · Shift+Enter for a new line</p>
+        <p className="-mt-2 text-[11px] text-slate-400">Enter to send · Shift+Enter for a new line · 15 questions a day</p>
         {state?.notes?.length > 0 && (
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer">What your critic remembers about you ({state.notes.length})</summary>
@@ -251,6 +297,7 @@ export default function CriticPage() {
           </details>
         )}
       </section>
+      </div>
     </main>
   );
 }
