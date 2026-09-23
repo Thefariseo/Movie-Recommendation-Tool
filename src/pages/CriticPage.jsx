@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Feather, RotateCcw, Sparkles, Star } from "lucide-react";
+import { motion } from "framer-motion";
+import { Feather, RotateCcw, Send, Sparkles, Star } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { backend } from "../utils/backend";
 import useWatched from "../hooks/useWatched";
 import MovieCard from "../components/MovieCard";
+import { movieDetails } from "../utils/api";
 
 const language = () => (navigator.language || "en").split("-")[0];
 
@@ -25,6 +27,54 @@ function QuickRate({ movie }) {
         </button>
       ))}
     </div>
+  );
+}
+
+// The films a reply recommends (or asks the member to rate), under that reply.
+// Messages saved before posters were stored carry only ids; those are looked up.
+function ReplyFilms({ message }) {
+  const [legacy, setLegacy] = useState([]);
+  const ids = message.films ? [] : message.movie_ids || [];
+  useEffect(() => {
+    if (!ids.length) return undefined;
+    let live = true;
+    Promise.allSettled(ids.map((id) => movieDetails(id))).then((r) => live && setLegacy(r.filter((x) => x.status === "fulfilled").map((x) => x.value)));
+    return () => { live = false; };
+  }, [ids.join()]);
+  const films = message.films || legacy;
+  if (!films.length) return null;
+  const rateable = message.mode === "interview";
+  return (
+    <div className="mr-8 flex gap-3 overflow-x-auto pb-1">
+      {films.map((f) => (
+        <div key={f.id} className="w-28 shrink-0 space-y-1.5 sm:w-32">
+          <MovieCard movie={f} />
+          {(rateable || f._seen) && <QuickRate movie={f} />}
+          {f._why && <p className="line-clamp-3 text-[11px] leading-snug text-slate-500">{f._why}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Bubble({ message, animate }) {
+  const mine = message.role === "user";
+  return (
+    <motion.div initial={animate ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="space-y-2">
+      <p className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${mine ? "ml-10 rounded-br-md bg-indigo-600 text-white" : "mr-10 rounded-bl-md bg-slate-100 dark:bg-slate-800"}`}>
+        {!mine && <span className="mb-1 block text-[10px] font-semibold uppercase opacity-60">Your critic</span>}
+        {message.content}
+      </p>
+      {!mine && <ReplyFilms message={message} />}
+    </motion.div>
+  );
+}
+
+function Typing() {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mr-10 inline-flex items-center gap-1 rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 dark:bg-slate-800" aria-label="Your critic is writing">
+      {[0, 150, 300].map((d) => <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${d}ms` }} />)}
+    </motion.div>
   );
 }
 
@@ -62,12 +112,14 @@ export default function CriticPage() {
   const { user } = useAuth();
   const { watched } = useWatched();
   const [state, setState] = useState(null);
-  const [films, setFilms] = useState([]);
+  // The member's message shows at once, before the critic answers.
+  const [pending, setPending] = useState(null);
+  const seenCount = useRef(null);
   const [interview, setInterview] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const end = useRef(null);
+  const log = useRef(null);
   const rated = watched.filter((m) => Number(m.rated) > 0).length;
 
   useEffect(() => {
@@ -79,7 +131,12 @@ export default function CriticPage() {
       else setInterview(s.messages.at(-1)?.mode === "interview");
     }).catch((e) => setError(e.message));
   }, [user?.id]);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), [state?.messages?.length]);
+  // Scroll the conversation, not the page.
+  useEffect(() => {
+    const box = log.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: seenCount.current == null ? "auto" : "smooth" });
+    if (state?.messages && seenCount.current == null) seenCount.current = state.messages.length;
+  }, [state?.messages?.length, pending]);
 
   const call = async (data) => {
     setBusy(true);
@@ -95,12 +152,23 @@ export default function CriticPage() {
   };
   const send = async (text = message) => {
     if (!text.trim() || busy) return;
-    const result = await call({ action: "message", message: text, mode: interview ? "interview" : "chat" });
-    if (!result) return;
-    setState((s) => ({ ...s, messages: result.messages, notes: result.notes }));
-    setFilms(result.films);
+    setPending(text.trim());
     setMessage("");
+    const result = await call({ action: "message", message: text.trim(), mode: interview ? "interview" : "chat" });
+    setPending(null);
+    // On failure the text comes back, so nothing typed is lost.
+    if (!result) return setMessage(text);
+    // The member's own message was already shown; only the reply animates in.
+    seenCount.current = result.messages.length - 1;
+    setState((s) => ({ ...s, messages: result.messages, notes: result.notes }));
     if (result.interview_complete) setInterview(false);
+  };
+  // Enter sends; Shift+Enter starts a new line; nothing is sent mid-composition (accents, IME).
+  const onKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      send();
+    }
   };
   const portrait = async (refresh = false) => {
     const result = await call({ action: "portrait", language: language(), refresh });
@@ -110,7 +178,7 @@ export default function CriticPage() {
     if (!window.confirm("Forget this conversation and everything your critic has noted about you?")) return;
     if (await call({ action: "reset" })) {
       setState((s) => ({ ...s, messages: [], notes: [], portrait: null }));
-      setFilms([]);
+      seenCount.current = 0;
       setInterview(rated < 5);
     }
   };
@@ -135,7 +203,6 @@ export default function CriticPage() {
     </main>
   );
 
-  const last = state?.messages?.at(-1);
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 pb-24 pt-6">
       <header className="flex items-end justify-between gap-4">
@@ -154,41 +221,29 @@ export default function CriticPage() {
       )}
 
       <section className="account-panel space-y-4">
-        <div className="max-h-[480px] space-y-4 overflow-y-auto" role="log" aria-live="polite">
-          {state?.messages?.map((m, i) => (
-            <p key={i} className={`whitespace-pre-wrap rounded-xl p-4 text-sm leading-relaxed ${m.role === "user" ? "ml-8 bg-indigo-600 text-white" : "mr-8 bg-slate-100 dark:bg-slate-800"}`}>
-              <span className="mb-1 block text-[10px] font-semibold uppercase opacity-60">{m.role === "user" ? "You" : "Your critic"}</span>
-              {m.content}
-            </p>
-          ))}
-          <div ref={end} />
+        <div ref={log} className="max-h-[60vh] space-y-4 overflow-y-auto overscroll-contain pr-1" role="log" aria-live="polite">
+          {state?.messages?.map((m, i) => <Bubble key={i} message={m} animate={seenCount.current != null && i >= seenCount.current} />)}
+          {pending && <Bubble message={{ role: "user", content: pending }} animate />}
+          {busy && pending && <Typing />}
         </div>
-        {!state?.messages?.length && (
+        {!state?.messages?.length && !pending && (
           <div className="flex flex-wrap gap-2">
             {(interview ? ["Ciao! Fammi qualche domanda sui miei gusti.", "Interview me about my taste."] : ["Cosa dicono di me i miei voti?", "Something like my favourites, but braver", "Perché ho odiato il mio film peggiore?"]).map((p) => (
               <button key={p} className="account-secondary text-left" disabled={busy} onClick={() => send(p)}>{p}</button>
             ))}
           </div>
         )}
-        {films.length > 0 && last?.role === "assistant" && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {films.map((f) => (
-              <div key={f.id} className="space-y-1.5">
-                <MovieCard movie={f} />
-                {interview || f._seen ? <QuickRate movie={f} /> : null}
-                {f._why && <p className="text-[11px] leading-snug text-slate-500">{f._why}</p>}
-              </div>
-            ))}
-          </div>
-        )}
         {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
-        <form className="flex items-end gap-3" onSubmit={(e) => { e.preventDefault(); send(); }}>
-          <label className="account-label flex-1">
-            {interview ? "Your answer" : "Your message"}
-            <textarea className="account-input resize-none" rows={2} maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} placeholder={interview ? "Il mio film preferito è…" : "Troppo lento. Qualcosa con più ritmo?"} required />
-          </label>
-          <button className="account-button" disabled={busy || !message.trim()}>{busy ? "Thinking…" : "Send"}</button>
+        <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
+          <label className="sr-only" htmlFor="critic-message">{interview ? "Your answer" : "Your message"}</label>
+          <textarea id="critic-message" className="account-input flex-1 resize-none" rows={Math.min(5, message.split("\n").length)} maxLength={1000} value={message}
+            onChange={(e) => setMessage(e.target.value)} onKeyDown={onKey}
+            placeholder={interview ? "Il mio film preferito è…" : "Troppo lento. Qualcosa con più ritmo?"} />
+          <button className="account-button flex h-11 items-center gap-1.5" disabled={busy || !message.trim()} aria-label="Send">
+            <Send className="h-4 w-4" /><span className="hidden sm:inline">Send</span>
+          </button>
         </form>
+        <p className="-mt-2 text-[11px] text-slate-400">Enter to send · Shift+Enter for a new line</p>
         {state?.notes?.length > 0 && (
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer">What your critic remembers about you ({state.notes.length})</summary>

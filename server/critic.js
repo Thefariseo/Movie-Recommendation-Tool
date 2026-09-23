@@ -81,7 +81,7 @@ const MESSAGE_SCHEMA = {
 
 const CHAT = `${GROUNDING}
 You are in a conversation. Reply in the language of the member's latest message, in at most about 120 words unless they ask for more.
-When you recommend, put each film (at most 4) in "films" with its original release year and a one-sentence reason tied to their diary; mention them in the reply too.
+When you recommend, put each film (at most 4) in "films" with its original title as TMDB lists it, its original release year and a one-sentence reason tied to their diary; mention them in the reply too. Never suggest a film in the reply without also listing it in "films": the member only sees posters for the films listed there.
 Accept objections ("too slow", "I hated that one") and adjust: the next suggestions must respect them.
 "notes" is your memory of this member across visits: return the complete updated list (at most ${MAX_NOTES} short lines), keeping earlier notes unless the member contradicts them, and adding durable preferences they state (e.g. "Finds slow films tedious unless the ending pays off"). Never store anything that is not about film taste.
 Set interview_complete to false.`;
@@ -154,8 +154,16 @@ async function resolveFilms(films, watched, { space = null, member = null } = {}
   const found = [];
   for (const f of films.slice(0, 6)) {
     try {
-      const { results = [] } = await tmdb('search/movie', { query: f.title, ...(f.year ? { year: String(f.year) } : {}), include_adult: 'false' });
-      const hit = results.find(r => !r.adult) || null;
+      // Models misremember years: search with the year first, then without it,
+      // preferring the result released closest to the year given.
+      const search = params => tmdb('search/movie', { query: f.title, include_adult: 'false', ...params }).then(r => (r.results || []).filter(x => !x.adult));
+      let results = f.year ? await search({ year: String(f.year) }) : [];
+      if (!results.length) {
+        const year = Number(f.year) || null;
+        const distance = r => (year ? Math.abs((Number(String(r.release_date || '').slice(0, 4)) || 0) - year) : 0);
+        results = (await search({})).map((r, order) => ({ r, order })).sort((a, b) => Math.min(distance(a.r), 3) - Math.min(distance(b.r), 3) || a.order - b.order).map(x => x.r);
+      }
+      const hit = results[0] || null;
       if (!hit || found.some(x => x.id === hit.id)) continue;
       const i = space?.index.get(Number(hit.id));
       found.push({
@@ -168,6 +176,9 @@ async function resolveFilms(films, watched, { space = null, member = null } = {}
   }
   return found;
 }
+
+// What a message keeps of each film, so its posters still show on a later visit.
+const card = f => ({ id: f.id, title: f.title, poster_path: f.poster_path || null, release_date: f.release_date || null, _why: f._why || '', _seen: Boolean(f._seen) });
 
 async function placed(watched) {
   const space = await loadTasteSpace();
@@ -194,7 +205,7 @@ export async function criticMessage(ctx, text, { mode = 'chat' } = {}) {
   const found = await resolveFilms(answer.films || [], watched, { space, member });
   // Recommendations drop films already watched; interview films are meant to be rated, so those stay.
   const films = mode === 'interview' && !answer.interview_complete ? found : found.filter(f => !f._seen);
-  const messages = [...row.messages, { role: 'user', content: text }, { role: 'assistant', content: String(answer.reply || '').slice(0, 4000), movie_ids: films.map(f => f.id), mode }].slice(-MAX_MESSAGES);
+  const messages = [...row.messages, { role: 'user', content: text }, { role: 'assistant', content: String(answer.reply || '').slice(0, 4000), movie_ids: films.map(f => f.id), films: films.map(card), mode }].slice(-MAX_MESSAGES);
   const notes = (answer.notes || []).map(n => String(n).slice(0, 200)).filter(Boolean).slice(0, MAX_NOTES);
   const saved = await saveMemory(ctx, row, { messages, notes });
   return { messages: saved.messages, notes: saved.notes, films, interview_complete: Boolean(answer.interview_complete) };
