@@ -163,7 +163,13 @@ Without either, the page says the critic is unavailable and nothing else changes
 
 `/library/journeys` draws the taste space as a map (t-SNE of the normalised film vectors, `scripts/taste-space/map.py` → `public/models/taste-map.bin` and `.json`, 0.1 MB) split into 48 regions named after their genres, decade and best-known films. The member's films sit on it, loved and disliked, with their centre and how many regions they have visited (month by month when the library has dates).
 
-A **journey** (`shared/journeys.js`) leads from a loved film into a region the member has never visited but whose films point the same way as their taste (cosine to the member's vector, so popularity does not decide). Its six steps follow the straight line from home to the destination in the taste space, each the unseen film closest to that point, the last two inside the destination. For a Ghibli lover one runs Howl's Moving Castle → Grave of the Fireflies → Porco Rosso → Tekkonkinkreet → Persepolis → 3-Iron. Journeys can be followed; progress is the steps watched.
+A **journey** (`shared/journeys.js`) leads from a loved film into a region the member has never visited but whose films point the same way as their taste (cosine to the member's vector, so popularity does not decide). Its six steps follow the straight line from home to the destination in the taste space, each the unseen film closest to that point, the last two inside the destination. For a Ghibli lover one runs Howl's Moving Castle → Grave of the Fireflies → Porco Rosso → Tekkonkinkreet → Persepolis → 3-Iron. Journeys can be followed; progress is the steps watched, and the next one is marked.
+
+Tapping the map (or one of the "made for you" chips) opens a **region**: its best-known films, where it ranks among the 48 for the member, how many of its films they have seen and their six best bets in it. From there a journey can be planned to that region at a chosen length (4, 6 or 8 films). "Other destinations" offers journeys to regions not shown yet. Each step says which loved film it is near (`becauseOf`).
+
+Journeys **re-route** (`reroute`): when a step is rated 4/10 or less, the steps after the latest watched one are planned again from the last step the member liked (or the journey's start), keeping away from the disliked film and still ending in the same region. It happens once per dislike, so the path does not shift with every film watched.
+
+Followed journeys are kept on the account (`followed_journeys`, through `/api/signals?journeys=1` and the `save-journey` / `drop-journey` actions, at most 12), so every device shows the same ones; guests keep them in `localStorage`, and a guest's journeys move to the account on the first visit after signing in.
 
 ## The look of a film
 
