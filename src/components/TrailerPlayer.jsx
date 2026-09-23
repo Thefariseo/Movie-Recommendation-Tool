@@ -49,7 +49,10 @@ export default function TrailerPlayer({ keys, title, onClose }) {
 
   return (
     <div ref={box}>
-      <div className="relative aspect-video bg-black">
+      {/* An inline ratio: the aspect-ratio plugin in tailwind.config.cjs turns
+          off Tailwind's own aspect utilities, so the 16:9 class produced no CSS
+          and the player had no height (sound, but nothing on screen). */}
+      <div className="relative bg-black" style={{ aspectRatio: "16 / 9" }}>
         {key ? (
           <iframe
             ref={frame}

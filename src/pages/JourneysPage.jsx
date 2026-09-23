@@ -40,7 +40,7 @@ function Journey({ journey, details, watchedIds, followed, onFollow, onDrop }) {
           return (
             <li key={s.id}>
               <button type="button" disabled={!d} onClick={() => d && open(d)} className="relative block w-full text-left">
-                <img className={`aspect-[2/3] w-full rounded-md object-cover ${seen ? "opacity-60" : ""}`} alt="" src={d?.poster_path ? `https://image.tmdb.org/t/p/w185${d.poster_path}` : "/placeholder_poster.svg"} />
+                <img style={{ aspectRatio: "2 / 3" }} className={`w-full rounded-md object-cover ${seen ? "opacity-60" : ""}`} alt="" src={d?.poster_path ? `https://image.tmdb.org/t/p/w185${d.poster_path}` : "/placeholder_poster.svg"} />
                 <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/80 text-[10px] font-bold text-white">{seen ? <Check className="h-3 w-3" /> : i + 1}</span>
                 <span className="mt-1 block truncate text-[11px] leading-tight">{d?.title || "…"}</span>
               </button>
