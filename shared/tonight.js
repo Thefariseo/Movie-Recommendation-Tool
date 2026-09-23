@@ -2,6 +2,8 @@
 // genres, a group's votes are tallied with fairness weights, and a member who
 // compromised in recent movie nights gets a little more say in the next.
 
+import { genreIds, criticAverage, ratingReach } from './taste.js';
+
 export const MOODS = {
   light: { label: 'Light & fun', genres: [35, 16, 10751] },
   tense: { label: 'Edge of the seat', genres: [53, 80] },
@@ -17,6 +19,53 @@ export const TIMES = {
   standard: { label: 'Up to 2 hours', max: 125 },
   long: { label: 'No limit', max: null }
 };
+
+// Keys match the recommender's era ranges, so the era also narrows discovery.
+export const ERAS = {
+  classic: { label: 'Classics (before 1980)', to: 1979 },
+  '80s90s': { label: "'80s & '90s", from: 1980, to: 1999 },
+  '2000s': { label: '2000s', from: 2000, to: 2009 },
+  '2010s': { label: '2010s', from: 2010, to: 2019 },
+  recent: { label: 'Since 2020', from: 2020 }
+};
+
+export const LANGUAGES = {
+  en: { label: 'In English', test: (lang) => lang === 'en' },
+  foreign: { label: 'Not in English', test: (lang) => !!lang && lang !== 'en' },
+  it: { label: 'Italian', test: (lang) => lang === 'it' }
+};
+
+export const MIN_RATINGS = [7, 7.5, 8];
+
+// Reach is IMDb votes scaled to TMDB's audience (see ratingReach).
+export const POPULARITY = {
+  gems: { label: 'Hidden gems', test: (reach) => reach < 2500 },
+  crowd: { label: 'Crowd-pleasers', test: (reach) => reach >= 8000 }
+};
+
+export const AVOIDABLE = { 27: 'Horror', 53: 'Thriller', 10752: 'War', 80: 'Crime', 10749: 'Romance', 16: 'Animation', 99: 'Documentary', 36: 'History', 37: 'Western', 10402: 'Music' };
+// Gentler nights leave out the genres most likely to be violent or frightening.
+export const GENTLE_AVOID = [27, 53, 80, 10752];
+
+/** The genres a night's filters rule out. */
+export const avoidedGenres = ({ avoid = [], gentle = false } = {}) => [...new Set([...avoid.map(Number), ...(gentle ? GENTLE_AVOID : [])])];
+
+/**
+ * Whether a film passes the night's filters. `movie` has TMDB fields and,
+ * when known, IMDb/RT ratings. Unknown values never pass a filter that asks
+ * for them (no year, no era; no rating, no minimum).
+ */
+export function passesFilters(movie, { era = null, language = null, minRating = null, popularity = null, avoid = [], gentle = false } = {}) {
+  const year = Number(String(movie?.release_date || '').slice(0, 4)) || Number(movie?.year) || null;
+  const range = ERAS[era];
+  if (range && (!year || (range.from && year < range.from) || (range.to && year > range.to))) return false;
+  if (LANGUAGES[language] && !LANGUAGES[language].test(movie?.original_language)) return false;
+  if (minRating && criticAverage(movie) < minRating) return false;
+  if (POPULARITY[popularity] && !POPULARITY[popularity].test(ratingReach(movie))) return false;
+  const banned = avoidedGenres({ avoid, gentle });
+  if (banned.length && genreIds(movie).some((g) => banned.includes(g))) return false;
+  return true;
+}
 
 // -1 no, 1 fine, 2 yes please. Not voting on a film counts as 0.
 export const VOTES = [-1, 1, 2];

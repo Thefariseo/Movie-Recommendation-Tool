@@ -86,3 +86,19 @@ test('only the host decides, and the decision applies the fairness weights', asy
   assert.equal(writes[0][1].winner, 20);
   assert.equal(res.night.status, 'decided');
 });
+
+import { passesFilters, avoidedGenres } from '../shared/tonight.js';
+test('the night\'s filters: era, language, rating, known or unknown, genres to avoid', () => {
+  const film = { release_date: '1994-09-23', original_language: 'en', genre_ids: [18, 80], vote_average: 8.7, vote_count: 27000 };
+  assert.ok(passesFilters(film, {}));
+  assert.ok(passesFilters(film, { era: '80s90s', language: 'en', minRating: 8, popularity: 'crowd' }));
+  assert.ok(!passesFilters(film, { era: 'recent' }));
+  assert.ok(!passesFilters(film, { language: 'foreign' }));
+  assert.ok(passesFilters(film, { minRating: 8 }));
+  assert.ok(!passesFilters({ ...film, vote_average: 6.9 }, { minRating: 7 }));
+  assert.ok(!passesFilters(film, { popularity: 'gems' }));
+  assert.ok(!passesFilters(film, { gentle: true }), 'crime is left out of a gentle night');
+  assert.ok(!passesFilters(film, { avoid: [18] }));
+  assert.ok(!passesFilters({ ...film, release_date: '' }, { era: '2000s' }), 'an unknown year never passes an era');
+  assert.deepEqual(avoidedGenres({ avoid: [16, 27], gentle: true }).sort((a, b) => a - b), [16, 27, 53, 80, 10752]);
+});
