@@ -1,49 +1,81 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Compass, Route } from "lucide-react";
+import { Check, Compass, Flag, ListPlus, MapPin, RefreshCw, Route, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
+import useWatchlist from "../hooks/useWatchlist";
 import { useModal } from "../hooks/useModal";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { loadTasteMap } from "../utils/tasteMap";
+import { useFollowedJourneys } from "../utils/journeys";
 import { movieDetails } from "../utils/api";
-import { placeMember } from "../../shared/tasteSpace.js";
-import { memberMap, planJourneys, regionLabel, territoryOverTime } from "../../shared/journeys.js";
+import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
+import { memberMap, planJourney, planJourneys, regionAt, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime } from "../../shared/journeys.js";
 import TasteMap from "../components/TasteMap";
 
-const storageKey = (user) => `umbrify_journeys_v1:${user?.id || "guest"}`;
-function readFollowed(user) {
-  try { return JSON.parse(localStorage.getItem(storageKey(user)) || "[]"); } catch { return []; }
-}
-function saveFollowed(user, journeys) {
-  try { localStorage.setItem(storageKey(user), JSON.stringify(journeys)); } catch { /* storage may be blocked */ }
+const LENGTHS = [
+  { steps: 4, label: "Short", hint: "4 films" },
+  { steps: 6, label: "Classic", hint: "6 films" },
+  { steps: 8, label: "Long", hint: "8 films" }
+];
+const poster = (d) => (d?.poster_path ? `https://image.tmdb.org/t/p/w185${d.poster_path}` : "/placeholder_poster.svg");
+const homeOf = (region) => (region?.landmarks || []).slice(0, 3).map((l) => l.title);
+
+function Poster({ id, details, badge, dim, ring, caption }) {
+  const { open } = useModal();
+  const d = details[id];
+  return (
+    <button type="button" disabled={!d} onClick={() => d && open(d)} className="relative block w-full text-left">
+      <img style={{ aspectRatio: "2 / 3" }} className={`w-full rounded-md object-cover ${dim ? "opacity-60" : ""} ${ring ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900" : ""}`} alt="" src={poster(d)} />
+      {badge}
+      <span className="mt-1 block truncate text-[11px] font-medium leading-tight">{d?.title || "…"}</span>
+      {caption && <span className="block truncate text-[10px] leading-tight text-slate-500">{caption}</span>}
+    </button>
+  );
 }
 
-function Journey({ journey, details, watchedIds, followed, onFollow, onDrop }) {
-  const { open } = useModal();
-  const done = journey.steps.filter((s) => watchedIds.has(s.id)).length;
+function Journey({ journey, region, details, watched, why, followed, onFollow, onDrop, onWatchlist, notice }) {
+  const progress = journeyProgress(journey, watched);
   const last = details[journey.steps.at(-1).id];
+  const disliked = journey.rerouted && (details[journey.rerouted.after]?.title || "a film you disliked");
   return (
     <article className="account-panel space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="eyebrow">{regionLabel(journey.region)}</p>
+        <div className="min-w-0">
+          <p className="eyebrow">{regionLabel(journey.region)}{homeOf(region).length ? ` · home of ${homeOf(region).slice(0, 2).join(", ")}` : ""}</p>
           <h3 className="text-lg font-semibold leading-snug">From “{journey.from.title}” to {last ? `“${last.title}”` : "somewhere new"}</h3>
-          <p className="text-xs text-slate-500">{journey.steps.length} films, each a step further from what you know. {done > 0 && `${done} of ${journey.steps.length} watched.`}</p>
+          <p className="text-xs text-slate-500">
+            {journey.steps.length} films, each a step further from what you know.
+            {progress.done > 0 && ` ${progress.done} of ${journey.steps.length} watched.`}
+          </p>
         </div>
-        {followed ? <button className="account-secondary" onClick={onDrop}>Stop following</button> : <button className="account-button" onClick={onFollow}>Follow this journey</button>}
+        <div className="flex flex-wrap gap-2">
+          {!progress.arrived && <button className="account-secondary inline-flex items-center gap-1.5" onClick={onWatchlist} title="Add the films still ahead to your watchlist"><ListPlus className="h-4 w-4" /> Watchlist</button>}
+          {followed
+            ? <button className="account-secondary inline-flex items-center gap-1.5" onClick={onDrop}><X className="h-4 w-4" /> Stop following</button>
+            : <button className="account-button" onClick={onFollow}>Follow this journey</button>}
+        </div>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${(100 * done) / journey.steps.length}%` }} /></div>
-      <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {journey.steps.map((s, i) => {
-          const d = details[s.id];
-          const seen = watchedIds.has(s.id);
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${(100 * progress.done) / journey.steps.length}%` }} /></div>
+      {progress.arrived && (
+        <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Flag className="h-4 w-4 shrink-0" /> You made it: {regionLabel(journey.region)} is part of your map now. Pick another region to keep exploring.</p>
+      )}
+      {disliked && !progress.arrived && (
+        <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><RefreshCw className="h-3.5 w-3.5 shrink-0" /> Re-routed after “{disliked}”: the films ahead keep away from it and still reach the same place.</p>
+      )}
+      {notice && <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
+      <ol className={`grid gap-2 ${journey.steps.length > 6 ? "grid-cols-4 sm:grid-cols-8" : "grid-cols-3 sm:grid-cols-6"}`}>
+        {progress.steps.map((s, i) => {
+          const next = followed && progress.next?.id === s.id;
           return (
             <li key={s.id}>
-              <button type="button" disabled={!d} onClick={() => d && open(d)} className="relative block w-full text-left">
-                <img style={{ aspectRatio: "2 / 3" }} className={`w-full rounded-md object-cover ${seen ? "opacity-60" : ""}`} alt="" src={d?.poster_path ? `https://image.tmdb.org/t/p/w185${d.poster_path}` : "/placeholder_poster.svg"} />
-                <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/80 text-[10px] font-bold text-white">{seen ? <Check className="h-3 w-3" /> : i + 1}</span>
-                <span className="mt-1 block truncate text-[11px] leading-tight">{d?.title || "…"}</span>
-              </button>
+              <Poster
+                id={s.id}
+                details={details}
+                dim={s.watched}
+                ring={next}
+                caption={next ? "Up next" : s.watched ? (s.rated != null ? `You gave ${s.rated}/10` : "Watched") : why.get(s.id)}
+                badge={<span className={`absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${next ? "bg-indigo-600" : "bg-slate-900/80"}`}>{s.watched ? <Check className="h-3 w-3" /> : i + 1}</span>}
+              />
             </li>
           );
         })}
@@ -52,75 +84,209 @@ function Journey({ journey, details, watchedIds, followed, onFollow, onDrop }) {
   );
 }
 
+function RegionPanel({ row, total, details, member, onPlan, onClose }) {
+  const [steps, setSteps] = useState(6);
+  const r = row.region;
+  return (
+    <div className="space-y-3 rounded-xl border border-amber-300/60 bg-amber-50/60 p-4 dark:border-amber-700/50 dark:bg-amber-950/20">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="eyebrow flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {row.seen ? `YOU HAVE SEEN ${row.seen} FILM${row.seen === 1 ? "" : "S"} HERE` : "UNEXPLORED"}</p>
+          <h3 className="text-lg font-semibold">{regionLabel(r)}</h3>
+          <p className="text-xs text-slate-500">
+            Home of {homeOf(r).join(", ")}.
+            {member && ` For your taste it ranks ${row.rank} of ${total}${row.rank <= 5 ? ", one of your strongest" : row.rank > total - 5 ? ", one of your weakest" : ""}.`}
+          </p>
+        </div>
+        <button className="rounded-full p-1 text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800" onClick={onClose} aria-label="Close region"><X className="h-4 w-4" /></button>
+      </div>
+      {member && row.picks.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Your best bets here</p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {row.picks.map((id) => <Poster key={id} id={id} details={details} />)}
+          </div>
+        </>
+      )}
+      {member ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700" role="radiogroup" aria-label="Journey length">
+            {LENGTHS.map((l) => (
+              <button key={l.steps} role="radio" aria-checked={steps === l.steps} title={l.hint} onClick={() => setSteps(l.steps)}
+                className={`rounded-md px-2.5 py-1 text-xs ${steps === l.steps ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300"}`}>{l.label}</button>
+            ))}
+          </div>
+          <button className="account-button inline-flex items-center gap-1.5" onClick={() => onPlan(r.id, steps)}><Route className="h-4 w-4" /> Plan a journey here</button>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Rate at least two films you loved and Umbrify can plan a journey here.</p>
+      )}
+    </div>
+  );
+}
+
 // Journeys out of the member's comfort zone, and the map they are drawn on.
 export default function JourneysPage() {
   const { user } = useAuth();
   const { watched } = useWatched();
+  const { isInWatchlist, addToWatchlist } = useWatchlist();
   const [model, setModel] = useState(null);
   const [failed, setFailed] = useState(false);
   const [details, setDetails] = useState({});
-  const [followed, setFollowed] = useState(() => readFollowed(user));
-  useEffect(() => setFollowed(readFollowed(user)), [user?.id]);
+  const [followed, { follow, update, drop }, saveError] = useFollowedJourneys(user?.id || null);
+  const [selected, setSelected] = useState(null);
+  const [planned, setPlanned] = useState(null);
+  const [planError, setPlanError] = useState("");
+  const [skip, setSkip] = useState(() => new Set());
+  const [notice, setNotice] = useState({});
 
   useEffect(() => {
     Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, ...atlas }) : setFailed(true)));
   }, []);
 
+  const member = useMemo(() => (model ? placeMember(model.space, watched, []) : null), [model, watched]);
+  const scores = useMemo(() => (model ? regionScores(model.space, model.map, model.regions, member, watched) : []), [model, member, watched]);
   const view = useMemo(() => {
     if (!model) return null;
-    const member = placeMember(model.space, watched, []);
-    const followedIds = new Set(followed.flatMap((j) => j.steps.map((s) => s.id)));
+    const followedIds = new Set([...followed, ...(planned ? [planned] : [])].flatMap((j) => j.steps.map((s) => s.id)));
+    const busy = new Set([...skip, ...followed.map((j) => j.region.id), ...(planned ? [planned.region.id] : [])]);
     return {
       ...memberMap(model.space, model.map, watched),
-      member,
-      suggestions: planJourneys(model.space, model.map, model.regions, member, watched, { exclude: followedIds })
+      suggestions: planJourneys(model.space, model.map, model.regions, member, watched, { exclude: followedIds, skip: busy })
     };
-  }, [model, watched, followed]);
+  }, [model, member, watched, followed, planned, skip]);
 
-  const shown = useMemo(() => [...followed, ...(view?.suggestions || [])], [followed, view]);
+  // A followed journey re-routes when one of its films did not land.
   useEffect(() => {
-    const ids = [...new Set(shown.flatMap((j) => j.steps.map((s) => s.id)))].filter((id) => !details[id]);
+    if (!model || !member) return;
+    for (const j of followed) {
+      const next = reroute(model.space, model.map, model.regions, member, j, watched);
+      if (next !== j) update(next);
+    }
+  }, [model, member, followed, watched]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const suggestions = useMemo(() => (planned ? [planned] : []).concat(view?.suggestions || []), [planned, view]);
+  const shown = useMemo(() => [...followed, ...suggestions], [followed, suggestions]);
+  const selectedRow = selected == null ? null : scores.find((r) => r.id === selected);
+
+  useEffect(() => {
+    const ids = [...new Set([...shown.flatMap((j) => [...j.steps.map((s) => s.id), j.rerouted?.after].filter(Boolean)), ...(selectedRow?.picks || [])])].filter((id) => !details[id]);
     if (!ids.length) return;
     Promise.allSettled(ids.map((id) => movieDetails(id))).then((results) => {
       const next = {};
       results.forEach((r, i) => { if (r.status === "fulfilled") next[ids[i]] = r.value; });
       setDetails((d) => ({ ...d, ...next }));
     });
-  }, [shown]);
+  }, [shown, selectedRow]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const watchedIds = useMemo(() => new Set(watched.map((m) => Number(m.id))), [watched]);
+  // Why each step is on the way: the loved film it is closest to, for you.
+  const why = useMemo(() => {
+    const out = new Map();
+    if (!model || !member) return out;
+    for (const s of shown.flatMap((j) => j.steps)) {
+      const i = model.space.index.get(s.id);
+      if (i == null || out.has(s.id)) continue;
+      const [top] = becauseOf(model.space, member, i, { limit: 1 });
+      if (top) out.set(s.id, `Near “${top.title}”`);
+    }
+    return out;
+  }, [model, member, shown]);
+
   const growth = useMemo(() => (view ? territoryOverTime(view.points) : []), [view]);
-  const follow = (j) => { const next = [...followed, j]; setFollowed(next); saveFollowed(user, next); };
-  const drop = (j) => { const next = followed.filter((f) => f.steps[0].id !== j.steps[0].id); setFollowed(next); saveFollowed(user, next); };
+  const regionMeta = (id) => model?.regions.find((r) => r.id === id);
+  const explorable = scores.filter((r) => !view?.visited.has(r.id)).sort((a, b) => a.rank - b.rank).slice(0, 6);
+
+  const plan = (regionId, steps) => {
+    const exclude = new Set(followed.flatMap((j) => j.steps.map((s) => s.id)));
+    const journey = planJourney(model.space, model.map, model.regions, member, watched, regionId, { steps, exclude });
+    setPlanError(journey ? "" : "There are not enough films left in this region for a journey that long. Try a shorter one.");
+    if (journey) setPlanned(journey);
+  };
+  const followJourney = (j) => {
+    follow(j);
+    if (planned?.id === j.id) setPlanned(null);
+  };
+  const toWatchlist = (j) => {
+    const ahead = journeyProgress(j, watched).steps.filter((s) => !s.watched && details[s.id] && !isInWatchlist(s.id));
+    ahead.forEach((s) => addToWatchlist(details[s.id]));
+    setNotice({ [j.id]: ahead.length ? `Added ${ahead.length} film${ahead.length === 1 ? "" : "s"} to your watchlist.` : "The films ahead are already on your watchlist." });
+  };
 
   if (failed) return <p className="text-sm text-slate-500">The taste map could not be loaded. Please try again later.</p>;
   if (!view) return <p className="text-sm text-slate-500">Drawing your taste map…</p>;
 
+  const total = model.regions.length;
   return (
     <section className="space-y-6">
       <div className="account-panel space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="eyebrow flex items-center gap-1.5"><Compass className="h-3.5 w-3.5" /> YOUR TASTE MAP</p>
-            <h2 className="text-xl font-semibold">You have explored {view.visited.size} of {model.regions.length} regions of cinema.</h2>
-            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Yours are in <span className="text-indigo-500">indigo</span> (loved) and <span className="text-rose-500">rose</span> (disliked).</p>
+            <h2 className="text-xl font-semibold">You have explored {view.visited.size} of {total} regions of cinema.</h2>
+            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Yours are in <span className="text-indigo-500">indigo</span> (loved) and <span className="text-rose-500">rose</span> (disliked). Tap anywhere on the map to explore that region.</p>
           </div>
           {growth.length > 1 && (
             <p className="text-xs text-slate-500">Regions over time: {growth.slice(-6).map((g) => `${g.month.slice(2)} · ${g.regions}`).join("  →  ")}</p>
           )}
         </div>
-        <TasteMap map={model.map} landmarks={model.landmarks} points={view.points} centre={view.centre} journeys={shown} />
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-amber-500" style={{ width: `${(100 * view.visited.size) / total}%` }} /></div>
+        <TasteMap
+          map={model.map}
+          landmarks={model.landmarks}
+          points={view.points}
+          centre={view.centre}
+          journeys={shown}
+          selected={selected}
+          onPick={({ x, y }) => { setSelected(regionAt(model.map, x, y)); setPlanError(""); }}
+        />
+        {member && explorable.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-slate-500">Unexplored, and made for you:</span>
+            {explorable.map((r) => (
+              <button key={r.id} onClick={() => { setSelected(r.id); setPlanError(""); }}
+                className={`rounded-full border px-2.5 py-0.5 text-xs ${selected === r.id ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" : "border-slate-200 text-slate-600 hover:border-amber-400 dark:border-slate-700 dark:text-slate-300"}`}>
+                {regionName(r.region)}
+              </button>
+            ))}
+          </div>
+        )}
+        {selectedRow && <RegionPanel key={selectedRow.id} row={selectedRow} total={total} details={details} member={member} onPlan={plan} onClose={() => setSelected(null)} />}
+        {planError && <p className="text-xs text-rose-600">{planError}</p>}
       </div>
 
-      {!view.member ? (
+      {!member ? (
         <p className="account-panel text-sm text-slate-500">Rate at least two films you loved (7/10 or more) and Umbrify will plot journeys out of your comfort zone.</p>
       ) : (
         <div className="space-y-4">
-          <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> JOURNEYS TO GROW YOUR TASTE</p>
-          <p className="-mt-2 text-sm text-slate-500">Each journey starts next to a film you loved and ends in a region you have never visited, but that people with your taste love. Every step is the next film a little further along.</p>
-          {followed.map((j) => <Journey key={`f${j.steps[0].id}`} journey={j} details={details} watchedIds={watchedIds} followed onDrop={() => drop(j)} />)}
-          {view.suggestions.map((j) => <Journey key={`s${j.steps[0].id}`} journey={j} details={details} watchedIds={watchedIds} onFollow={() => follow(j)} />)}
-          {!view.suggestions.length && !followed.length && <p className="text-sm text-slate-500">You have visited every region Umbrify can map. Impressive.</p>}
+          {saveError && <p className="text-sm text-rose-600">{saveError}</p>}
+          {followed.length > 0 && (
+            <>
+              <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> YOUR JOURNEYS</p>
+              {followed.map((j) => (
+                <Journey key={j.id} journey={j} region={regionMeta(j.region.id)} details={details} watched={watched} why={why} followed notice={notice[j.id]}
+                  onDrop={() => drop(j)} onWatchlist={() => toWatchlist(j)} />
+              ))}
+            </>
+          )}
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> JOURNEYS TO GROW YOUR TASTE</p>
+              <p className="text-sm text-slate-500">Each journey starts next to a film you loved and ends in a region you have never visited, but that people with your taste love. If a film on the way does not land, rate it and the journey re-routes.</p>
+            </div>
+            {view.suggestions.length > 0 && (
+              <button className="account-secondary inline-flex items-center gap-1.5" onClick={() => setSkip((s) => new Set([...s, ...view.suggestions.map((j) => j.region.id)]))}>
+                <Shuffle className="h-4 w-4" /> Other destinations
+              </button>
+            )}
+          </div>
+          {suggestions.map((j) => (
+            <Journey key={j.id} journey={j} region={regionMeta(j.region.id)} details={details} watched={watched} why={why} notice={notice[j.id]}
+              onFollow={() => followJourney(j)} onWatchlist={() => toWatchlist(j)} />
+          ))}
+          {!suggestions.length && skip.size > 0 && (
+            <p className="text-sm text-slate-500">No more destinations for now. <button className="underline" onClick={() => setSkip(new Set())}>Start over</button></p>
+          )}
+          {!suggestions.length && !skip.size && !followed.length && <p className="text-sm text-slate-500">You have visited every region Umbrify can map. Impressive.</p>}
         </div>
       )}
     </section>

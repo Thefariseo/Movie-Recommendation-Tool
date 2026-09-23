@@ -56,6 +56,15 @@ export function regionLabel(region) {
 }
 
 /**
+ * A name that tells regions apart: several share genres and a decade, so the
+ * best-known film in it goes along (from the map's metadata, when present).
+ */
+export function regionName(region) {
+  const landmark = region?.landmarks?.[0]?.title;
+  return landmark ? `${regionLabel(region)} · ${landmark}` : regionLabel(region);
+}
+
+/**
  * Where the member stands on the map: every film they rated, where they sit
  * (the loved films' weighted centre) and which regions they have visited.
  */
@@ -90,68 +99,200 @@ export function territoryOverTime(points) {
   return [...months].map(([month, regions]) => ({ month, regions }));
 }
 
-/**
- * Up to `count` journeys into regions the member has not visited, most
- * promising first, each `steps` films long. `member` comes from placeMember.
- */
-export function planJourneys(space, map, regions, member, watched, { count = 3, steps = 6, minRatings = 300, exclude = new Set() } = {}) {
-  if (!member) return [];
-  // Cosine rather than the raw affinity: a raw score grows with a film's
-  // popularity, and a journey is about the kind of film, not the famous ones.
-  const me = unit(Array.from(member.vector));
-  const z = new Float32Array(space.n);
-  for (let i = 0; i < space.n; i++) z[i] = cosAt(space, i, me);
-  const seen = new Set([...watched.map((f) => Number(f.id)), ...exclude]);
+// How close each film is to the member's taste, as a cosine rather than the
+// raw affinity: a raw score grows with a film's popularity, and a journey is
+// about the kind of film, not the famous ones. Cached per member vector.
+const closeness = new WeakMap();
+function closenessTo(space, member) {
+  if (!closeness.has(member)) {
+    const me = unit(Array.from(member.vector));
+    const z = new Float32Array(space.n);
+    for (let i = 0; i < space.n; i++) z[i] = cosAt(space, i, me);
+    closeness.set(member, z);
+  }
+  return closeness.get(member);
+}
+
+const visitedRegions = (space, map, watched) => {
   const visited = new Set();
   for (const f of watched) {
     const i = space.index.get(Number(f.id));
     if (i != null) visited.add(map.region[i]);
   }
-  // Each unvisited region's promise: how much the member should like its best films.
-  const byRegion = new Map();
-  for (let i = 0; i < space.n; i++) {
-    if (space.counts[i] < minRatings || seen.has(space.tmdb[i])) continue;
-    const r = map.region[i];
-    if (visited.has(r)) continue;
-    if (!byRegion.has(r)) byRegion.set(r, []);
-    byRegion.get(r).push(i);
-  }
-  const promise = [...byRegion].map(([r, films]) => {
-    const best = films.map((i) => z[i]).sort((a, b) => b - a).slice(0, 10);
-    return { r, films, score: best.reduce((a, b) => a + b, 0) / Math.max(best.length, 1) };
-  }).filter((p) => p.films.length >= steps).sort((a, b) => b.score - a.score);
+  return visited;
+};
 
-  const loved = member.used.filter((u) => u.rated >= 7 && u.title);
-  const journeys = [];
-  const taken = new Set();
-  for (const target of promise) {
-    if (journeys.length >= count) break;
-    const meta = regions.find((g) => g.id === target.r);
-    // Keep the destinations different from one another.
-    if (!meta || journeys.some((j) => j.region.genres[0] === meta.genres[0] && j.region.decade === meta.decade)) continue;
-    const top = target.films.sort((a, b) => z[b] - z[a]).slice(0, 25);
-    const centre = unit(top.map((i) => vectorOf(space, i)).reduce((s, v) => s.map((x, j) => x + v[j])));
-    // Home is the loved film closest to the destination, so the first step is familiar.
-    const home = loved.map((u) => ({ ...u, v: vectorOf(space, u.i) })).sort((a, b) => cos(b.v, centre) - cos(a.v, centre))[0];
-    if (!home) break;
-    const path = [];
-    for (let s = 1; s <= steps; s++) {
-      const t = s / steps;
-      const aim = unit(home.v.map((x, j) => (1 - t) * x + t * centre[j]));
-      let best = null, bestValue = -Infinity;
-      for (let i = 0; i < space.n; i++) {
-        const id = space.tmdb[i];
-        if (space.counts[i] < minRatings || seen.has(id) || taken.has(id)) continue;
-        // The last steps must land inside the destination.
-        if (s >= steps - 1 && map.region[i] !== target.r) continue;
-        const value = cosAt(space, i, aim) + 0.25 * z[i];
-        if (value > bestValue) { best = i; bestValue = value; }
-      }
-      if (best == null) break;
-      taken.add(space.tmdb[best]);
-      path.push({ id: space.tmdb[best], region: map.region[best], x: map.x[best], y: map.y[best] });
+/** The region under a point of the map (coordinates in [0, 1]): the nearest film's. */
+export function regionAt(map, x, y) {
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < map.n; i++) {
+    const d = (map.x[i] - x) ** 2 + (map.y[i] - y) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best < 0 ? null : map.region[best];
+}
+
+/**
+ * Every region seen from the member: how promising its best films are for
+ * them, its rank among all regions, how many of its films they have seen, and
+ * its best films for them that they have not seen.
+ */
+export function regionScores(space, map, regions, member, watched, { minRatings = 300, picks = 6 } = {}) {
+  const z = member ? closenessTo(space, member) : null;
+  const seenIds = new Set(watched.map((f) => Number(f.id)));
+  const films = new Map(regions.map((r) => [r.id, []]));
+  const seen = new Map(regions.map((r) => [r.id, 0]));
+  for (let i = 0; i < space.n; i++) {
+    const r = map.region[i];
+    if (seenIds.has(space.tmdb[i])) { seen.set(r, (seen.get(r) || 0) + 1); continue; }
+    if (space.counts[i] >= minRatings) films.get(r)?.push(i);
+  }
+  const rows = regions.map((r) => {
+    const list = films.get(r.id) || [];
+    const order = z ? [...list].sort((a, b) => z[b] - z[a]) : list;
+    const best = z ? order.slice(0, 10).map((i) => z[i]) : [];
+    return {
+      id: r.id,
+      region: r,
+      seen: seen.get(r.id) || 0,
+      score: best.length ? best.reduce((a, b) => a + b, 0) / best.length : 0,
+      picks: order.slice(0, picks).map((i) => space.tmdb[i]),
+      films: list.length
+    };
+  });
+  [...rows].sort((a, b) => b.score - a.score).forEach((row, n) => { row.rank = n + 1; });
+  return rows;
+}
+
+// A path of `steps` films from `start` (a unit vector) towards the destination,
+// the last steps inside it. `avoid` are unit vectors of films the member
+// disliked on the way: the path keeps its distance from them.
+function walk(space, map, z, start, centre, region, steps, blocked, avoid = [], minRatings = 300) {
+  const path = [];
+  for (let s = 1; s <= steps; s++) {
+    const t = s / steps;
+    const aim = unit(start.map((x, j) => (1 - t) * x + t * centre[j]));
+    let best = null, bestValue = -Infinity;
+    for (let i = 0; i < space.n; i++) {
+      const id = space.tmdb[i];
+      if (space.counts[i] < minRatings || blocked.has(id)) continue;
+      if (s >= steps - 1 && map.region[i] !== region) continue;
+      let value = cosAt(space, i, aim) + 0.25 * z[i];
+      for (const a of avoid) value -= 0.6 * Math.max(0, cosAt(space, i, a));
+      if (value > bestValue) { best = i; bestValue = value; }
     }
-    if (path.length === steps) journeys.push({ region: meta, from: { id: home.id, title: home.title, rated: home.rated }, steps: path, promise: Number(target.score.toFixed(2)) });
+    if (best == null) break;
+    blocked.add(space.tmdb[best]);
+    path.push({ id: space.tmdb[best], region: map.region[best], x: map.x[best], y: map.y[best] });
+  }
+  return path;
+}
+
+// The destination's centre: its films the member should like most.
+function destination(space, map, z, regionId, seen, minRatings) {
+  const films = [];
+  for (let i = 0; i < space.n; i++) if (map.region[i] === regionId && space.counts[i] >= minRatings && !seen.has(space.tmdb[i])) films.push(i);
+  if (!films.length) return null;
+  const top = films.sort((a, b) => z[b] - z[a]).slice(0, 25);
+  return { films, centre: unit(top.map((i) => vectorOf(space, i)).reduce((s, v) => s.map((x, j) => x + v[j]))) };
+}
+
+/**
+ * One journey to a chosen region, `steps` films long, from the loved film
+ * closest to it. Null when the member has no loved film to start from or the
+ * region has too few films left.
+ */
+export function planJourney(space, map, regions, member, watched, regionId, { steps = 6, minRatings = 300, exclude = new Set() } = {}) {
+  if (!member) return null;
+  const z = closenessTo(space, member);
+  const meta = regions.find((g) => g.id === regionId);
+  const seen = new Set([...watched.map((f) => Number(f.id)), ...exclude]);
+  const target = meta && destination(space, map, z, regionId, seen, minRatings);
+  if (!target || target.films.length < steps) return null;
+  // Home is the loved film closest to the destination, so the first step is familiar.
+  const home = member.used
+    .filter((u) => u.rated >= 7 && u.title)
+    .map((u) => ({ ...u, v: vectorOf(space, u.i) }))
+    .sort((a, b) => cos(b.v, target.centre) - cos(a.v, target.centre))[0];
+  if (!home) return null;
+  const path = walk(space, map, z, home.v, target.centre, regionId, steps, new Set(seen), [], minRatings);
+  if (path.length !== steps) return null;
+  return {
+    id: `${home.id}-${regionId}-${path[0].id}`,
+    region: { id: meta.id, genres: meta.genres, decade: meta.decade },
+    from: { id: home.id, title: home.title, rated: home.rated },
+    steps: path
+  };
+}
+
+/**
+ * Up to `count` journeys into regions the member has not visited, most
+ * promising first, each `steps` films long. `member` comes from placeMember.
+ * `skip` leaves regions out (to offer other destinations).
+ */
+export function planJourneys(space, map, regions, member, watched, { count = 3, steps = 6, minRatings = 300, exclude = new Set(), skip = new Set() } = {}) {
+  if (!member) return [];
+  const visited = visitedRegions(space, map, watched);
+  const ranked = regionScores(space, map, regions, member, watched, { minRatings, picks: 0 })
+    .filter((r) => !visited.has(r.id) && !skip.has(r.id) && r.films >= steps)
+    .sort((a, b) => b.score - a.score);
+  const journeys = [];
+  const taken = new Set(exclude);
+  for (const target of ranked) {
+    if (journeys.length >= count) break;
+    const meta = target.region;
+    // Keep the destinations different from one another.
+    if (journeys.some((j) => j.region.genres[0] === meta.genres[0] && j.region.decade === meta.decade)) continue;
+    const journey = planJourney(space, map, regions, member, watched, target.id, { steps, minRatings, exclude: taken });
+    if (!journey) continue;
+    journey.steps.forEach((s) => taken.add(s.id));
+    journeys.push({ ...journey, promise: Number(target.score.toFixed(2)) });
   }
   return journeys;
+}
+
+/**
+ * Where the member is on a journey: the steps they watched (with ratings),
+ * the next step, and whether they have arrived.
+ */
+export function journeyProgress(journey, watched) {
+  const rated = new Map(watched.map((f) => [Number(f.id), f.rated ?? null]));
+  const steps = journey.steps.map((s) => ({ ...s, watched: rated.has(s.id), rated: rated.get(s.id) ?? null }));
+  const next = steps.find((s) => !s.watched) || null;
+  return { steps, done: steps.filter((s) => s.watched).length, next, arrived: !next };
+}
+
+/**
+ * A journey adapts to how its films land. When the member disliked a step
+ * (4/10 or less), the steps after their latest watched one are planned again
+ * from the last step they liked (or the film the journey started from),
+ * keeping away from what they disliked. Returns the journey unchanged when
+ * nothing needs to change; otherwise a new journey with `rerouted` naming the
+ * film that caused it.
+ */
+export function reroute(space, map, regions, member, journey, watched, { minRatings = 300, exclude = new Set() } = {}) {
+  if (!member) return journey;
+  const progress = journeyProgress(journey, watched);
+  const lastWatched = progress.steps.map((s) => s.watched).lastIndexOf(true);
+  const disliked = progress.steps.filter((s) => s.watched && s.rated != null && s.rated <= 4);
+  const pending = progress.steps.length - lastWatched - 1;
+  // Once per new dislike, so the path does not shift with every film watched.
+  const key = disliked.map((s) => s.id).join(',');
+  if (!disliked.length || pending <= 0 || journey.routedFor === key) return journey;
+  const z = closenessTo(space, member);
+  const seen = new Set([...watched.map((f) => Number(f.id)), ...exclude, ...journey.steps.slice(0, lastWatched + 1).map((s) => s.id)]);
+  const target = destination(space, map, z, journey.region.id, seen, minRatings);
+  if (!target) return journey;
+  const liked = progress.steps.slice(0, lastWatched + 1).filter((s) => s.watched && (s.rated == null || s.rated >= 6)).at(-1);
+  const startIndex = space.index.get(Number(liked?.id ?? journey.from.id));
+  if (startIndex == null) return journey;
+  const avoid = disliked.map((s) => space.index.get(s.id)).filter((i) => i != null).map((i) => vectorOf(space, i));
+  const path = walk(space, map, z, vectorOf(space, startIndex), target.centre, journey.region.id, pending, seen, avoid, minRatings);
+  if (path.length !== pending) return journey;
+  return {
+    ...journey,
+    steps: [...journey.steps.slice(0, lastWatched + 1), ...path],
+    routedFor: key,
+    rerouted: { after: disliked.at(-1).id }
+  };
 }

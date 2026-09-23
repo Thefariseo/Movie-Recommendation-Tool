@@ -138,6 +138,19 @@ select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222'
 select public.test_assert((select count(*)=0 from public.critic_memory),'another member cannot read the critic memory');
 select public.test_assert((select count(*)=0 from public.critic_threads),'another member cannot read the critic chats');
 select public.test_assert((select count(*)=0 from public.taste_signals) and (select count(*)=0 from public.critic_verdicts),'another member cannot read film signals or verdicts');
+-- Followed journeys belong to their member only.
+reset role;
+insert into public.followed_journeys(user_id,id,journey) values('11111111-1111-4111-8111-111111111111','129-4-278','{"id":"129-4-278"}');
+set local role authenticated;
+select public.test_assert((select count(*)=0 from public.followed_journeys),'another member cannot read followed journeys');
+do $$begin
+ begin insert into public.followed_journeys(user_id,id,journey) values('11111111-1111-4111-8111-111111111111','1-2-3','{}');raise exception 'Followed a journey for someone else';exception when insufficient_privilege then null;end;
+ begin insert into public.followed_journeys(user_id,id,journey) values(auth.uid(),'not an id','{}');raise exception 'Malformed journey id accepted';exception when check_violation then null;end;
+ begin insert into public.followed_journeys(user_id,id,journey) values(auth.uid(),'1-2-3','[]');raise exception 'Non-object journey accepted';exception when check_violation then null;end;
+end$$;
+insert into public.followed_journeys(user_id,id,journey) values(auth.uid(),'1-2-3','{"id":"1-2-3"}');
+select public.test_assert((select count(*)=1 from public.followed_journeys),'a member follows their own journey');
+delete from public.followed_journeys;
 do $$begin
  begin insert into public.critic_threads(user_id) values('11111111-1111-4111-8111-111111111111');raise exception 'Created a chat for another member';exception when insufficient_privilege then null;end;
 end$$;

@@ -1,0 +1,53 @@
+// The journeys a member follows (see shared/journeys.js), kept per account.
+import { database, HttpError } from './http.js';
+
+export const MAX_FOLLOWED = 12;
+const int = (v) => (Number.isSafeInteger(Number(v)) ? Number(v) : null);
+const unitNumber = (v) => (Number.isFinite(Number(v)) ? Math.min(1, Math.max(0, Number(v))) : 0);
+const text = (v, max) => String(v ?? '').slice(0, max);
+
+/** Keeps only the fields a journey has, with bounded sizes; throws on anything malformed. */
+export function cleanJourney(j) {
+  const steps = Array.isArray(j?.steps) ? j.steps : [];
+  const region = j?.region || {};
+  const clean = {
+    id: text(j?.id, 60),
+    region: {
+      id: int(region.id),
+      genres: (Array.isArray(region.genres) ? region.genres : []).slice(0, 3).map((g) => text(g, 30)),
+      decade: int(region.decade)
+    },
+    from: { id: int(j?.from?.id), title: text(j?.from?.title, 200), rated: int(j?.from?.rated) },
+    steps: steps.slice(0, 10).map((s) => ({ id: int(s?.id), region: int(s?.region), x: unitNumber(s?.x), y: unitNumber(s?.y) })),
+    ...(j?.routedFor ? { routedFor: text(j.routedFor, 200) } : {}),
+    ...(int(j?.rerouted?.after) ? { rerouted: { after: int(j.rerouted.after) } } : {})
+  };
+  if (!/^[0-9]+-[0-9]+-[0-9]+$/.test(clean.id) || clean.region.id == null || !clean.from.id || steps.length < 2 || steps.length > 10
+    || clean.steps.some((s) => !s.id || s.id <= 0 || s.region == null)) throw new HttpError(400, 'Invalid journey.');
+  return clean;
+}
+
+export async function readJourneys(ctx) {
+  const rows = await database(ctx.token)(`followed_journeys?user_id=eq.${ctx.user.id}&select=journey&order=created_at`);
+  return rows.map((r) => r.journey);
+}
+
+/** Follows a journey, or saves a followed one again after it changed (a re-route). */
+export async function saveJourney(ctx, journey) {
+  const clean = cleanJourney(journey);
+  const db = database(ctx.token);
+  const existing = await db(`followed_journeys?user_id=eq.${ctx.user.id}&select=id`);
+  if (!existing.some((r) => r.id === clean.id) && existing.length >= MAX_FOLLOWED) throw new HttpError(400, `You can follow up to ${MAX_FOLLOWED} journeys at a time.`);
+  await db('followed_journeys?on_conflict=user_id,id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates',
+    body: { user_id: ctx.user.id, id: clean.id, journey: clean, updated_at: new Date().toISOString() }
+  });
+  return { journey: clean };
+}
+
+export async function dropJourney(ctx, id) {
+  if (!/^[0-9]+-[0-9]+-[0-9]+$/.test(String(id))) throw new HttpError(400, 'Choose a journey.');
+  await database(ctx.token)(`followed_journeys?user_id=eq.${ctx.user.id}&id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return { ok: true };
+}

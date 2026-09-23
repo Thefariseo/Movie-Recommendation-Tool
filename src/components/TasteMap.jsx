@@ -2,9 +2,11 @@ import React, { useEffect, useRef } from "react";
 
 // The taste map on a canvas: every film as a faint dot, the member's films on
 // top (loved in indigo, disliked in rose), a few famous films as landmarks,
-// the member's centre, and journey paths as dotted lines.
-export default function TasteMap({ map, landmarks = [], points = [], centre = null, journeys = [] }) {
+// the member's centre, and journey paths as dotted lines. A click reports the
+// point under it in map coordinates, and the selected region is highlighted.
+export default function TasteMap({ map, landmarks = [], points = [], centre = null, journeys = [], selected = null, onPick }) {
   const ref = useRef(null);
+  const layout = useRef(null);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || !map) return undefined;
@@ -20,9 +22,14 @@ export default function TasteMap({ map, landmarks = [], points = [], centre = nu
       const side = Math.min(w, h * 1.6) - 28;
       const ox = (w - side) / 2, oy = (h - side / 1.6) / 2;
       const px = (x) => ox + x * side, py = (y) => oy + y * (side / 1.6);
+      layout.current = { ox, oy, side };
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = dark ? "rgba(148,163,184,0.18)" : "rgba(100,116,139,0.16)";
-      for (let i = 0; i < map.n; i++) ctx.fillRect(px(map.x[i]), py(map.y[i]), 1.2, 1.2);
+      for (let i = 0; i < map.n; i++) if (map.region[i] !== selected) ctx.fillRect(px(map.x[i]), py(map.y[i]), 1.2, 1.2);
+      if (selected != null) {
+        ctx.fillStyle = dark ? "rgba(251,191,36,0.55)" : "rgba(217,119,6,0.45)";
+        for (let i = 0; i < map.n; i++) if (map.region[i] === selected) ctx.fillRect(px(map.x[i]) - 0.4, py(map.y[i]) - 0.4, 2, 2);
+      }
       ctx.font = "10px system-ui, sans-serif";
       ctx.fillStyle = dark ? "rgba(203,213,225,0.55)" : "rgba(71,85,105,0.6)";
       // Best-known first; a label that would overlap one already drawn is skipped.
@@ -69,6 +76,24 @@ export default function TasteMap({ map, landmarks = [], points = [], centre = nu
     draw();
     window.addEventListener("resize", draw);
     return () => window.removeEventListener("resize", draw);
-  }, [map, landmarks, points, centre, journeys]);
-  return <canvas ref={ref} className="w-full rounded-xl bg-slate-50 dark:bg-slate-900" style={{ aspectRatio: "16 / 10", maxHeight: 560 }} role="img" aria-label="Map of films arranged by who loves them, with your films highlighted" />;
+  }, [map, landmarks, points, centre, journeys, selected]);
+
+  const pick = (event) => {
+    const box = ref.current?.getBoundingClientRect();
+    const l = layout.current;
+    if (!box || !l || !onPick) return;
+    const x = (event.clientX - box.left - l.ox) / l.side;
+    const y = (event.clientY - box.top - l.oy) / (l.side / 1.6);
+    if (x >= 0 && x <= 1 && y >= 0 && y <= 1) onPick({ x, y });
+  };
+  return (
+    <canvas
+      ref={ref}
+      onClick={pick}
+      className={`w-full rounded-xl bg-slate-50 dark:bg-slate-900 ${onPick ? "cursor-crosshair" : ""}`}
+      style={{ aspectRatio: "16 / 10", maxHeight: 560 }}
+      role="img"
+      aria-label="Map of films arranged by who loves them, with your films highlighted. Select a region to explore it."
+    />
+  );
 }
