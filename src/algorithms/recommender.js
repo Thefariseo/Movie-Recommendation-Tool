@@ -8,11 +8,13 @@ import {
   personMovieCredits,
 } from "../utils/api";
 import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
-import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
+import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
 import { placeMember, affinities, strongest, becauseOf, peerStrength } from "../../shared/tasteSpace.js";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { blocked, signalOf, jitter, withoutRecent } from "../../shared/signals.js";
+import { ruleMatch, ruleLabel, STANCES } from "../../shared/rules.js";
+import { judge } from "../../shared/judge.js";
 import { GENRE_MAP } from "../utils/genres";
 
 /* ------------------------------------------------------------------ */
@@ -270,27 +272,16 @@ function sigmoidVoteScore(avg) {
   return 1 / (1 + Math.exp(-2.2 * ((avg || 0) - 7.0)));
 }
 
-// How many of the strongest candidates are fetched in full for the second stage.
-// Details are cached, and the final cards reuse them.
-const SHORTLIST = 36;
+// How many of the strongest candidates are fetched in full for the second stage,
+// where the judge weighs every sign for and against them. Details are cached,
+// and the final cards reuse them.
+const SHORTLIST = 48;
 
 // How many of the taste space's strongest matches join the candidate pool, and
 // how far a match must stand above the member's ordinary film to be named as
 // the reason (in standard deviations over the whole catalogue).
 const SPACE_PICKS = 30;
 const SPACE_REASON_Z = 1.5;
-
-// The most specific thing the member's own ratings show about a shortlisted
-// film, as { short, full }. Nothing is claimed without rated films behind it.
-function shortlistReason(candidate, because) {
-  // An explicit director or actor filter already explains itself.
-  if (candidate.source === "director-pick" || candidate.source === "actor-pick") return null;
-  // "You gave X 4.5★" names a concrete film; only a loved director beats it.
-  if (candidate.source?.startsWith("similar:") && !because.director) return null;
-  // So does the taste space, naming the loved films that pull a film up.
-  if (candidate.peer && !because.director && !because.actor) return null;
-  return evidenceReason(because);
-}
 
 // Random page from range 2–15 (much broader than v9's 2–8)
 function randPage() {
@@ -328,6 +319,9 @@ export async function getRecommendations({
   // 0 for the first round; each "other picks" round passes a new number,
   // which leaves out films just shown and varies the order among close ones.
   explore = 0,
+  // What the member's critic has learned about them (shared/rules.js): people,
+  // themes, languages and more they love or avoid.
+  rules = [],
 } = {}) {
 
   /* ================================================================= */
@@ -616,6 +610,23 @@ export async function getRecommendations({
       });
     });
 
+    // ── What the member's critic learned: loved people, themes, languages ──
+    const loved = rules.filter((r) => STANCES[r.stance] > 0);
+    const people = loved.filter((r) => r.kind === "person").slice(0, 3);
+    const themes = loved.filter((r) => r.kind === "theme").slice(0, 4);
+    const tongues = loved.filter((r) => r.kind === "language").slice(0, 2);
+    const fromRules = await Promise.allSettled([
+      ...people.map((r) => personMovieCredits(r.id).then((c) => ({ rule: r, films: r.role === "actor" ? (c.cast || []) : (c.crew || []).filter((m) => m.job === "Director") }))),
+      ...(themes.length ? [1, 2].map((page) => discoverMovies({ with_keywords: themes.map((r) => r.id).join("|"), sort_by: "vote_average.desc", "vote_count.gte": 150, page }).then((d) => ({ rule: themes[0], films: d.results || [] }))) : []),
+      ...tongues.map((r) => discoverMovies({ with_original_language: r.code, sort_by: "vote_average.desc", "vote_count.gte": 150 }).then((d) => ({ rule: r, films: d.results || [] }))),
+    ]);
+    fromRules.forEach((r) => {
+      if (r.status !== "fulfilled") return;
+      for (const m of r.value.films) {
+        if (!candidates.has(m.id)) candidates.set(m.id, { id: m.id, raw: m, source: "critic-rule", ruleName: ruleLabel(r.value.rule), dirScore: 0, actorScore: 0 });
+      }
+    });
+
     // ── The taste space's strongest matches ──
     if (member) {
       const exclude = new Set([...watched, ...watchlist].map((m) => Number(m.id)));
@@ -684,7 +695,7 @@ export async function getRecommendations({
     .filter(({ raw }) => !raw.adult && (!raw.release_date || raw.release_date <= new Date().toISOString().slice(0, 10)))
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
     .filter(({ raw }) => criticAverage(raw) >= 5.0)
-    .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId }) => {
+    .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId, ruleName }) => {
       const genreIds    = raw.genre_ids || raw.genres?.map(g => g.id ?? g) || [];
       const movieYear   = parseInt((raw.release_date || "").slice(0, 4), 10) || 2000;
       const movieDecade = decade(movieYear);
@@ -739,6 +750,10 @@ export async function getRecommendations({
       // ── Cinephile seed boost ──
       const cinephileBoost = source === "cinephile_seed" ? 0.01 : 0;
 
+      // What the critic learned, on what a list result shows (genres,
+      // language, decade); people and themes wait for the second stage.
+      const rulesScore = ruleMatch(raw, rules).score;
+
       // ── Final score ──
       const score =
         genreScore         * 0.55 +
@@ -751,6 +766,7 @@ export async function getRecommendations({
         strongAffinityBoost      +
         cinephileBoost           +
         langScore          * 0.15 +
+        rulesScore         * 0.35 +
         ({ "-1": -0.3, "1": 0.25, "2": 0.4 }[signalOf(signals, id)] || 0) +
         peerScore          * 0.60 -
         mainstreamPenalty        +
@@ -762,6 +778,8 @@ export async function getRecommendations({
       // Named only when the space places the film well above the member's usual.
       const peerFilms  = z != null && z >= SPACE_REASON_Z ? becauseOf(space, member, space.index.get(Number(id))) : [];
       const peerCited  = peerReason(peerFilms);
+      const seedEntry  = source?.startsWith("similar:") ? watchedByTitle.get(source.slice(8).toLowerCase().trim()) : null;
+      const lovedSeed  = Number(seedEntry?.rated) >= 8 ? seedEntry : null;
 
       if (source === "director-pick") {
         reason = `From your selected director's filmography`;
@@ -769,6 +787,8 @@ export async function getRecommendations({
         reason = `From your selected actor's filmography`;
       } else if (source === "director" && dirName) {
         reason = `From ${dirName}, a director among your highly rated films`;
+      } else if (source === "critic-rule" && ruleName) {
+        reason = `Your critic: you love ${ruleName}`;
       } else if (source === "critic") {
         reason = "Your critic recommended it";
         reasonDetail = "Your critic recommended it in one of your chats.";
@@ -779,16 +799,10 @@ export async function getRecommendations({
         reason = "A world-cinema discovery to explore";
       } else if (source === "actor" && actorName) {
         reason = `Features ${actorName}, who appears in films you rated highly`;
-      } else if (source?.startsWith("similar:")) {
-        const seedTitle = source.slice(8);
-        const seedEntry = watchedByTitle.get(seedTitle.toLowerCase().trim());
-        if (seedEntry?.rated) {
-          const stars = starsDisplay(seedEntry.rated);
-          const ql    = qualityLabel(voteAvg);
-          reason = `You gave "${seedTitle}" ${stars} — ${ql} in the same vein`;
-        } else {
-          reason = `Because you loved "${seedTitle}"`;
-        }
+      } else if (lovedSeed) {
+        // A film is only named as the reason when the member clearly loved it:
+        // "you gave it 3.5★" is not a reason to watch anything.
+        reason = `You gave "${lovedSeed.title}" ${starsDisplay(lovedSeed.rated)} — ${qualityLabel(voteAvg)} in the same vein`;
       } else if (peerCited) {
         reason = peerCited.short;
         reasonDetail = peerCited.full;
@@ -817,6 +831,8 @@ export async function getRecommendations({
         original_language: raw.original_language, isCriterion: criterionBoost > 0,
         provisional: dirBonus * 0.18 + actorBonus * 0.09,
         peer: !!peerCited && reason === peerCited.short,
+        seed: seedEntry || null,
+        saved: source === "watchlist",
       };
     });
 
@@ -847,28 +863,41 @@ export async function getRecommendations({
   /* ================================================================= */
 
   // List results carry no credits or keywords, so the strongest candidates are
-  // fetched in full and re-scored on signed evidence. A director the member
-  // rates low now counts against a film and a shared theme counts for it,
-  // whichever source the film came from.
-  if (evidence.films > 0) {
+  // fetched in full and judged: every independent sign that the member will
+  // like a film (the taste space, a loved director, actor, theme or language,
+  // what their critic learned or recommended, a loved film it is close to) and
+  // every sign against it. Several signs agreeing lift a film; a film held up
+  // by one loose link or by nothing but its genre drops. The reason names them.
+  if (evidence.films > 0 || rules.length || member) {
     const shortlist = results.slice(0, SHORTLIST);
     const details = [];
     for (let i = 0; i < shortlist.length; i += 6) {
       details.push(...await Promise.allSettled(shortlist.slice(i, i + 6).map((r) => movieDetails(r.id))));
     }
+    // Films past the shortlist were not judged: they carry half the penalty of
+    // a film with no sign in its favour, so they cannot leap over judged ones.
+    for (const r of results.slice(SHORTLIST)) r.score -= 0.1;
     shortlist.forEach((r, i) => {
       const d = details[i].status === "fulfilled" ? details[i].value : null;
       if (!d) return;
-      const match = evidenceMatch(d, evidence);
-      r.score += -r.provisional
-        + 0.35 * match.director
-        + 0.12 * match.cast
-        + 0.30 * match.keywords
-        + 0.08 * match.country;
+      const z = peerZ(r.id);
+      const verdict = judge({
+        details: d,
+        evidence: evidence.films > 0 ? evidence : null,
+        rules,
+        peer: z != null && z >= SPACE_REASON_Z ? { z, films: becauseOf(space, member, space.index.get(Number(r.id))) } : null,
+        signal: signals.get(Number(r.id)) || null,
+        seed: r.seed,
+        saved: r.saved || watchlist.some((m) => Number(m.id) === Number(r.id)),
+      });
+      r.score += -r.provisional + verdict.adjust;
+      r.agree = verdict.agree;
+      r.signs = verdict.signs.map(({ kind, short, full }) => ({ kind, short, full }));
+      r.against = verdict.against;
       r.dirName = directorsOf(d)[0]?.name || r.dirName;
       r.original_language = languageOf(d) || r.original_language;
-      const cited = shortlistReason(r, match.because);
-      if (cited) { r.reason = cited.short; r.reasonDetail = cited.full; }
+      // An explicit director or actor filter already explains itself.
+      if (verdict.reason && r.source !== "director-pick" && r.source !== "actor-pick") { r.reason = verdict.reason.short; r.reasonDetail = verdict.reason.full; }
     });
     results.sort((a, b) => b.score - a.score);
   }

@@ -123,6 +123,11 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 insert into public.critic_memory(user_id,notes) values('11111111-1111-4111-8111-111111111111','["Loves slow cinema"]');
 select public.test_assert((select count(*)=1 from public.critic_memory),'member reads own critic memory');
+update public.critic_memory set rules='[{"kind":"person","id":5026,"name":"Akira Kurosawa","stance":"love"}]';
+select public.test_assert((select jsonb_array_length(rules)=1 from public.critic_memory),'the critic keeps taste rules');
+do $$begin
+ begin update public.critic_memory set rules='{}';raise exception 'Non-array rules accepted';exception when check_violation then null;end;
+end$$;
 select public.test_assert((select bool_and(public.consume_limit('critic-minute',1000,1)) from generate_series(1,6)),'six critic calls a minute are allowed');
 select public.test_assert((select bool_and(public.consume_limit('critic-day',1000,1)) from generate_series(1,15)),'fifteen critic questions a day are allowed');
 select public.test_assert(not public.consume_limit('critic-day',1000,1),'the sixteenth critic question of the day is refused');

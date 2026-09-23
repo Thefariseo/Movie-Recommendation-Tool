@@ -55,6 +55,15 @@ function backend({ reply, replies = null, memory = [], threads = [], verdicts = 
       const known = { 'Pulp Fiction': 680, "Howl's Moving Castle": 4935, 'Fight Club': 550 };
       return json({ results: known[q] ? [{ id: known[q], title: q, release_date: '2004-01-01' }] : [] });
     }
+    if (u.pathname.endsWith('/search/keyword')) {
+      const q = u.searchParams.get('query');
+      return json({ results: q === 'slow burn' ? [{ id: 9748, name: 'slow burn' }] : q === 'witches' ? [{ id: 616, name: 'witch' }, { id: 1, name: 'witches' }] : [] });
+    }
+    if (u.pathname.endsWith('/search/person')) {
+      seen.people = (seen.people || 0) + 1;
+      const q = u.searchParams.get('query');
+      return json({ results: q === 'Hayao Miyazaki' ? [{ id: 608, name: 'Hayao Miyazaki', known_for_department: 'Directing' }] : [] });
+    }
     if (/\/movie\/\d+$/.test(u.pathname)) {
       const mid = Number(u.pathname.split('/').pop());
       return json({ id: mid, title: `Film ${mid}`, overview: 'A film.', original_language: 'ja', genres: [{ id: 16, name: 'Animation' }], credits: { crew: [{ id: 1, name: 'Hayao Miyazaki', job: 'Director' }], cast: [] }, keywords: { keywords: [{ id: 9, name: 'witch' }] } });
@@ -222,4 +231,30 @@ test('films the critic warns against or recommends become signals for the recomm
   await execute(request('critic', { action: 'message', message: 'Cosa eviterei?', mode: 'interview' }), critic);
   const rows = seen.signals.map(x => [x.movie_id, x.source, x.signal]);
   assert.deepEqual(rows, [[4935, 'critic_pick', 1]], 'a watched film is never recorded as a warning; an unknown title is skipped');
+});
+
+test('what the critic learns becomes taste rules the recommender follows', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  const seen = backend({
+    memory: [{ user_id: id, version: 2, notes: [], rules: [{ kind: 'person', id: 608, name: 'Hayao Miyazaki', stance: 'love', why: 'old' }], portrait: null }],
+    reply: {
+      reply: 'Capito: niente horror.', films: [], warned_against: [], notes: ['Hates horror'], interview_complete: false,
+      taste_rules: [
+        { kind: 'person', name: 'Hayao Miyazaki', stance: 'love', why: 'gave Spirited Away 5★' },
+        { kind: 'theme', name: 'slow burn', stance: 'love', why: 'said so' },
+        { kind: 'genre', name: 'Horror', stance: 'avoid', why: 'said so' },
+        { kind: 'language', name: 'Japanese', stance: 'love', why: 'Ghibli' },
+        { kind: 'theme', name: 'nonexistent theme', stance: 'love', why: '' },
+        { kind: 'mood', name: 'cosy', stance: 'love', why: '' }
+      ]
+    }
+  });
+  const res = await (await execute(request('critic', { action: 'message', message: 'Odio gli horror', mode: 'interview' }), critic)).json();
+  const sent = JSON.parse(seen.openai[0].input);
+  assert.deepEqual(sent.your_rules, [{ kind: 'person', name: 'Hayao Miyazaki', stance: 'love' }], 'the critic keeps what it already knew');
+  assert.match(seen.openai[0].instructions, /taste_rules/);
+  const saved = seen.saved.at(-1).body.rules;
+  assert.deepEqual(saved.map(r => [r.kind, r.id ?? r.code]), [['person', 608], ['theme', 9748], ['genre', 27], ['language', 'ja']]);
+  assert.equal(seen.people || 0, 0, 'a person already resolved costs no search');
+  assert.equal(res.rules.length, 4);
 });

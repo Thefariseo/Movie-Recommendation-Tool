@@ -2,6 +2,7 @@
 import { database, HttpError } from './http.js';
 import { normalizeMovie } from '../shared/library.js';
 import { SOURCES } from '../shared/signals.js';
+import { validRule } from '../shared/rules.js';
 
 export async function readSignals(ctx) {
   return database(ctx.token)(`taste_signals?user_id=eq.${ctx.user.id}&select=movie_id,source,signal,movie&order=created_at.desc&limit=2000`);
@@ -37,4 +38,10 @@ export async function undismiss(ctx, id) {
   if (!Number.isSafeInteger(Number(id))) throw new HttpError(400, 'Choose a film.');
   await database(ctx.token)(`taste_signals?user_id=eq.${ctx.user.id}&movie_id=eq.${Number(id)}&source=eq.dismissed`, { method: 'DELETE' });
   return { ok: true };
+}
+
+/** What the member's critic has learned (shared/rules.js), for the recommenders. Empty until it has. */
+export async function readRules(ctx) {
+  const [row] = await database(ctx.token)(`critic_memory?user_id=eq.${ctx.user.id}&select=rules`).catch(() => []);
+  return (Array.isArray(row?.rules) ? row.rules : []).filter(validRule);
 }

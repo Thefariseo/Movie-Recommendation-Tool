@@ -149,6 +149,26 @@ Without either, the page says the critic is unavailable and nothing else changes
 - other signals nudge the score, and the critic's recommendations join the candidates with "Your critic recommended it";
 - verdicts are stored in `critic_verdicts` and shown again whenever the film is opened, at no cost; *Ask again* spends a new question.
 
+## Taste rules: what the critic learns, the recommender applies
+
+Every critic reply and every portrait also returns **taste rules** (`shared/rules.js`): up to 16 durable preferences the diary or the member's own words support, each a kind (`genre`, `theme`, `person`, `language`, `country`, `decade`, `runtime`), a stance (`love` +1, `like` +0.5, `dislike` −0.5, `avoid` −1) and a few words of evidence. The server resolves themes and people to TMDB ids once (`resolveRules`: keyword and person search; a rule TMDB cannot resolve is dropped, one already resolved costs nothing) and keeps them in `critic_memory.rules`; the critic receives its current rules each time, so it keeps or revises them as it learns. "Forget" removes them with the rest.
+
+They reach every recommender with the signals (`GET /api/signals` returns `{ signals, rules }`):
+
+- **candidates**: loved people's filmographies, loved themes (`with_keywords`) and loved languages join the pool;
+- **first stage**: what a list result shows (genre, language, decade) is matched against the rules;
+- **second stage**: the judge (below) matches people, themes and runtime on the film's full details.
+
+The critic page shows the rules in plain words ("Loves Akira Kurosawa", "Avoids gore").
+
+## The judge: several signs agreeing
+
+The final ranking of the shortlist (48 films in the browser, 32 on the server) is decided by `shared/judge.js`. For each film it gathers every **independent sign** that the member will like it: the taste space (people who loved *their* films love it), a director, an actor, themes or a language from their loved films, the critic's rules, a film the critic recommended or judged for them, a loved film it is "more like" (TMDB recommendations, only from films rated 8/10 or more), and the watchlist. It also gathers what goes **against** it (a director or themes the member rates low, a rule to avoid, the critic's doubts).
+
+- The number of signs that agree moves the score: none −0.2 (a film there only for its genre and ratings drops), one ±0, two +0.12, three +0.22, four or more +0.3; each thing against it −0.12. Films past the shortlist, never judged, carry −0.1.
+- The **reason** names every sign with the member's own films: the short one leads with the strongest and says how many more agree ("By Akira Kurosawa — you gave "Ran" 5★ · +2 more"); the full one lists them all, then "Worth knowing" for what goes against it. The film page shows the list.
+- A film is never recommended "because you gave another film 3.5★": "more like this" seeds are loved films (8/10 or more, topped up with 7/10 only when there are too few), and only a loved seed is ever named.
+
 **Rounds.** The first round is stable. Each *Refresh* / *Other picks* round leaves out the films just shown while enough others remain, and adds seeded Gumbel noise so close candidates trade places while clearly better films stay on top.
 
 ## Tonight

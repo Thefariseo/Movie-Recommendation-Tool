@@ -3,12 +3,14 @@ import { predict, groupScore } from '../shared/model.js';
 import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridScore } from '../shared/taste.js';
 import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
-import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
+import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
 import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
 import { matchesDiscovery } from '../shared/discovery.js';
 import { passesFilters } from '../shared/tonight.js';
 import { loadTasteSpace } from './tasteSpace.js';
-import { readSignals } from './signals.js';
+import { readSignals, readRules } from './signals.js';
+import { ruleMatch, STANCES } from '../shared/rules.js';
+import { judge } from '../shared/judge.js';
 import { signalMap, blocked, signalOf, jitter, withoutRecent } from '../shared/signals.js';
 export { tmdb };
 export const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
@@ -28,8 +30,12 @@ export async function memberEvidence(movies) {
 }
 // On tasteScore's 10-point scale. Genre affinity there carries 2.4; these keep
 // the same proportions the browser recommender uses against its genre weight.
-const EVIDENCE_WEIGHT = { language: .65, director: 1.5, cast: .5, keywords: 1.3, country: .35 };
-const SHORTLIST = 24;
+const EVIDENCE_WEIGHT = { language: .65 };
+const SHORTLIST = 32;
+// The judge's adjustments are on the browser's scale; this is tasteScore's.
+const JUDGE_SCALE = 4;
+// What the critic learned, on what a list result shows (genres, language, decade).
+const RULE_POINTS = 1.4;
 // The taste space on the same scale: a film six standard deviations above a
 // member's ordinary match gains over 2 points, as much as a strongly liked genre.
 const PEER_WEIGHT = 3;
@@ -63,6 +69,9 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // The host's signals hold for every night they host: what their critic
   // warned against, judged "skip", or they dismissed is never offered.
   const signals = signalMap(await readSignals(ctx).catch(() => []));
+  // What the host's critic has learned about them. Only a member's own picks
+  // follow it: a group night weighs everyone equally.
+  const rules = ids.length === 1 ? await readRules(ctx) : [];
   for (const [id] of signals) if (blocked(signals, id)) excluded.add(id);
   const savedIds = new Set(libraries.flat().filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
   let model = null;
@@ -118,6 +127,19 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       ranked.push([space.tmdb[i], Math.min(...zs)]);
     }
     spaceIds.push(...ranked.sort((a, b) => b[1] - a[1]).slice(0, PEER_PICKS).map(([id]) => id));
+  }
+  // Films the critic's rules point to: loved themes, languages and people.
+  if (rules.length && !constraints.watchlist_only) {
+    const loved = rules.filter(r => STANCES[r.stance] > 0);
+    const themes = loved.filter(r => r.kind === 'theme').slice(0, 4).map(r => r.id);
+    const tongue = loved.find(r => r.kind === 'language');
+    const person = loved.find(r => r.kind === 'person');
+    const found = await Promise.allSettled([
+      themes.length ? tmdb('discover/movie', { with_keywords: themes.join('|'), sort_by: 'vote_average.desc', 'vote_count.gte': '150', include_adult: 'false' }) : null,
+      tongue ? tmdb('discover/movie', { with_original_language: tongue.code, sort_by: 'vote_average.desc', 'vote_count.gte': '150', include_adult: 'false' }) : null,
+      person ? tmdb(`person/${person.id}/movie_credits`).then(c => ({ results: person.role === 'actor' ? c.cast : (c.crew || []).filter(m => m.job === 'Director') })) : null
+    ]);
+    for (const r of found) if (r.status === 'fulfilled' && r.value) add(r.value.results);
   }
   const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has('critic_pick') && !excluded.has(id)).slice(0, 8).map(([id]) => id);
   const detailIds = constraints.watchlist_only ? [] : [...new Set([...criticPicks, ...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 56);
@@ -177,7 +199,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(
-      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)) + (index === 0 ? SIGNAL_POINTS[signalOf(signals, m.id)] || 0 : 0),
+      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)) + (index === 0 ? (SIGNAL_POINTS[signalOf(signals, m.id)] || 0) + RULE_POINTS * ruleMatch(m, rules).score : 0),
       predict(model || {users: {}, items: {}}, id, m.id),
       index === 0 ? neighborMap.get(m.id) : null
     ));
@@ -206,19 +228,32 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // List results carry no credits or keywords, so the shortlist is fetched in
   // full and judged on them: a director the member rates low counts against a
   // film, a theme from films they loved counts for it.
-  if (evidence?.films) {
+  // The judge weighs every sign for and against each film, as in the browser:
+  // several independent signs agreeing lift a film, a single loose link or
+  // nothing but its genre drops it, and the reason names each sign.
+  if (ids.length === 1 && (evidence?.films || rules.length || placed[0])) {
     const shortlist = movies.slice(0, SHORTLIST);
+    for (const m of movies.slice(SHORTLIST)) m._score -= 0.1 * JUDGE_SCALE;
     const details = await inBatches(shortlist, m => filmDetails(m.id));
     shortlist.forEach((m, i) => {
       if (details[i].status !== 'fulfilled') return;
-      const match = evidenceMatch(details[i].value, evidence);
-      m._score += EVIDENCE_WEIGHT.director * match.director + EVIDENCE_WEIGHT.cast * match.cast
-        + EVIDENCE_WEIGHT.keywords * match.keywords + EVIDENCE_WEIGHT.country * match.country;
-      const cited = evidenceReason(match.because);
-      // The taste-space reason names loved films too; only a loved director or actor is more specific.
-      if (cited && (!m._peer || match.because.director || match.because.actor)) { m._reason = cited.short; m._reasonDetail = cited.full; }
+      const d = details[i].value;
+      const z = peerZ(0, m.id);
+      const verdict = judge({
+        details: d,
+        evidence: evidence?.films ? evidence : null,
+        rules,
+        peer: z != null && z >= 1.5 ? { z, films: becauseOf(space, placed[0].member, space.index.get(Number(m.id))) } : null,
+        signal: signals.get(Number(m.id)) || null,
+        saved: savedIds.has(Number(m.id))
+      });
+      m._score += JUDGE_SCALE * verdict.adjust;
+      m._agree = verdict.agree;
+      m._signs = verdict.signs.map(({ kind, short, full }) => ({ kind, short, full }));
+      m._against = verdict.against;
+      if (verdict.reason) { m._reason = verdict.reason.short; m._reasonDetail = verdict.reason.full; }
       // Lets the diversity pass avoid three films by one director.
-      m.dirName = directorsOf(details[i].value)[0]?.name || m.dirName;
+      m.dirName = directorsOf(d)[0]?.name || m.dirName;
     });
     movies.sort((a, b) => b._score - a._score);
   }

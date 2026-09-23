@@ -8,6 +8,7 @@ import { genreIds, qualityScore } from "../../shared/taste.js";
 import { MOODS, TIMES, ERAS, sameAgain, passesFilters, avoidedGenres } from "../../shared/tonight.js";
 import { LOOKS } from "../../shared/visual.js";
 import { lookOf } from "../utils/visualStyle";
+import { currentRules } from "../utils/signals";
 
 const PICKS = 5;
 
@@ -18,7 +19,7 @@ const PICKS = 5;
  */
 export async function tonightPicks({
   watched = [], watchlist = [], mood = null, time = null, look = null, providers = [], region = "IT",
-  rent = false, watchlistOnly = false, exclude = new Set(), recentlyShown = new Set(), signals = new Map(), ...filters
+  rent = false, watchlistOnly = false, exclude = new Set(), recentlyShown = new Set(), signals = new Map(), rules = currentRules(), ...filters
 } = {}) {
   const genres = MOODS[mood]?.genres || [];
   const max = TIMES[time]?.max || null;
@@ -29,7 +30,7 @@ export async function tonightPicks({
   if (watchlistOnly) {
     // From the member's own list: the recommender's order where it has an
     // opinion, the films' quality otherwise.
-    const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown, signals });
+    const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown, signals, rules });
     const score = new Map(ranked.map((r) => [Number(r.id), r._score || 0]));
     ordered = watchlist
       .filter((m) => !seen.has(Number(m.id)))
@@ -38,7 +39,7 @@ export async function tonightPicks({
       .sort((a, b) => b._tonight - a._tonight);
   } else {
     const ranked = await getRecommendations({
-      watched, watchlist, top: 60, recentlyShown: new Set([...recentlyShown, ...exclude]), signals,
+      watched, watchlist, top: 60, recentlyShown: new Set([...recentlyShown, ...exclude]), signals, rules,
       prefs: { genres, era: ERAS[filters.era] ? filters.era : undefined }
     });
     // The library keeps films in the order they were added, so its tail is
@@ -70,7 +71,7 @@ export async function tonightPicks({
         on = [...stream.map((p) => ({ ...p, how: "stream" })), ...other.filter((p) => !stream.some((s) => s.provider_id === p.provider_id)).map((p) => ({ ...p, how: "rent" }))];
         if (!on.length) return null;
       }
-      return { ...details, ...r, genre_ids: genreIds(details), runtime: details.runtime, providers: on, _reason: r.reason || r._reason || (watchlistOnly ? "From your watchlist" : null), _reasonDetail: r.reasonDetail || r.reason || null };
+      return { ...details, ...r, genre_ids: genreIds(details), runtime: details.runtime, providers: on, _reason: r.reason || r._reason || (watchlistOnly ? "From your watchlist" : null), _reasonDetail: r.reasonDetail || r.reason || null, _signs: r.signs || r._signs || [], _against: r.against || r._against || [] };
     }));
     for (const b of batch) if (b.status === "fulfilled" && b.value && picks.length < PICKS) picks.push(b.value);
   }

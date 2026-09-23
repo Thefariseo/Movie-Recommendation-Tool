@@ -5,7 +5,7 @@ import useWatched   from "@/hooks/useWatched";
 import useWatchlist from "./useWatchlist";
 import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recommender";
 import { movieDetails, movieWatchProviders } from "../utils/api";
-import { loadSignals, useSignals } from "../utils/signals";
+import { loadSignals, useSignals, currentRules } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
 
 /* ------------------------------------------------------------------ */
@@ -100,6 +100,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
         top,
         recentlyShown,
         signals: await loadSignals(user?.id ?? null),
+        rules: currentRules(),
         explore,
       });
 
@@ -114,7 +115,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
 
       // Build enhanced objects with film-specific narratives
       const scored = details.map((d) => {
-        const { score, reason, reasonDetail, isCriterion } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
+        const { score, reason, reasonDetail, isCriterion, signs = [], against = [], agree = 0 } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
         const director = d.credits?.crew?.find((p) => p.job === "Director");
         const keywords = d.keywords?.keywords || [];
         const year     = d.release_date ? d.release_date.slice(0, 4) : null;
@@ -137,6 +138,10 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
           _reason:      reason,
           _reasonDetail: reasonDetail || reason,
           _narrative:   narrative,
+          // Every sign that points to the film, and what goes against it.
+          _signs:       signs,
+          _against:     against,
+          _agree:       agree,
           _director:    director?.name || null,
           _keywords:    keywords,
           _isCriterion: isCriterion || CRITERION_RADIANCE_IDS.has(d.id),
