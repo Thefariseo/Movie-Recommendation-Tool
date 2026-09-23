@@ -844,7 +844,9 @@ summary {
   }
   .mobile-navigation {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* One column per destination, however many there are. */
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     position: fixed;
     left: 0;
     right: 0;
@@ -861,7 +863,8 @@ summary {
     align-items: center;
     gap: 5px;
     font-size: 10px;
-    padding: 8px 6px;
+    padding: 8px 2px;
+    min-width: 0;
   }
   .discover-page,
   .library-layout {

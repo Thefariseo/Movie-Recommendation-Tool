@@ -126,3 +126,8 @@ export async function movieWatchProviders(id, countryCode = "US") {
     link:     region.link     || null,
   };
 }
+
+/** Streaming services offered in a region, most prominent first. */
+export function watchProviderList(region = "US") {
+  return get("/watch/providers/movie", { watch_region: region });
+}
