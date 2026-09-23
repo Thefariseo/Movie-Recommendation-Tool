@@ -7,6 +7,7 @@ import { backend } from "../utils/backend";
 import useWatched from "../hooks/useWatched";
 import MovieCard from "../components/MovieCard";
 import { movieDetails } from "../utils/api";
+import { reloadSignals } from "../utils/signals";
 
 const language = () => (navigator.language || "en").split("-")[0];
 
@@ -181,6 +182,8 @@ export default function CriticPage() {
     setThreadId(summary.id);
     setState((s) => ({ ...s, messages, notes: result.notes, threads: [summary, ...(s.threads || []).filter((t) => t.id !== summary.id)] }));
     if (result.interview_complete) setInterview(false);
+    // Films the critic just warned against or recommended now shape the picks.
+    reloadSignals();
   };
   // Enter sends; Shift+Enter starts a new line; nothing is sent mid-composition (accents, IME).
   const onKey = (e) => {

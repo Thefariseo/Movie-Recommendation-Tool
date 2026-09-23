@@ -1,6 +1,6 @@
 import { nodeHandler, identify, body, HttpError, rateLimit } from '../server/http.js';
 import { criticEnabled } from '../server/llm.js';
-import { criticState, criticThread, criticDeleteThread, criticMessage, criticPortrait, criticExplain, criticReset } from '../server/critic.js';
+import { criticState, criticThread, criticDeleteThread, criticMessage, criticPortrait, criticExplain, criticReset, savedVerdict } from '../server/critic.js';
 // The personal critic. Every call that reaches the language model is rate
 // limited per member; reading the conversation and resetting it are not.
 const language = value => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value || '') ? value : 'en');
@@ -8,12 +8,19 @@ export async function critic(ctx) {
   await identify(ctx);
   if (ctx.request.method === 'GET') {
     const thread = ctx.url.searchParams.get('thread');
+    const verdict = ctx.url.searchParams.get('verdict');
+    if (verdict) return savedVerdict(ctx, verdict);
     return thread ? criticThread(ctx, thread) : { enabled: criticEnabled(), ...await criticState(ctx) };
   }
   const input = await body(ctx);
   if (input.action === 'reset') return criticReset(ctx);
   if (input.action === 'delete-thread') return criticDeleteThread(ctx, input.thread);
   if (!criticEnabled()) throw new HttpError(503, 'The critic is not configured on this server yet.');
+  // A verdict already written is returned as it is, without spending a question.
+  if (input.action === 'explain' && input.refresh !== true) {
+    const { verdict } = await savedVerdict(ctx, input.movie_id);
+    if (verdict) return verdict;
+  }
   await rateLimit(ctx, 'critic-minute');
   // Each member may ask the critic 15 things a day: messages, portraits and verdicts alike.
   try {

@@ -23,14 +23,19 @@ afterEach(() => { globalThis.fetch = originalFetch; });
 const DIARY = [[129, 'Spirited Away', 10], [128, 'Princess Mononoke', 10], [8392, 'My Neighbor Totoro', 9], [550, 'Fight Club', 3], [680, 'Pulp Fiction', 2]];
 const rows = DIARY.map(([movie_id, title, rating]) => ({ kind: 'watched', movie_id, rating, movie: { id: movie_id, title, year: 2001, genre_ids: [16] } }));
 
-function backend({ reply, replies = null, memory = [], threads = [] } = {}) {
-  const seen = { openai: [], saved: [], threads: [] };
+function backend({ reply, replies = null, memory = [], threads = [], verdicts = [] } = {}) {
+  const seen = { openai: [], saved: [], threads: [], verdicts: [], signals: [] };
   globalThis.fetch = async (url, options = {}) => {
     const u = new URL(url);
     if (u.pathname.endsWith('/auth/v1/user')) return json({ id });
     if (u.pathname === '/models/taste-space.bin') return new Response(readFileSync(new URL('../public/models/taste-space.bin', import.meta.url)));
     if (u.pathname.endsWith('/rpc/consume_limit')) return json(true);
     if (u.pathname.endsWith('/user_movies')) return json(rows);
+    if (u.pathname.endsWith('/critic_verdicts')) {
+      if (!options.method || options.method === 'GET') return json(verdicts);
+      const body = JSON.parse(options.body); seen.verdicts.push(body); verdicts = [{ verdict: body.verdict }]; return new Response(null, { status: 201 });
+    }
+    if (u.pathname.endsWith('/taste_signals')) { seen.signals.push(...[].concat(JSON.parse(options.body))); return new Response(null, { status: 201 }); }
     if (u.pathname.endsWith('/critic_threads')) {
       if (!options.method || options.method === 'GET') return json(threads);
       const body = options.method === 'DELETE' ? {} : JSON.parse(options.body);
@@ -145,7 +150,7 @@ test('OpenAI reasoning models run at low effort, with room left for the answer',
   assert.deepEqual(seen.openai[0].reasoning, { effort: 'low' });
   assert.equal(seen.openai[0].max_output_tokens, 700 + 2000);
   process.env.OPENAI_CRITIC_REASONING = 'off';
-  await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
+  await execute(request('critic', { action: 'explain', movie_id: 4935, refresh: true }), critic);
   assert.equal(seen.openai[1].reasoning, undefined);
   assert.equal(seen.openai[1].max_output_tokens, 700);
 });
@@ -192,4 +197,29 @@ test('a chat continues in its own thread, and old chats can be listed, opened an
   assert.match(JSON.parse(seen.openai[1].input).correction, /Pulp Fiction/);
   await execute(request('critic', { action: 'delete-thread', thread: old.id }), critic);
   assert.ok(seen.threads.some(t => t.method === 'DELETE'));
+});
+
+test('a verdict is kept: it shows again for free, and a "skip" stops the film being recommended', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  const seen = backend({ reply: { verdict: 'skip', headline: 'Non fa per te', analysis: '...' } });
+  const first = await (await execute(request('critic', { action: 'explain', movie_id: 278 }), critic)).json();
+  assert.equal(first.verdict, 'skip');
+  assert.equal(seen.verdicts[0].movie_id, 278);
+  assert.deepEqual(seen.signals.map(x => [x.movie_id, x.source, x.signal]), [[278, 'verdict', -2]]);
+  const again = await (await execute(request('critic', { action: 'explain', movie_id: 278 }), critic)).json();
+  assert.equal(again.headline, 'Non fa per te');
+  assert.equal(seen.openai.length, 1, 'the saved verdict costs no second call');
+  const shown = await (await execute(request('critic?verdict=278'), critic)).json();
+  assert.equal(shown.verdict.verdict, 'skip');
+  await execute(request('critic', { action: 'explain', movie_id: 278, refresh: true }), critic);
+  assert.equal(seen.openai.length, 2, 'asking again writes a new verdict');
+});
+
+test('films the critic warns against or recommends become signals for the recommender', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  const seen = backend({ reply: { reply: 'Odieresti Fight Club? Già visto. Evita Pulp Fiction… prova Howl.', interview_complete: true,
+    films: [{ title: "Howl's Moving Castle", year: 2004, why: 'x' }], warned_against: [{ title: 'Pulp Fiction', year: 1994 }, { title: 'Missing Film', year: null }], notes: [] } });
+  await execute(request('critic', { action: 'message', message: 'Cosa eviterei?', mode: 'interview' }), critic);
+  const rows = seen.signals.map(x => [x.movie_id, x.source, x.signal]);
+  assert.deepEqual(rows, [[4935, 'critic_pick', 1]], 'a watched film is never recorded as a warning; an unknown title is skipped');
 });

@@ -4,6 +4,8 @@ import { useLibrary } from "../contexts/LibraryContext";
 import { backend } from "../utils/backend";
 import { GENRE_MAP } from "../utils/genres";
 import MovieCard from "./MovieCard";
+import { useSignals } from "../utils/signals";
+import { blocked } from "../../shared/signals.js";
 export default function CommunityPicks() {
   const { user } = useAuth();
   const { watched, watchlist, ready } = useLibrary();
@@ -13,6 +15,7 @@ export default function CommunityPicks() {
   const [genre, setGenre] = useState("");
   const [runtime, setRuntime] = useState("");
   const [recent, setRecent] = useState([]);
+  const signals = useSignals(user?.id);
   const owner = useRef(user?.id);
   const libraryKey = JSON.stringify([
     watched.map((m) => [m.id, m.rated]),
@@ -50,12 +53,14 @@ export default function CommunityPicks() {
     return () => controller.abort();
   }, [user?.id, ready, libraryKey, revision, genre, runtime, recent]);
   if (!user) return null;
+  // What is on screen: dismissed films leave at once.
+  const shown = (result?.movies || []).filter((m) => !blocked(signals, m.id)).slice(0, 6);
   const refresh = () => {
     setRecent((prev) =>
       [
         ...new Set([
           ...prev,
-          ...(result?.movies.slice(0, 6).map((m) => m.id) || []),
+          ...shown.map((m) => m.id),
         ]),
       ].slice(-100),
     );
@@ -129,9 +134,9 @@ export default function CommunityPicks() {
             </p>
           )}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {result.movies.slice(0, 6).map((m) => (
+            {shown.map((m) => (
               <div key={m.id}>
-                <MovieCard movie={m} />
+                <MovieCard movie={m} dismissable />
                 <p className="mt-2 text-xs text-slate-500">{m._reason}</p>
               </div>
             ))}

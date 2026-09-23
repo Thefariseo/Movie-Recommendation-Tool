@@ -11,6 +11,8 @@ import { tonightPicks } from "../algorithms/tonight";
 import { MOODS, TIMES, ERAS, LANGUAGES, MIN_RATINGS, POPULARITY, AVOIDABLE } from "../../shared/tonight.js";
 import { LOOKS } from "../../shared/visual.js";
 import MovieCard from "../components/MovieCard";
+import { loadSignals, useSignals } from "../utils/signals";
+import { blocked } from "../../shared/signals.js";
 
 const SERVICES_KEY = "umbrify_services_v1";
 const readServices = () => {
@@ -74,6 +76,7 @@ function Hero({ film }) {
 
 export default function TonightPage() {
   const { user, profile } = useAuth();
+  const signals = useSignals(user?.id);
   const { watched } = useWatched();
   const { watchlist } = useWatchlist();
   const navigate = useNavigate();
@@ -119,7 +122,7 @@ export default function TonightPage() {
     if (!more) setShown([]);
     setPicks(null);
     try {
-      const found = await tonightPicks({ watched, watchlist, mood, time, look, providers: services, region: place, exclude, ...options });
+      const found = await tonightPicks({ watched, watchlist, mood, time, look, providers: services, region: place, exclude, signals: await loadSignals(user?.id ?? null), ...options });
       setPicks(found);
       setShown((s) => [...(more ? s : []), ...found.map((f) => f.id)]);
       if (!found.length) setError(more ? "That's everything that fits tonight. Loosen a filter to see more." : services.length ? "Nothing on your services fits tonight. Try another mood, more time, fewer filters or more services." : "Nothing fits tonight. Try another mood, more time or fewer filters.");
@@ -263,13 +266,13 @@ export default function TonightPage() {
         {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
       </section>
 
-      {picks?.length > 0 && (
+      {picks?.filter((m) => !blocked(signals, m.id)).length > 0 && (
         <section className="space-y-4">
-          <Hero film={picks[0]} />
+          <Hero film={picks.filter((m) => !blocked(signals, m.id))[0]} />
           {picks.length > 1 && (
             <>
               <p className="eyebrow">OR</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{picks.slice(1).map((m) => <MovieCard key={m.id} movie={m} />)}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{picks.filter((m) => !blocked(signals, m.id)).slice(1).map((m) => <MovieCard key={m.id} movie={m} dismissable />)}</div>
             </>
           )}
           <button type="button" className="account-secondary flex items-center gap-1.5" disabled={busy} onClick={() => findSolo(true)}>

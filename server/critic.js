@@ -8,6 +8,8 @@ import { watchedMovies, memberEvidence, recommendations, tmdb } from './recommen
 import { loadTasteSpace } from './tasteSpace.js';
 import { placeMember, affinities, peerStrength } from '../shared/tasteSpace.js';
 import { stars } from '../shared/evidence.js';
+import { writeSignals } from './signals.js';
+import { VERDICT_SIGNAL } from '../shared/signals.js';
 
 const MAX_MESSAGES = 40;
 const MAX_NOTES = 12;
@@ -64,9 +66,13 @@ const GROUNDING = `You are the member's personal film critic inside Umbrify. You
 const MESSAGE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['reply', 'films', 'notes', 'interview_complete'],
+  required: ['reply', 'films', 'warned_against', 'notes', 'interview_complete'],
   properties: {
     reply: { type: 'string' },
+    warned_against: {
+      type: 'array',
+      items: { type: 'object', additionalProperties: false, required: ['title', 'year'], properties: { title: { type: 'string' }, year: { type: ['integer', 'null'] } } }
+    },
     films: {
       type: 'array',
       items: {
@@ -85,6 +91,7 @@ const CHAT = `${GROUNDING}
 You are in a conversation. Reply in the language of the member's latest message, in at most about 120 words unless they ask for more.
 When you recommend, put each film (at most 4) in "films" with its original title as TMDB lists it, its original release year and a one-sentence reason tied to their diary; mention them in the reply too. Never suggest a film in the reply without also listing it in "films": the member only sees posters for the films listed there.
 Accept objections ("too slow", "I hated that one") and adjust: the next suggestions must respect them.
+Whenever you say the member would probably dislike a specific film they have not seen, also list it in "warned_against" (title and year): Umbrify will stop recommending it. Leave it empty otherwise.
 "notes" is your memory of this member across visits: return the complete updated list (at most ${MAX_NOTES} short lines), keeping earlier notes unless the member contradicts them, and adding durable preferences they state (e.g. "Finds slow films tedious unless the ending pays off"). Never store anything that is not about film taste.
 Set interview_complete to false.`;
 
@@ -92,6 +99,7 @@ const INTERVIEW = `${GROUNDING}
 The member is new or has rated few films, so you are interviewing them to learn their taste. Ask one short, concrete question at a time (a film they love and why, one they could not stand, what they want from a film tonight, a director or country they are drawn to). React briefly to each answer, like a curious critic.
 Reply in the language of the member's latest message (Italian if they have written nothing yet and the dossier gives no hint).
 In "films", list well-known films they have probably seen, based on what they told you (at most 6), so they can rate them in one tap; "why" says why their rating of it would be telling. Leave it empty until you have learned something.
+List in "warned_against" any unseen film you say they would probably dislike (else leave it empty).
 After four or five answers, set interview_complete to true, sum up their taste in two sentences and recommend (in "films") up to 4 unseen films that fit.
 "notes": the complete list (at most ${MAX_NOTES} short lines) of what you have learned about their taste so far.`;
 
@@ -233,6 +241,13 @@ export async function criticMessage(ctx, text, { mode = 'chat', thread: threadId
     found = await resolveFilms(answer.films || [], watched, { space, member });
   }
   const films = recommending ? found.filter(f => !f._seen) : found;
+  // What the critic says about films reaches the recommender: a film it warns
+  // against is not recommended again, and one it recommends is favoured.
+  const warned = (await resolveFilms(answer.warned_against || [], watched, { space, member })).filter(f => !f._seen);
+  await writeSignals(ctx, [
+    ...warned.map(movie => ({ movie, source: 'critic_warned', signal: -2 })),
+    ...(recommending ? films.map(movie => ({ movie, source: 'critic_pick', signal: 1 })) : [])
+  ]);
   const messages = [...thread.messages, { role: 'user', content: text }, { role: 'assistant', content: String(answer.reply || '').slice(0, 4000), movie_ids: films.map(f => f.id), films: films.map(card), mode }].slice(-MAX_MESSAGES);
   const now = new Date().toISOString();
   let saved;
@@ -280,7 +295,21 @@ export async function criticExplain(ctx, movieId, { language = 'en' } = {}) {
     taste_space_fit: i != null && member ? Number(peerStrength(member.z[i]).toFixed(2)) : null,
     already_rated: watched.find(m => Number(m.id) === id)?.rated ?? null
   };
-  return structured({ name: 'critic_verdict', schema: EXPLAIN_SCHEMA, instructions: EXPLAIN, input: { language, dossier: summary, your_notes: row.notes, film: target }, maxTokens: 700 });
+  const verdict = await structured({ name: 'critic_verdict', schema: EXPLAIN_SCHEMA, instructions: EXPLAIN, input: { language, dossier: summary, your_notes: row.notes, film: target }, maxTokens: 700 });
+  const saved = { ...verdict, language, written_at: new Date().toISOString() };
+  // Kept, so it shows again whenever the film is opened, and felt by the recommender.
+  const db = database(ctx.token);
+  await db('critic_verdicts?on_conflict=user_id,movie_id', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { user_id: ctx.user.id, movie_id: id, verdict: saved, created_at: saved.written_at } });
+  if (target.already_rated == null) await writeSignals(ctx, [{ movie: { ...d, id }, source: 'verdict', signal: VERDICT_SIGNAL[verdict.verdict] }]);
+  return saved;
+}
+
+/** The verdict saved for a film, or null. Reading it costs nothing. */
+export async function savedVerdict(ctx, movieId) {
+  const id = Number(movieId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, 'Choose a film.');
+  const [row] = await database(ctx.token)(`critic_verdicts?user_id=eq.${ctx.user.id}&movie_id=eq.${id}&select=verdict`);
+  return { verdict: row?.verdict || null };
 }
 
 export async function criticReset(ctx) {

@@ -758,6 +758,31 @@ summary {
 .film-saved {
   background: #4f46e5;
 }
+/* "Not for me" on recommendation cards: shown on hover, always on touch screens. */
+.film-dismiss {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: rgb(2 6 23 / 0.7);
+  color: white;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.film-card:hover .film-dismiss,
+.film-dismiss:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .film-dismiss {
+    opacity: 0.85;
+  }
+}
 .catalogue-message {
   padding: 30px;
   border: 1px dashed rgb(var(--color-border));
