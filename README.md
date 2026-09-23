@@ -127,7 +127,12 @@ MovieLens is licensed for non-commercial research use and requires acknowledgeme
 
 ## Personal critic
 
-`/critic` is a critic that has read the member's diary. It needs `OPENAI_API_KEY` and a model in `OPENAI_CRITIC_MODEL` (falling back to `OPENAI_CHAT_MODEL`) that supports Responses Structured Outputs; without them the page says the critic is unavailable and nothing else changes.
+`/critic` is a critic that has read the member's diary. Configure one of:
+
+- **OpenAI:** `OPENAI_API_KEY` and `OPENAI_CRITIC_MODEL` (falling back to `OPENAI_CHAT_MODEL`), a model that supports Responses Structured Outputs.
+- **Any OpenAI-compatible Chat Completions provider:** `CRITIC_API_URL` (the base URL, e.g. `https://api.groq.com/openai/v1` or `https://api.mistral.ai/v1`), `CRITIC_API_KEY` and `CRITIC_MODEL`. JSON mode is used and the answer is fitted to the schema (`conform` in `server/llm.js`). Before choosing a free plan, check its terms: Google's unpaid Gemini tier may not serve users in the EEA, UK or Switzerland, and Mistral's free tier trains on data unless you opt out.
+
+Without either, the page says the critic is unavailable and nothing else changes.
 
 - **Grounding.** Each call sends a compact dossier (`server/critic.js`): the titles and stars of the member's most and least liked films, recent and saved titles, the directors, themes and languages their signed evidence favours or avoids, and, in conversation, the taste space's current picks. The instructions require every claim to cite the member's own films and forbid recommending a watched film; suggestions are resolved on TMDB and watched ones dropped server-side regardless. Member text is treated as data.
 - **Memory.** One conversation per member (last 40 messages), up to 12 notes the critic keeps about their taste, and the last portrait, in `critic_memory` under RLS. "Forget" deletes all three.

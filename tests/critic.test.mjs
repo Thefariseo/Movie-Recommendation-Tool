@@ -15,6 +15,7 @@ const request = (path, data) => new Request(`https://umbrify.test/api/${path}`, 
 beforeEach(() => {
   Object.assign(process.env, { APP_URL: 'https://umbrify.test', SUPABASE_URL: 'https://db.test', SUPABASE_ANON_KEY: 'public', TMDB_KEY: 'tmdb' });
   delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_CHAT_MODEL; delete process.env.OPENAI_CRITIC_MODEL;
+  delete process.env.CRITIC_API_URL; delete process.env.CRITIC_API_KEY; delete process.env.CRITIC_MODEL;
 });
 afterEach(() => { globalThis.fetch = originalFetch; });
 
@@ -36,6 +37,7 @@ function backend({ reply, memory = [] } = {}) {
       seen.saved.push({ method: options.method, body });
       return json([{ user_id: id, version: 0, messages: [], notes: [], portrait: null, ...body }]);
     }
+    if (u.hostname === 'api.groq.test') { const body = JSON.parse(options.body); seen.openai.push({ ...body, input: body.messages[1].content, instructions: body.messages[0].content }); return json({ choices: [{ message: { content: '```json\n' + JSON.stringify(reply) + '\n```' } }] }); }
     if (u.hostname === 'api.openai.com') { seen.openai.push(JSON.parse(options.body)); return json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(reply) }] }] }); }
     if (u.pathname.endsWith('/search/movie')) {
       const q = u.searchParams.get('query');
@@ -103,4 +105,25 @@ test('messages are bounded', async () => {
   backend();
   const res = await execute(request('critic', { action: 'message', message: 'x'.repeat(1001) }), critic);
   assert.equal(res.status, 400);
+});
+
+test('any OpenAI-compatible provider can host the critic, and its answer is made to fit the schema', async () => {
+  Object.assign(process.env, { CRITIC_API_URL: 'https://api.groq.test/openai/v1/', CRITIC_API_KEY: 'gsk-test', CRITIC_MODEL: 'free-model' });
+  // A looser model: a code fence, a missing field and a string where a year should be.
+  const seen = backend({ reply: { reply: 'Prova Howl.', films: [{ title: "Howl's Moving Castle", year: '2004' }] } });
+  const state = await (await execute(request('critic'), critic)).json();
+  assert.equal(state.enabled, true);
+  const res = await (await execute(request('critic', { action: 'message', message: 'Consigliami', mode: 'interview' }), critic)).json();
+  assert.equal(seen.openai[0].model, 'free-model');
+  assert.deepEqual(seen.openai[0].response_format, { type: 'json_object' });
+  assert.match(seen.openai[0].instructions, /JSON Schema/);
+  assert.deepEqual(res.films.map(f => f.id), [4935]);
+  assert.deepEqual(res.notes, []);
+});
+
+import { conform } from '../server/llm.js';
+test('conform fills what a model left out without inventing content', () => {
+  const schema = { type: 'object', properties: { verdict: { type: 'string', enum: ['love', 'skip'] }, year: { type: ['integer', 'null'] }, tags: { type: 'array', items: { type: 'string' } }, done: { type: 'boolean' } } };
+  assert.deepEqual(conform(schema, { verdict: 'meh', year: '1999', tags: 'x' }), { verdict: 'love', year: 1999, tags: [], done: false });
+  assert.deepEqual(conform(schema, null), { verdict: 'love', year: null, tags: [], done: false });
 });
