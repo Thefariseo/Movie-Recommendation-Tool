@@ -17,23 +17,36 @@ const client = axios.create({
 
 // Simple in-memory cache
 const cache = new Map();
+const inflight = new Map();
 const queue  = [];
-const MAX_CONCURRENT = 3;
+// Well under TMDB's rate limit; recommendations fetch a shortlist in batches of 6.
+const MAX_CONCURRENT = 6;
 
 async function get(url, params = {}) {
   const key = url + JSON.stringify(params);
   if (cache.has(key)) return cache.get(key);
+  // Two callers asking for the same film at once share one request.
+  if (inflight.has(key)) return inflight.get(key);
 
-  while (queue.length >= MAX_CONCURRENT) await queue[0];
-  const pending = client.get(url, { params }).then(r => r.data);
-  queue.push(pending);
-
+  const request = (async () => {
+    // Waiting for a free slot must not inherit someone else's failure: a 404
+    // for one film used to reject every request queued behind it.
+    while (queue.length >= MAX_CONCURRENT) await Promise.race(queue.map((p) => p.catch(() => {})));
+    const pending = client.get(url, { params }).then(r => r.data);
+    queue.push(pending);
+    try {
+      const data = await pending;
+      cache.set(key, data);
+      return data;
+    } finally {
+      queue.splice(queue.indexOf(pending), 1);
+    }
+  })();
+  inflight.set(key, request);
   try {
-    const data = await pending;
-    cache.set(key, data);
-    return data;
+    return await request;
   } finally {
-    queue.splice(queue.indexOf(pending), 1);
+    inflight.delete(key);
   }
 }
 

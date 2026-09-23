@@ -4,7 +4,7 @@ import {useAuth} from "../contexts/AuthContext";
 import useWatched   from "@/hooks/useWatched";
 import useWatchlist from "./useWatchlist";
 import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recommender";
-import { movieDetails, movieWatchProviders, movieKeywords } from "../utils/api";
+import { movieDetails, movieWatchProviders } from "../utils/api";
 
 /* ------------------------------------------------------------------ */
 /* Recently-shown tracking (session-scoped)                            */
@@ -58,21 +58,6 @@ function firstSentence(text) {
 function buildNarrative({ reason, directorName, overview }) {
   return [reason ? `${reason.replace(/[.!?]$/, "")}.` : null, directorName ? `Directed by ${directorName}.` : null, firstSentence(overview)].filter(Boolean).join(' ');
 }
-async function buildKeywordProfile(likedFilms) {
-  const map = new Map();
-  const films = likedFilms.filter(m => m.rated >= 7).sort((a,b) => b.rated-a.rated).slice(0,15);
-  for (let i=0; i<films.length; i+=5) {
-    const results = await Promise.allSettled(films.slice(i,i+5).map(m => movieKeywords(m.id)));
-    results.forEach((r,index) => {
-      if (r.status !== 'fulfilled') return;
-      for (const kw of r.value?.keywords || []) {
-        const old = map.get(kw.id) || {name:kw.name,weight:0};
-        map.set(kw.id,{...old,weight:old.weight + films[i+index].rated/10});
-      }
-    });
-  }
-  return map;
-}
 
 /* ------------------------------------------------------------------ */
 /* Hook                                                                 */
@@ -89,8 +74,6 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
   const [list,    setList]    = useState([]);
   const [error,   setError]   = useState(null);
 
-  const kwProfileRef = useRef(null);
-
   const prefsKey     = JSON.stringify(prefs);
   const requestVersion = useRef(0);
   const ratingKey = JSON.stringify(watched.map(m => [m.id, m.rated]));
@@ -101,19 +84,12 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const cacheKey = `${shownKey}:${ratingKey}`;
-      let keywordMap = kwProfileRef.current?.key === cacheKey ? kwProfileRef.current.value : null;
-      if (!keywordMap) {
-        keywordMap = await buildKeywordProfile(watched);
-        if (version !== requestVersion.current) return;
-        kwProfileRef.current = {key: cacheKey, value: keywordMap};
-      }
       const recentlyShown = getShownIds(shownKey);
 
       const ranked = await getRecommendations({
         watched,
         watchlist,
-        prefs: { ...prefs, keywordMap },
+        prefs,
         top,
         recentlyShown,
       });

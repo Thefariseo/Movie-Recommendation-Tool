@@ -3,8 +3,27 @@ import { predict, groupScore } from '../shared/model.js';
 import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridScore } from '../shared/taste.js';
 import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
+import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf } from '../shared/evidence.js';
 export { tmdb };
 const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
+const filmDetails = id => tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
+async function inBatches(items, work, size = 6) {
+  const settled = [];
+  for (let i = 0; i < items.length; i += size) settled.push(...await Promise.allSettled(items.slice(i, i + size).map(work)));
+  return settled;
+}
+// Signed evidence from the member's most telling films: who made them, who is
+// in them, what they are about, where they come from. Smaller than the
+// browser's sample, since it runs inside a request's time budget.
+async function memberEvidence(movies) {
+  const sample = evidenceSample(movies, { loved: 12, disliked: 6 });
+  const details = await inBatches(sample, m => filmDetails(m.id));
+  return tasteEvidence(sample.map((m, i) => ({ rated: m.rated, details: details[i].status === 'fulfilled' ? details[i].value : null })), movies);
+}
+// On tasteScore's 10-point scale. Genre affinity there carries 2.4; these keep
+// the same proportions the browser recommender uses against its genre weight.
+const EVIDENCE_WEIGHT = { language: .65, director: 1.5, cast: .5, keywords: 1.3, country: .35 };
+const SHORTLIST = 24;
 export const contentScore = tasteScore;
 export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
@@ -67,6 +86,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     }
   }
   const profiles = libraries.map(rows => tasteProfile(watchedMovies(rows)));
+  // A single member's picks also weigh who made a film and what it is about,
+  // in both directions. Group picks stay on the shared content and community
+  // signals, since every extra member would multiply the provider calls.
+  const evidence = ids.length === 1 ? await memberEvidence(watchedMovies(libraries[0])) : null;
   const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...new Set(profiles.flatMap(p => [...p.genres].filter(([,score]) => score > 0).sort((a,b) => b[1] - a[1]).slice(0, 2).map(([id]) => id)))].slice(0, 6);
   const discoveryParams = {
     sort_by: 'vote_average.desc',
@@ -90,7 +113,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(
-      contentScore(m, profiles[index]),
+      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0),
       predict(model || {users: {}, items: {}}, id, m.id),
       index === 0 ? neighborMap.get(m.id) : null
     ));
@@ -109,6 +132,23 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   }).sort((a, b) => b._score - a._score);
   if (constraints.genre_ids?.length) movies = movies.filter(m => (m.genre_ids || []).some(id => constraints.genre_ids.includes(id)));
   if (constraints.avoid_genres?.length) movies = movies.filter(m => !(m.genre_ids || []).some(id => constraints.avoid_genres.includes(id)));
+  // List results carry no credits or keywords, so the shortlist is fetched in
+  // full and judged on them: a director the member rates low counts against a
+  // film, a theme from films they loved counts for it.
+  if (evidence?.films) {
+    const shortlist = movies.slice(0, SHORTLIST);
+    const details = await inBatches(shortlist, m => filmDetails(m.id));
+    shortlist.forEach((m, i) => {
+      if (details[i].status !== 'fulfilled') return;
+      const match = evidenceMatch(details[i].value, evidence);
+      m._score += EVIDENCE_WEIGHT.director * match.director + EVIDENCE_WEIGHT.cast * match.cast
+        + EVIDENCE_WEIGHT.keywords * match.keywords + EVIDENCE_WEIGHT.country * match.country;
+      m._reason = evidenceReason(match.because) || m._reason;
+      // Lets the diversity pass avoid three films by one director.
+      m.dirName = directorsOf(details[i].value)[0]?.name || m.dirName;
+    });
+    movies.sort((a, b) => b._score - a._score);
+  }
   if (constraints.max_runtime || constraints.avoid_violence || constraints.theme) {
     const enriched = [];
     // Bound provider calls; never backfill with films that violate an explicit constraint.

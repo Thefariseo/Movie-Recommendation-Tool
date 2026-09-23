@@ -2,18 +2,24 @@
 export const genreIds = movie => [...new Set((movie.genre_ids || movie.genres || [])
   .map(g => Number(g?.id ?? g)).filter(Number.isSafeInteger))];
 export const movieYear = movie => Number(movie.year || String(movie.release_date || '').slice(0, 4)) || null;
+// How much one rating says about taste, from -1 (a clear dislike) to 1. Absolute
+// dislike still matters for users who rate everything harshly; centering on the
+// member's own mean also separates preferences in generous rating histories.
+export function ratingSignal(rated, mean) {
+  return Math.max(-1, Math.min(1, (.65 * (rated - mean) + .35 * (rated - 5.5)) / 3));
+}
+export const ratedOnly = movies => movies.filter(m => Number(m.rated) >= 1 && Number(m.rated) <= 10);
+export const ratingMean = rated => rated.length ? rated.reduce((s, m) => s + Number(m.rated), 0) / rated.length : 6;
 export function tasteProfile(movies) {
-  const rated = movies.filter(m => Number(m.rated) >= 1 && Number(m.rated) <= 10);
-  const mean = rated.length ? rated.reduce((s, m) => s + Number(m.rated), 0) / rated.length : 6;
+  const rated = ratedOnly(movies);
+  const mean = ratingMean(rated);
   const genres = new Map(), decades = new Map();
   const add = (map, key, signal) => {
     const old = map.get(key) || { sum: 0, count: 0 };
     map.set(key, { sum: old.sum + signal, count: old.count + 1 });
   };
   for (const m of rated) {
-    // Absolute dislike still matters for users who rate everything harshly;
-    // centering also distinguishes preferences in generous rating histories.
-    const signal = Math.max(-1, Math.min(1, (.65 * (m.rated - mean) + .35 * (m.rated - 5.5)) / 3));
+    const signal = ratingSignal(Number(m.rated), mean);
     for (const g of genreIds(m)) add(genres, g, signal);
     const year = movieYear(m);
     if (year) add(decades, Math.floor(year / 10) * 10, signal);
