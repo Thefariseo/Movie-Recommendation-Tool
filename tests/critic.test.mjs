@@ -15,7 +15,7 @@ const request = (path, data) => new Request(`https://umbrify.test/api/${path}`, 
 beforeEach(() => {
   Object.assign(process.env, { APP_URL: 'https://umbrify.test', SUPABASE_URL: 'https://db.test', SUPABASE_ANON_KEY: 'public', TMDB_KEY: 'tmdb' });
   delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_CHAT_MODEL; delete process.env.OPENAI_CRITIC_MODEL;
-  delete process.env.CRITIC_API_URL; delete process.env.CRITIC_API_KEY; delete process.env.CRITIC_MODEL;
+  delete process.env.CRITIC_API_URL; delete process.env.CRITIC_API_KEY; delete process.env.CRITIC_MODEL; delete process.env.OPENAI_CRITIC_REASONING;
 });
 afterEach(() => { globalThis.fetch = originalFetch; });
 
@@ -126,4 +126,28 @@ test('conform fills what a model left out without inventing content', () => {
   const schema = { type: 'object', properties: { verdict: { type: 'string', enum: ['love', 'skip'] }, year: { type: ['integer', 'null'] }, tags: { type: 'array', items: { type: 'string' } }, done: { type: 'boolean' } } };
   assert.deepEqual(conform(schema, { verdict: 'meh', year: '1999', tags: 'x' }), { verdict: 'love', year: 1999, tags: [], done: false });
   assert.deepEqual(conform(schema, null), { verdict: 'love', year: null, tags: [], done: false });
+});
+
+test('OpenAI reasoning models run at low effort, with room left for the answer', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CRITIC_MODEL = 'gpt-6-luna';
+  const seen = backend({ reply: { verdict: 'like', headline: 'h', analysis: 'a' } });
+  await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
+  assert.deepEqual(seen.openai[0].reasoning, { effort: 'low' });
+  assert.equal(seen.openai[0].max_output_tokens, 700 + 2000);
+  process.env.OPENAI_CRITIC_REASONING = 'off';
+  await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
+  assert.equal(seen.openai[1].reasoning, undefined);
+  assert.equal(seen.openai[1].max_output_tokens, 700);
+});
+
+test('a spending cap reads as the critic resting, not as the provider\'s error', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CRITIC_MODEL = 'gpt-6-luna';
+  backend();
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url, options) => new URL(url).hostname === 'api.openai.com'
+    ? Response.json({ error: { message: 'You exceeded your current quota', code: 'insufficient_quota' } }, { status: 429 })
+    : inner(url, options);
+  const res = await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
+  assert.equal(res.status, 429);
+  assert.match((await res.json()).error, /taking a break/);
 });
