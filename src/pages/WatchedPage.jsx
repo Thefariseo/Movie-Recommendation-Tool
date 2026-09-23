@@ -1,15 +1,22 @@
 // =====================================================
 // WatchedPage – catalogue with search, filter & sort
 // =====================================================
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import WatchedGrid from "../components/WatchedGrid";
 import LetterboxdImport from "../components/LetterboxdImport";
 import useWatched from "@/hooks/useWatched";
 import { GENRE_MAP } from "@/utils/genres";
-import { Search } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Search, Upload, Film } from "lucide-react";
 
 export default function WatchedPage() {
   const { watched } = useWatched();
+  const [params] = useSearchParams();
+  const importing = params.get("import") === "1";
+  const [showImport, setShowImport] = useState(importing);
+  useEffect(() => {
+    if (importing) setShowImport(true);
+  }, [importing]);
 
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("added-desc");
@@ -70,15 +77,29 @@ export default function WatchedPage() {
   }, [watched, query, sortBy, genreFilter]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-16 pt-6">
-      <h1 className="mb-6 text-3xl font-bold text-slate-800 dark:text-slate-100">
-        My Watched Movies
-        <span className="ml-3 text-lg font-normal text-slate-400">
-          ({watched.length})
-        </span>
-      </h1>
-
-      <LetterboxdImport />
+    <main className="library-content">
+      <div className="collection-heading">
+        <div>
+          <h2>Your film history</h2>
+          <p>
+            Rate what you’ve seen to make your recommendations more personal.
+          </p>
+        </div>
+        <button
+          className="account-secondary"
+          aria-expanded={showImport}
+          aria-controls="letterboxd-import"
+          onClick={() => setShowImport((v) => !v)}
+        >
+          <Upload size={16} aria-hidden="true" />
+          Import films
+        </button>
+      </div>
+      {showImport && (
+        <section id="letterboxd-import" className="mb-6">
+          <LetterboxdImport />
+        </section>
+      )}
 
       {/* Filters row */}
       {watched.length > 0 && (
@@ -87,6 +108,7 @@ export default function WatchedPage() {
           <div className="relative min-w-[180px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              aria-label="Search watched films"
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -97,6 +119,7 @@ export default function WatchedPage() {
 
           {/* Genre filter */}
           <select
+            aria-label="Filter watched films by genre"
             value={genreFilter}
             onChange={(e) => setGenreFilter(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -111,6 +134,7 @@ export default function WatchedPage() {
 
           {/* Sort */}
           <select
+            aria-label="Sort watched films"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -127,7 +151,34 @@ export default function WatchedPage() {
         </div>
       )}
 
-      <WatchedGrid movies={watched.length > 0 ? filtered : undefined} />
+      {watched.length ? (
+        <>
+          <p className="mb-4 text-sm text-slate-500">
+            {filtered.length} of {watched.length} films
+          </p>
+          <WatchedGrid movies={filtered} />
+        </>
+      ) : (
+        <div className="collection-empty">
+          <Film size={32} aria-hidden="true" />
+          <h3>Start your film story</h3>
+          <p>
+            Search for a film above and mark it as watched, or bring your
+            ratings from Letterboxd.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link to="/?view=browse" className="account-button">
+              Find a film
+            </Link>
+            <button
+              className="account-secondary"
+              onClick={() => setShowImport(true)}
+            >
+              Import Letterboxd
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
