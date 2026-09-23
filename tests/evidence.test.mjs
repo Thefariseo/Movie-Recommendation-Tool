@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tasteEvidence, evidenceMatch, languageAffinity, keywordsOf, countriesOf } from '../shared/evidence.js';
+import { tasteEvidence, evidenceMatch, evidenceReason, stars, languageAffinity, keywordsOf, countriesOf } from '../shared/evidence.js';
 
 // A film as TMDB's /movie/{id}?append_to_response=credits,keywords returns it.
 const details = ({ director = [1, 'Director One'], cast = [], keywords = [], lang = 'en', countries = ['US'] } = {}) => ({
@@ -75,18 +75,61 @@ test('ratings are read against the member\'s own scale', () => {
   assert.ok(ev.directors.get(5).value < 0);
 });
 
-test('only well-supported, clearly positive matches become reasons', () => {
+test('only well-supported, clearly positive matches become reasons, naming the loved films', () => {
   const ev = tasteEvidence([
-    film(10, { director: [10, 'Loved Twice'], cast: [[70, 'Lead']], keywords: [[2, 'time travel']] }),
-    film(9, { director: [10, 'Loved Twice'], cast: [[70, 'Lead']], keywords: [[2, 'time travel']] }),
-    film(10, { director: [11, 'Loved Once'] }),
-    film(5, { director: [12, 'Meh'] })
+    { title: 'Ran', ...film(10, { director: [10, 'Loved Twice'], cast: [[70, 'Lead']], keywords: [[2, 'time travel']] }) },
+    { title: 'Ikiru', ...film(9, { director: [10, 'Loved Twice'], cast: [[70, 'Lead']], keywords: [[2, 'time travel']] }) },
+    { title: 'Once', ...film(10, { director: [11, 'Loved Once'] }) },
+    { title: 'Meh', ...film(5, { director: [12, 'Meh'] }) }
   ]);
   const twice = evidenceMatch(details({ director: [10, 'Loved Twice'], cast: [[70, 'Lead']], keywords: [[2, 'time travel']] }), ev).because;
-  assert.deepEqual(twice.director, { name: 'Loved Twice', films: 2 });
-  assert.deepEqual(twice.actor, { name: 'Lead', films: 2 });
-  assert.deepEqual(twice.themes, ['time travel']);
+  assert.deepEqual(twice.director, { name: 'Loved Twice', films: 2, examples: [{ title: 'Ran', rated: 10 }, { title: 'Ikiru', rated: 9 }] });
+  assert.equal(twice.actor.name, 'Lead');
+  assert.deepEqual(twice.themes.map(t => t.name), ['time travel']);
   assert.equal(evidenceMatch(details({ director: [11, 'Loved Once'] }), ev).because.director, null, 'one film is not enough to cite');
+});
+
+test('a disliked film is never offered as an example, even behind a liked value', () => {
+  const ev = tasteEvidence([
+    { title: 'Loved A', ...film(10, { director: [1, 'D'] }) }, { title: 'Loved B', ...film(10, { director: [1, 'D'] }) },
+    { title: 'Loved C', ...film(9, { director: [1, 'D'] }) }, { title: 'The Flop', ...film(2, { director: [1, 'D'] }) }
+  ]);
+  const titles = ev.directors.get(1).examples.map(e => e.title);
+  assert.deepEqual(titles, ['Loved A', 'Loved B', 'Loved C']);
+});
+
+test('reasons name the member\'s own films and ratings, in a short and a full form', () => {
+  const because = {
+    director: { name: 'Akira Kurosawa', films: 2, examples: [{ title: 'Ran', rated: 10 }, { title: 'Ikiru', rated: 9 }] },
+    themes: [{ name: 'samurai', examples: [{ title: 'Ran', rated: 10 }, { title: 'Seven Samurai', rated: 9 }] }],
+    actor: null, language: null
+  };
+  assert.deepEqual(evidenceReason(because), {
+    short: 'By Akira Kurosawa — you gave "Ran" 5★',
+    full: 'By Akira Kurosawa: you gave "Ran" 5★ and "Ikiru" 4.5★. It is also about samurai, like "Seven Samurai" (4.5★).'
+  });
+  const themeOnly = evidenceReason({ director: null, actor: null, language: null, themes: [{ name: 'time travel', examples: [{ title: 'Primer', rated: 9 }] }] });
+  assert.equal(themeOnly.short, 'About time travel — like "Primer" 4.5★');
+  assert.equal(themeOnly.full, 'About time travel, like "Primer" (4.5★).');
+  const lang = evidenceReason({ director: null, actor: null, themes: [], language: { code: 'ja', films: 3, examples: [{ title: 'Tokyo Story', rated: 10 }] } });
+  assert.equal(lang.short, 'Japanese cinema — like "Tokyo Story" 5★');
+  assert.equal(evidenceReason({ director: null, actor: null, themes: [], language: null }), null);
+  assert.equal(evidenceReason(null), null);
+});
+
+test('stars follow the app\'s half-star scale', () => {
+  assert.equal(stars(10), '5★');
+  assert.equal(stars(7), '3.5★');
+  assert.equal(stars(1), '0.5★');
+});
+
+test('English is not named as a taste; other languages need three loved films', () => {
+  const films = n => Array.from({ length: n }, (_, i) => ({ title: `JP ${i}`, ...film(10, { lang: 'ja', director: [900 + i, 'x'] }) }));
+  const neutral = Array.from({ length: 3 }, (_, i) => ({ title: `N ${i}`, ...film(5, { director: [950 + i, 'y'] }) }));
+  assert.equal(evidenceMatch(details({ lang: 'ja' }), tasteEvidence([...films(2), ...neutral])).because.language, null);
+  assert.equal(evidenceMatch(details({ lang: 'ja' }), tasteEvidence([...films(3), ...neutral])).because.language.code, 'ja');
+  const en = Array.from({ length: 4 }, (_, i) => ({ title: `EN ${i}`, ...film(10, { lang: 'en', director: [800 + i, 'z'] }) }));
+  assert.equal(evidenceMatch(details({ lang: 'en' }), tasteEvidence([...en, ...neutral])).because.language, null);
 });
 
 test('films without details, unrated films and empty input add nothing', () => {
@@ -94,6 +137,7 @@ test('films without details, unrated films and empty input add nothing', () => {
   assert.equal(ev.films, 1);
   const none = tasteEvidence([]);
   assert.equal(none.films, 0);
-  assert.deepEqual(evidenceMatch(details(), none), { director: 0, cast: 0, keywords: 0, country: 0, because: { director: null, actor: null, themes: [] } });
-  assert.deepEqual(evidenceMatch(null, ev).because, {});
+  const empty = { director: null, actor: null, themes: [], language: null };
+  assert.deepEqual(evidenceMatch(details(), none), { director: 0, cast: 0, keywords: 0, country: 0, because: empty });
+  assert.deepEqual(evidenceMatch(null, ev).because, empty);
 });

@@ -8,7 +8,7 @@ import {
   personMovieCredits,
 } from "../utils/api";
 import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
-import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf, languageOf } from "../../shared/evidence.js";
+import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { GENRE_MAP } from "../utils/genres";
 
@@ -271,25 +271,14 @@ function sigmoidVoteScore(avg) {
 // Details are cached, and the final cards reuse them.
 const SHORTLIST = 36;
 
-const LANGUAGE_NAMES = (() => {
-  try { return new Intl.DisplayNames(["en"], { type: "language" }); } catch { return null; }
-})();
-
 // The most specific thing the member's own ratings show about a shortlisted
-// film. Nothing here is claimed without at least two rated films behind it.
-function shortlistReason(candidate, because, evidence) {
+// film, as { short, full }. Nothing is claimed without rated films behind it.
+function shortlistReason(candidate, because) {
   // An explicit director or actor filter already explains itself.
   if (candidate.source === "director-pick" || candidate.source === "actor-pick") return null;
   // "You gave X 4.5★" names a concrete film; only a loved director beats it.
-  if (candidate.source?.startsWith("similar:")) return because.director ? evidenceReason(because) : null;
-  const cited = evidenceReason(because);
-  if (cited) return cited;
-  const lang = evidence.languages.get(candidate.original_language);
-  if (candidate.original_language !== "en" && lang && lang.count >= 3 && lang.value >= 0.3) {
-    const name = LANGUAGE_NAMES?.of(candidate.original_language);
-    if (name && name !== candidate.original_language) return `${name}-language cinema, which you rate highly`;
-  }
-  return null;
+  if (candidate.source?.startsWith("similar:") && !because.director) return null;
+  return evidenceReason(because);
 }
 
 // Random page from range 2–15 (much broader than v9's 2–8)
@@ -334,6 +323,12 @@ export async function getRecommendations({
   const decadeAffinity = taste.decades;
   const favGenres = [...genreAffinity].filter(([, score]) => score > 0)
     .sort((a,b) => b[1] - a[1]).slice(0, 8).map(([id]) => id);
+  // Each favourite genre's best-rated film, to name in reasons. Only clearly
+  // loved films (8/10 or more) qualify as an example.
+  const bestOfGenre = new Map();
+  for (const m of [...watched].filter((w) => Number(w.rated) >= 8 && w.title).sort((a, b) => b.rated - a.rated)) {
+    for (const g of genreIds(m)) if (favGenres.includes(g) && !bestOfGenre.has(g)) bestOfGenre.set(g, m);
+  }
 
   // Strong affinity genres: user has ≥3 films rated ≥8★
   const strongAffinityGenres = new Set();
@@ -353,7 +348,7 @@ export async function getRecommendations({
   const sample = evidenceSample(watched);
   const sampleDetails = await Promise.allSettled(sample.map((m) => movieDetails(m.id)));
   const evidence = tasteEvidence(
-    sample.map((m, i) => ({ rated: m.rated, details: sampleDetails[i].status === "fulfilled" ? sampleDetails[i].value : null })),
+    sample.map((m, i) => ({ rated: m.rated, title: m.title, details: sampleDetails[i].status === "fulfilled" ? sampleDetails[i].value : null })),
     watched,
   );
 
@@ -703,6 +698,7 @@ export async function getRecommendations({
 
       /* ---- Reason tag ---- */
       let reason = null;
+      let reasonDetail = null;
 
       if (source === "director-pick") {
         reason = `From your selected director's filmography`;
@@ -733,11 +729,19 @@ export async function getRecommendations({
         // Quote a real source's figure, never the blend used for ranking.
         const { imdb, rt } = externalRatings(raw);
         const cited     = imdb != null ? `IMDb ${imdb.toFixed(1)}` : rt != null ? `${rt}% on Rotten Tomatoes` : null;
-        reason = cited ? `Your top ${genreName} taste — ${ql} (${cited})` : `Your top ${genreName} taste — ${ql}`;
+        // Name the member's best-rated film of that genre, so the reason points
+        // at something they actually watched rather than a category.
+        const example   = bestOfGenre.get(topG);
+        if (example) {
+          reason = `${genreName} you rate highly — like "${example.title}" ${stars(example.rated)}`;
+          reasonDetail = `${genreName} is among the genres you rate highest; you gave "${example.title}" ${stars(example.rated)}. This one is ${ql}${cited ? ` (${cited})` : ""}.`;
+        } else {
+          reason = cited ? `Your top ${genreName} taste — ${ql} (${cited})` : `Your top ${genreName} taste — ${ql}`;
+        }
       }
 
       return {
-        id, score, reason, source, year: movieYear, genreIds, dirName: dirName || null,
+        id, score, reason, reasonDetail, source, year: movieYear, genreIds, dirName: dirName || null,
         original_language: raw.original_language, isCriterion: criterionBoost > 0,
         provisional: dirBonus * 0.18 + actorBonus * 0.09,
       };
@@ -790,7 +794,8 @@ export async function getRecommendations({
         + 0.08 * match.country;
       r.dirName = directorsOf(d)[0]?.name || r.dirName;
       r.original_language = languageOf(d) || r.original_language;
-      r.reason = shortlistReason(r, match.because, evidence) || r.reason;
+      const cited = shortlistReason(r, match.because);
+      if (cited) { r.reason = cited.short; r.reasonDetail = cited.full; }
     });
     results.sort((a, b) => b.score - a.score);
   }

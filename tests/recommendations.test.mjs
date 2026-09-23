@@ -78,6 +78,7 @@ test('single-member cloud picks weigh signed director and theme evidence from fu
   assert.equal(rank(100),0,'a director rated highly twice leads');
   assert(rank(300)<rank(400),'a loved theme beats a neutral film');
   assert.equal(rank(200),movies.length-1,'a disliked director sinks to the bottom');
-  assert.equal(movies[0]._reason,'Directed by Alma Loved, whose films you rate highly');
+  assert.equal(movies[0]._reason,'By Alma Loved — you gave "Film 1" 5★');
+  assert.equal(movies[0]._reasonDetail,'By Alma Loved: you gave "Film 1" 5★ and "Film 2" 4.5★.');
   assert(!('credits' in movies[0]) && !('keywords' in movies[0]),'full credits are used for scoring, not sent to the browser');
 });

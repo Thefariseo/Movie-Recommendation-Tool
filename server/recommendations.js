@@ -18,7 +18,7 @@ async function inBatches(items, work, size = 6) {
 async function memberEvidence(movies) {
   const sample = evidenceSample(movies, { loved: 12, disliked: 6 });
   const details = await inBatches(sample, m => filmDetails(m.id));
-  return tasteEvidence(sample.map((m, i) => ({ rated: m.rated, details: details[i].status === 'fulfilled' ? details[i].value : null })), movies);
+  return tasteEvidence(sample.map((m, i) => ({ rated: m.rated, title: m.title, details: details[i].status === 'fulfilled' ? details[i].value : null })), movies);
 }
 // On tasteScore's 10-point scale. Genre affinity there carries 2.4; these keep
 // the same proportions the browser recommender uses against its genre weight.
@@ -143,7 +143,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       const match = evidenceMatch(details[i].value, evidence);
       m._score += EVIDENCE_WEIGHT.director * match.director + EVIDENCE_WEIGHT.cast * match.cast
         + EVIDENCE_WEIGHT.keywords * match.keywords + EVIDENCE_WEIGHT.country * match.country;
-      m._reason = evidenceReason(match.because) || m._reason;
+      const cited = evidenceReason(match.because);
+      if (cited) { m._reason = cited.short; m._reasonDetail = cited.full; }
       // Lets the diversity pass avoid three films by one director.
       m.dirName = directorsOf(details[i].value)[0]?.name || m.dirName;
     });

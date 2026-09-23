@@ -56,7 +56,9 @@ function firstSentence(text) {
 // Explanations use recorded evidence and provider metadata, not invented
 // claims about a film's emotional tone or an actor's importance in it.
 function buildNarrative({ reason, directorName, overview }) {
-  return [reason ? `${reason.replace(/[.!?]$/, "")}.` : null, directorName ? `Directed by ${directorName}.` : null, firstSentence(overview)].filter(Boolean).join(' ');
+  // A reason built on the director already names them; saying it twice reads badly.
+  const namesDirector = directorName && reason?.includes(directorName);
+  return [reason ? `${reason.replace(/[.!?]$/, "")}.` : null, directorName && !namesDirector ? `Directed by ${directorName}.` : null, firstSentence(overview)].filter(Boolean).join(' ');
 }
 
 /* ------------------------------------------------------------------ */
@@ -105,7 +107,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
 
       // Build enhanced objects with film-specific narratives
       const scored = details.map((d) => {
-        const { score, reason, isCriterion } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
+        const { score, reason, reasonDetail, isCriterion } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
         const director = d.credits?.crew?.find((p) => p.job === "Director");
         const keywords = d.keywords?.keywords || [];
         const year     = d.release_date ? d.release_date.slice(0, 4) : null;
@@ -114,7 +116,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
           id:           d.id,
           title:        d.title || null,
           year,
-          reason,
+          reason:       reasonDetail || reason,
           directorName: director?.name || null,
           overview:     d.overview,
           voteAverage:  d.vote_average,
@@ -126,6 +128,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
           ...d,
           _score:       score,
           _reason:      reason,
+          _reasonDetail: reasonDetail || reason,
           _narrative:   narrative,
           _director:    director?.name || null,
           _keywords:    keywords,
