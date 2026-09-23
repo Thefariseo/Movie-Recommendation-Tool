@@ -38,6 +38,19 @@ function detectCountry() {
   return map[parts[0]] || "US";
 }
 
+// What each kind of sign is called where the reasons are listed.
+const SIGN_LABELS = {
+  peers: "People with your taste",
+  director: "Director",
+  actor: "Cast",
+  themes: "Themes",
+  language: "Language",
+  "critic-notes": "Your critic's notes",
+  critic: "Your critic",
+  similar: "A film you loved",
+  watchlist: "Your watchlist",
+};
+
 export default function MovieModal({ movie, onClose }) {
   const {profile, user} = useAuth();
   const country = profile?.country || detectCountry();
@@ -286,8 +299,30 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         </div>
 
-        {/* ── Umbrify narrative — personalised recommendation insight ── */}
-        {movie._narrative && (
+        {/* ── Why Umbrify picked it: every sign that agrees, and what goes against it ── */}
+        {movie._signs?.length > 0 ? (
+          <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-400">
+                {movie._signs.length > 1 ? `Why Umbrify picked this · ${movie._signs.length} signs agree` : "Why Umbrify picked this for you"}
+              </p>
+            </div>
+            <ul className="space-y-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+              {movie._signs.map((sign) => (
+                <li key={sign.kind} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />
+                  <span><span className="font-medium">{SIGN_LABELS[sign.kind] || "Your taste"}:</span> {sign.full}</span>
+                </li>
+              ))}
+            </ul>
+            {movie._against?.length > 0 && (
+              <p className="mt-3 border-t border-indigo-100 pt-2 text-xs text-amber-700 dark:border-indigo-900/40 dark:text-amber-300">
+                Worth knowing: {movie._against.map((a) => a.text.replace(/\.$/, "")).join("; ")}.
+              </p>
+            )}
+          </div>
+        ) : movie._narrative && (
           <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
             <div className="mb-2 flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-indigo-500" />

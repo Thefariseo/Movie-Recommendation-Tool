@@ -105,3 +105,35 @@ test('only directors rated clearly above the member\'s mean have their filmograp
   assert.ok(!explored.includes(80), 'one film a notch above average is not enough to call a director a favourite');
   assert.ok(!explored.includes(20), 'a disliked director is never explored');
 });
+
+test('what the critic learned moves picks the ratings alone could not separate', async () => {
+  // Neutral and "Elena New" films are identical to the ratings; the critic knows better.
+  const base = await getRecommendations({ watched: library(), top: 10 });
+  const rules = [
+    { kind: 'person', id: 50, name: 'Elena New', stance: 'love', role: 'director', why: 'said so in a chat' },
+    { kind: 'person', id: 70, name: 'Gino New', stance: 'avoid', role: 'director', why: 'walked out of his last film' }
+  ];
+  const informed = await getRecommendations({ watched: library(), top: 10, rules });
+  const { neutral, dislikedTheme, lovedLanguage } = candidates;
+  assert.ok(rankOf(informed, neutral.id) < rankOf(base, neutral.id), 'the critic\'s favourite climbs');
+  assert.ok(rankOf(informed, neutral.id) < rankOf(informed, lovedLanguage.id), 'past a film only the ratings liked');
+  assert.equal(rankOf(informed, dislikedTheme.id), informed.length - 1, 'what the critic says to avoid sinks');
+  const pick = informed.find(p => p.id === neutral.id);
+  assert.ok(pick.signs.some(s => s.kind === 'critic-notes'));
+  assert.match(pick.reasonDetail, /critic has learned/);
+  assert.ok(informed.find(p => p.id === dislikedTheme.id).against.some(a => /avoid Gino New/.test(a.text)));
+  assert.ok(tmdb.calls.includes('person:50'), 'the critic\'s favourite\'s filmography is explored');
+});
+
+test('a film several signs agree on beats one a single sign points to', async () => {
+  // Film 300 shares a loved theme; film 700 shares the theme and the loved director.
+  const both = film(700, { director: LOVED_DIR, keywords: [TIME_TRAVEL] });
+  tmdb.catalog.set(700, both);
+  tmdb.lists.discover.push((({ credits, keywords, ...l }) => l)(both));
+  const picks = await getRecommendations({ watched: library(), top: 10 });
+  const agreed = picks.find(p => p.id === 700);
+  assert.ok(rankOf(picks, 700) < rankOf(picks, candidates.lovedTheme.id));
+  assert.ok(agreed.agree >= 2);
+  assert.match(agreed.reason, /\+\d more$/);
+  assert.match(agreed.reasonDetail, /^\d things point to this film for you\./);
+});

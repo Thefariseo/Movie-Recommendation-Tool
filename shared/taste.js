@@ -111,8 +111,14 @@ export function diversePicks(movies, limit = 12, { recent = new Set(), strength 
   }
   return selected;
 }
+// Films whose "more like this" seeds the candidates: the ones the member
+// clearly loved (8/10 or more), topped up with 7/10 ones only when too few.
 export function seedMovies(movies, limit = 4) {
-  return diversePicks(movies.filter(m => m.rated >= 7).map(m => ({...m, _score: Number(m.rated)})), limit, {strength: 2});
+  const pick = min => diversePicks(movies.filter(m => m.rated >= min).map(m => ({...m, _score: Number(m.rated)})), limit, {strength: 2});
+  const loved = pick(8);
+  if (loved.length >= limit) return loved;
+  const ids = new Set(loved.map(m => m.id));
+  return [...loved, ...pick(7).filter(m => !ids.has(m.id))].slice(0, limit);
 }
 export function hybridScore(content, learned, neighbor) {
   const support = Math.max(0, Number(neighbor?.support) || 0);

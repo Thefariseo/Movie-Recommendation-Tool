@@ -8,6 +8,7 @@ import useWatched from "../hooks/useWatched";
 import MovieCard from "../components/MovieCard";
 import { movieDetails } from "../utils/api";
 import { reloadSignals } from "../utils/signals";
+import { ruleLabel } from "../../shared/rules.js";
 
 const language = () => (navigator.language || "en").split("-")[0];
 
@@ -76,6 +77,24 @@ function Typing() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mr-10 inline-flex items-center gap-1 rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 dark:bg-slate-800" aria-label="Your critic is writing">
       {[0, 150, 300].map((d) => <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${d}ms` }} />)}
     </motion.div>
+  );
+}
+
+// What the critic has taught Umbrify's recommendations, in plain words.
+function TasteRules({ rules }) {
+  const tone = { love: "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200", like: "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300", dislike: "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300", avoid: "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" };
+  const verb = { love: "Loves", like: "Likes", dislike: "Not keen on", avoid: "Avoids" };
+  return (
+    <div className="space-y-1.5 text-xs">
+      <p className="text-slate-500">Your recommendations now follow what your critic has learned:</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {rules.map((r) => (
+          <li key={`${r.kind}:${r.id ?? r.code ?? r.value}`} title={r.why || undefined} className={`rounded-full border px-2 py-0.5 ${tone[r.stance]}`}>
+            {verb[r.stance]} {ruleLabel(r)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -180,7 +199,7 @@ export default function CriticPage() {
     const { messages, ...summary } = result.thread;
     seenCount.current = messages.length - 1;
     setThreadId(summary.id);
-    setState((s) => ({ ...s, messages, notes: result.notes, threads: [summary, ...(s.threads || []).filter((t) => t.id !== summary.id)] }));
+    setState((s) => ({ ...s, messages, notes: result.notes, rules: result.rules || s.rules, threads: [summary, ...(s.threads || []).filter((t) => t.id !== summary.id)] }));
     if (result.interview_complete) setInterview(false);
     // Films the critic just warned against or recommended now shape the picks.
     reloadSignals();
@@ -194,13 +213,16 @@ export default function CriticPage() {
   };
   const portrait = async (refresh = false) => {
     const result = await call({ action: "portrait", language: language(), refresh });
-    if (result) setState((s) => ({ ...s, portrait: result.portrait }));
+    if (result) setState((s) => ({ ...s, portrait: result.portrait, rules: result.rules?.length ? result.rules : s.rules }));
+    // What the portrait taught the critic now shapes the picks.
+    if (result) reloadSignals();
   };
   const reset = async () => {
     if (!window.confirm("Forget all your chats and everything your critic has noted about you?")) return;
     if (await call({ action: "reset" })) {
-      setState((s) => ({ ...s, messages: [], notes: [], portrait: null, threads: [] }));
+      setState((s) => ({ ...s, messages: [], notes: [], rules: [], portrait: null, threads: [] }));
       showThread(null);
+      reloadSignals();
     }
   };
   const removeThread = async (id) => {
@@ -293,6 +315,7 @@ export default function CriticPage() {
           </button>
         </form>
         <p className="-mt-2 text-[11px] text-slate-400">Enter to send · Shift+Enter for a new line · 15 questions a day</p>
+        {state?.rules?.length > 0 && <TasteRules rules={state.rules} />}
         {state?.notes?.length > 0 && (
           <details className="text-xs text-slate-500">
             <summary className="cursor-pointer">What your critic remembers about you ({state.notes.length})</summary>

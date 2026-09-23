@@ -4,9 +4,12 @@
 import { useEffect, useState } from "react";
 import { backend } from "./backend";
 import { signalMap } from "../../shared/signals.js";
+import { validRule } from "../../shared/rules.js";
 
 const GUEST_KEY = "umbrify_signals_v1";
 let rows = [];
+// The critic's taste rules (shared/rules.js), for signed-in members only.
+let rules = [];
 let owner = undefined;
 let loading = null;
 const listeners = new Set();
@@ -23,13 +26,20 @@ function writeGuest() {
 export function loadSignals(userId) {
   if (owner === userId && loading) return loading;
   owner = userId;
-  loading = (userId ? backend("signals").then((d) => d.signals).catch(() => []) : Promise.resolve(readGuest()))
-    .then((r) => {
-      if (owner === userId) { rows = r; emit(); }
+  loading = (userId ? backend("signals").catch(() => ({})) : Promise.resolve({ signals: readGuest(), rules: [] }))
+    .then((d) => {
+      if (owner === userId) {
+        rows = Array.isArray(d.signals) ? d.signals : [];
+        rules = (Array.isArray(d.rules) ? d.rules : []).filter(validRule);
+        emit();
+      }
       return signalMap(rows);
     });
   return loading;
 }
+
+/** The critic's taste rules, for the recommender. */
+export const currentRules = () => rules;
 
 /** Signals as a map (see shared/signals.js), for the recommender. */
 export const currentSignals = () => signalMap(rows);
@@ -61,7 +71,7 @@ export function useSignals(userId) {
   return currentSignals();
 }
 
-/** Fetches the signals again, after the critic may have added some. */
+/** Fetches the signals and the critic's rules again, after the critic may have added some. */
 export function reloadSignals() {
   loading = null;
   return loadSignals(owner ?? null);
