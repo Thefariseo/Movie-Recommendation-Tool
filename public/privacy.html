@@ -78,6 +78,7 @@
     <li><strong>OMDb</strong> — our server looks up each film's IMDb rating and Rotten Tomatoes score there and keeps them in our database, shared by everyone. OMDb receives only the film's identifier, never your IP address or anything about you.</li>
     <li><strong>TMDB</strong> — our server also asks TMDB for film details when it builds recommendations. Those requests carry film identifiers only.</li>
   </ul>
+  <p class="note">Recommendations also use a <strong>taste space</strong>: a vector per film learned once, offline, from the public MovieLens 32M dataset (F. Maxwell Harper and Joseph A. Konstan, 2015, <em>The MovieLens Datasets: History and Context</em>, ACM TiiS 5(4); GroupLens Research, University of Minnesota), which does not endorse Umbrify. The space is a static file. Your place in it is worked out from your ratings in your browser, or on our server for cloud picks, and nothing about you is sent to GroupLens or added to that dataset.</p>
 
   <h3>Only if you ask for it</h3>
   <ul>

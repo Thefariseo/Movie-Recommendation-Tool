@@ -8,8 +8,10 @@ import {
   personMovieCredits,
 } from "../utils/api";
 import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
-import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
+import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
+import { placeMember, affinities, strongest, becauseOf, peerStrength } from "../../shared/tasteSpace.js";
 import { loadRatings, withRatings } from "../utils/ratings";
+import { loadTasteSpace } from "../utils/tasteSpace";
 import { GENRE_MAP } from "../utils/genres";
 
 /* ------------------------------------------------------------------ */
@@ -271,6 +273,12 @@ function sigmoidVoteScore(avg) {
 // Details are cached, and the final cards reuse them.
 const SHORTLIST = 36;
 
+// How many of the taste space's strongest matches join the candidate pool, and
+// how far a match must stand above the member's ordinary film to be named as
+// the reason (in standard deviations over the whole catalogue).
+const SPACE_PICKS = 30;
+const SPACE_REASON_Z = 1.5;
+
 // The most specific thing the member's own ratings show about a shortlisted
 // film, as { short, full }. Nothing is claimed without rated films behind it.
 function shortlistReason(candidate, because) {
@@ -278,6 +286,8 @@ function shortlistReason(candidate, because) {
   if (candidate.source === "director-pick" || candidate.source === "actor-pick") return null;
   // "You gave X 4.5★" names a concrete film; only a loved director beats it.
   if (candidate.source?.startsWith("similar:") && !because.director) return null;
+  // So does the taste space, naming the loved films that pull a film up.
+  if (candidate.peer && !because.director && !because.actor) return null;
   return evidenceReason(because);
 }
 
@@ -360,6 +370,17 @@ export async function getRecommendations({
     .sort((a, b) => b[1].value - a[1].value)
     .slice(0, 3)
     .map(([id, e]) => [id, { name: e.name, score: e.value }]);
+
+  // The taste space: where the member sits among 200,000 people's loved films.
+  // Without the file, or with too few loved films it knows, picks carry on
+  // from the member's own evidence alone.
+  const space = await loadTasteSpace();
+  const member = space && placeMember(space, watched, watchlist.map((m) => m.id));
+  const peer = member ? affinities(space, member) : null;
+  const peerZ = (id) => {
+    const i = peer && space.index.get(Number(id));
+    return i == null ? null : peer[i];
+  };
 
   const topActors = [...evidence.cast.entries()]
     .filter(([, e]) => e.count >= 2 && e.value >= 0.3)
@@ -584,6 +605,19 @@ export async function getRecommendations({
       });
     });
 
+    // ── The taste space's strongest matches ──
+    if (member) {
+      const exclude = new Set([...watched, ...watchlist].map((m) => Number(m.id)));
+      const matches = strongest(space, member, { limit: SPACE_PICKS, exclude, scores: peer });
+      for (let i = 0; i < matches.length; i += 6) {
+        const fetched = await Promise.allSettled(matches.slice(i, i + 6).map((m) => movieDetails(m.id)));
+        fetched.forEach((r) => {
+          if (r.status !== "fulfilled" || !r.value?.id || candidates.has(r.value.id)) return;
+          candidates.set(r.value.id, { id: r.value.id, raw: { ...r.value, genre_ids: genreIds(r.value) }, source: "taste-space", dirScore: 0, actorScore: 0 });
+        });
+      }
+    }
+
     // ── TMDB recommendations from top-10 highest-rated watched films ──
     const seedFilms = seedMovies(watched, 8);
 
@@ -660,6 +694,11 @@ export async function getRecommendations({
       // Original language comes with every TMDB list result, so it can shape
       // the whole pool, not only the shortlist.
       const langScore  = languageAffinity(raw, evidence);
+      // What people with the member's taste love, standardised over the whole
+      // catalogue and bounded so one signal cannot drown the rest. Films the
+      // space does not know (recent or rare) are neutral on it.
+      const z          = peerZ(id);
+      const peerScore  = peerStrength(z);
 
       // ── Film quality categories ──
       let qualityBoost = 0;
@@ -692,13 +731,17 @@ export async function getRecommendations({
         criterionBoost           +
         strongAffinityBoost      +
         cinephileBoost           +
-        langScore          * 0.15 -
+        langScore          * 0.15 +
+        peerScore          * 0.60 -
         mainstreamPenalty        +
         0;
 
       /* ---- Reason tag ---- */
       let reason = null;
       let reasonDetail = null;
+      // Named only when the space places the film well above the member's usual.
+      const peerFilms  = z != null && z >= SPACE_REASON_Z ? becauseOf(space, member, space.index.get(Number(id))) : [];
+      const peerCited  = peerReason(peerFilms);
 
       if (source === "director-pick") {
         reason = `From your selected director's filmography`;
@@ -706,6 +749,9 @@ export async function getRecommendations({
         reason = `From your selected actor's filmography`;
       } else if (source === "director" && dirName) {
         reason = `From ${dirName}, a director among your highly rated films`;
+      } else if (peerCited && (source === "taste-space" || source === "discover" || source === "cinephile_seed" || source === "watchlist")) {
+        reason = peerCited.short;
+        reasonDetail = peerCited.full;
       } else if (source === "cinephile_seed" && dirName) {
         reason = "A world-cinema discovery to explore";
       } else if (source === "actor" && actorName) {
@@ -720,6 +766,9 @@ export async function getRecommendations({
         } else {
           reason = `Because you loved "${seedTitle}"`;
         }
+      } else if (peerCited) {
+        reason = peerCited.short;
+        reasonDetail = peerCited.full;
       } else if (matching.length > 0) {
         const topG      = [...matching].sort(
           (a, b) => (genreAffinity.get(b) || 0) - (genreAffinity.get(a) || 0)
@@ -744,6 +793,7 @@ export async function getRecommendations({
         id, score, reason, reasonDetail, source, year: movieYear, genreIds, dirName: dirName || null,
         original_language: raw.original_language, isCriterion: criterionBoost > 0,
         provisional: dirBonus * 0.18 + actorBonus * 0.09,
+        peer: !!peerCited && reason === peerCited.short,
       };
     });
 

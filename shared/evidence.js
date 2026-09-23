@@ -160,6 +160,20 @@ const themeList = themes => themes.map(t => t.name).join(' and ');
 const distinct = films => [...new Map(films.map(f => [f.title, f])).values()].sort((a, b) => b.rated - a.rated);
 
 /**
+ * The reason behind a taste-space pick: the member's own loved films that
+ * people with the same taste loved together with it. `films` are the largest
+ * contributors, strongest first, each { title, rated }.
+ */
+export function peerReason(films) {
+  if (!films?.length) return null;
+  const [first] = films;
+  return {
+    short: `Fans of "${first.title}" love it — you gave ${stars(first.rated)}`,
+    full: `People who loved ${listed(films.slice(0, 2))}, as you did, tend to love this one too.`
+  };
+}
+
+/**
  * What the member's own ratings say about a film, in two lengths: `short` fits
  * on one line under a poster, `full` explains it where there is room. Every
  * film named is one the member rated, and rated well. Returns null when the

@@ -1,6 +1,7 @@
 import test, {afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {tasteProfile, tasteScore, qualityScore, diversePicks, seedMovies, hybridScore} from '../shared/taste.js';
+import {readFileSync} from 'node:fs';
 import {recommendations} from '../server/recommendations.js';
 const movie = (id, genres, extra = {}) => ({id, title: `Film ${id}`, genre_ids: genres, vote_average: 7, vote_count: 500, release_date: '2001-01-01', ...extra});
 test('explicit dislikes lower matching candidates; unrated films add no preference', () => {
@@ -81,4 +82,32 @@ test('single-member cloud picks weigh signed director and theme evidence from fu
   assert.equal(movies[0]._reason,'By Alma Loved — you gave "Film 1" 5★');
   assert.equal(movies[0]._reasonDetail,'By Alma Loved: you gave "Film 1" 5★ and "Film 2" 4.5★.');
   assert(!('credits' in movies[0]) && !('keywords' in movies[0]),'full credits are used for scoring, not sent to the browser');
+});
+test('cloud picks draw on the taste space: a Ghibli lover is offered more Ghibli, for everyone in a group too',async()=>{
+  process.env.APP_URL='https://umbrify.test';process.env.SUPABASE_URL='https://db.test';process.env.SUPABASE_ANON_KEY='test';process.env.TMDB_KEY='test';delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Real TMDB ids, known to the shipped taste space. Discovery offers only
+  // unrelated films, so the Ghibli picks can only come from the space.
+  const GHIBLI={129:'Spirited Away',128:'Princess Mononoke',8392:'My Neighbor Totoro'};
+  const film=id=>({...movie(id,[16]),title:GHIBLI[id]||`Film ${id}`,original_language:'ja',credits:{crew:[],cast:[]},keywords:{keywords:[]}});
+  const library=Object.keys(GHIBLI).map((id,i)=>({kind:'watched',movie_id:Number(id),rating:10-i,movie:film(Number(id))}));
+  globalThis.fetch=async url=>{
+    const u=new URL(url); let data;
+    if(u.pathname==='/models/taste-space.bin') return new Response(readFileSync(new URL('../public/models/taste-space.bin',import.meta.url)));
+    if(u.pathname.endsWith('/user_movies')) data=library;
+    else if(u.pathname.endsWith('can_read_library')) data=true;
+    else if(u.pathname.endsWith('collaborative_candidates')) data=[];
+    else if(u.pathname.endsWith('/recommendations')) data={results:[]};
+    else if(u.pathname.endsWith('/discover/movie')) data={results:[movie(900001,[16]),movie(900002,[16])]};
+    else if(/\/movie\/\d+$/.test(u.pathname)) data=film(Number(u.pathname.split('/').pop()));
+    else throw new Error(`Unexpected request: ${u.pathname}`);
+    return Response.json(data);
+  };
+  const solo=await recommendations({user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'},[],{});
+  const howl=solo.movies.find(m=>m.id===4935);
+  assert(howl,"Howl's Moving Castle is among the picks");
+  assert.equal(solo.engine,'taste-space');
+  assert.match(howl._reason,/^Fans of "(Spirited Away|Princess Mononoke|My Neighbor Totoro)" love it — you gave /);
+  assert(!solo.movies.some(m=>GHIBLI[m.id]),'films already watched are never offered');
+  const group=await recommendations({user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'},['22222222-2222-4222-8222-222222222222'],{});
+  assert(group.movies.some(m=>m._reason==='People with each of your tastes love it'));
 });

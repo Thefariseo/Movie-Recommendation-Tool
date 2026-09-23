@@ -5,7 +5,8 @@
 const fake = (file) => new URL(file, import.meta.url).href;
 const FAKES = {
   '../utils/api': fake('./fake-tmdb.mjs'),
-  '../utils/ratings': fake('./fake-ratings.mjs')
+  '../utils/ratings': fake('./fake-ratings.mjs'),
+  '../utils/tasteSpace': fake('./fake-taste-space.mjs')
 };
 const fromSrc = (context) => context.parentURL?.includes('/src/');
 export async function resolve(specifier, context, next) {
