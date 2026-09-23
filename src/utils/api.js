@@ -3,6 +3,7 @@
 // Centralised TMDB API client with lightweight in-memory cache.
 // =====================================================
 import axios from "axios";
+import { viewerLanguage } from "./trailers";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -75,6 +76,8 @@ export function upcomingMovies(page = 1) {
 export function movieDetails(id) {
   return get(`/movie/${id}`, {
     append_to_response: "videos,credits,keywords,recommendations",
+    // Otherwise TMDB returns only English videos, and many films have none.
+    include_video_language: `${viewerLanguage()},en,null`,
   });
 }
 

@@ -23,6 +23,8 @@ import { externalIds, movieDetails, movieWatchProviders } from "@/utils/api";
 import FilmRatings from "./FilmRatings";
 import CriticVerdict from "./CriticVerdict";
 import FilmLook from "./FilmLook";
+import TrailerPlayer from "./TrailerPlayer";
+import { rankTrailers, viewerLanguage } from "../utils/trailers";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
@@ -67,26 +69,21 @@ export default function MovieModal({ movie, onClose }) {
 
   /* ---- Full details + trailer ---- */
   const [details,      setDetails]      = useState(null);
-  const [trailerKey,   setTrailerKey]   = useState(null);
+  const [trailerKeys,  setTrailerKeys]  = useState([]);
   const [trailerState, setTrailerState] = useState("thumb"); // "thumb" | "player"
-
-  const findTrailer = (videos) =>
-    videos?.results?.find(
-      (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")
-    );
+  const trailerKey = trailerKeys[0] || null;
 
   useEffect(() => {
-    setTrailerKey(null);
+    setTrailerKeys([]);
     setTrailerState("thumb");
     setDetails(null);
 
     const load = async () => {
       try {
-        // Use already-fetched data if available (has videos + credits)
-        const d = (movie.videos && movie.credits) ? movie : await movieDetails(movie.id);
+        // Full details carry videos in the member's language as well as English.
+        const d = await movieDetails(movie.id);
         setDetails(d);
-        const t = findTrailer(d.videos);
-        if (t) setTrailerKey(t.key);
+        setTrailerKeys(rankTrailers(d.videos, { language: viewerLanguage(), releaseDate: d.release_date }));
       } catch { /* ignore */ }
     };
     load();
@@ -162,22 +159,8 @@ export default function MovieModal({ movie, onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="relative aspect-video bg-black"
           >
-            <iframe
-              className="absolute inset-0 h-full w-full"
-              src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              title={`${movie.title} — Trailer`}
-            />
-            <button
-              onClick={() => setTrailerState("thumb")}
-              className="absolute right-3 top-3 z-10 rounded-full bg-black/70 p-1.5 text-white backdrop-blur hover:bg-black"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <TrailerPlayer keys={trailerKeys} title={movie.title} onClose={() => setTrailerState("thumb")} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -185,9 +168,9 @@ export default function MovieModal({ movie, onClose }) {
       {/* ── Cinematic backdrop ── */}
       {!showingTrailer && (
         <div className="relative h-52 overflow-hidden sm:h-64 md:h-72">
-          {movie.backdrop_path ? (
+          {(movie.backdrop_path || details?.backdrop_path) ? (
             <img
-              src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`}
+              src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path || details.backdrop_path}`}
               alt=""
               className="h-full w-full object-cover"
             />
