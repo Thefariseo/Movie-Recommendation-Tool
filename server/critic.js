@@ -315,6 +315,9 @@ export async function savedVerdict(ctx, movieId) {
 export async function criticReset(ctx) {
   const db = database(ctx.token);
   await db(`critic_threads?user_id=eq.${ctx.user.id}`, { method: 'DELETE' });
+  // What the critic said about films goes too; the member's own "Not for me" stays.
+  await db(`taste_signals?user_id=eq.${ctx.user.id}&source=in.(critic_warned,critic_pick,verdict)`, { method: 'DELETE' });
+  await db(`critic_verdicts?user_id=eq.${ctx.user.id}`, { method: 'DELETE' });
   await db(`critic_memory?user_id=eq.${ctx.user.id}`, { method: 'DELETE' });
   return { ok: true };
 }
