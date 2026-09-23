@@ -13,6 +13,7 @@ import { useLibrary } from "../contexts/LibraryContext";
 import { backend } from "../utils/backend";
 import AccountPanel from "../components/AccountPanel";
 import IntegrationsPanel from "../components/IntegrationsPanel";
+import ProfileFriends from "../components/ProfileFriends";
 import UserAvatar from "../components/UserAvatar";
 const countries = {
   IT: "Italy",
@@ -262,6 +263,7 @@ export default function Profile() {
           )}
         </div>
         <aside className="space-y-6">
+          {auth.user && <ProfileFriends userId={auth.user.id} />}
           <section className="account-panel profile-taste">
             <p className="eyebrow">A TASTE THAT’S YOURS</p>
             <h2>

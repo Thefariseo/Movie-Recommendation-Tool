@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLibrary } from '../contexts/LibraryContext';
 import { backend } from '../utils/backend';
+import UserAvatar from '../components/UserAvatar';
 import MovieCard from '../components/MovieCard';
 const empty = {
   people: [],
@@ -59,12 +60,12 @@ export default function FriendsPage() {
           act(async () => setResults((await backend(`social?q=${encodeURIComponent(query)}`)).people));
         }}><label className="account-label flex-1">Search by name<input className="account-input" value={query} minLength={2} maxLength={60} required onChange={e => setQuery(e.target.value)} /></label><button disabled={busy} className="account-button">Search</button></form>
       <p className="text-xs text-slate-500">Only people who make their profile discoverable appear here.</p>
-      {results.map(p => <div key={p.id} className="flex items-center justify-between gap-3"><span>{p.display_name}</span><button disabled={busy} className="account-secondary" onClick={() => act(() => backend('social', {
+      {results.map(p => <div key={p.id} className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2"><UserAvatar user={p} name={p.display_name} className="friend-avatar" />{p.display_name}</span><button disabled={busy} className="account-secondary" onClick={() => act(() => backend('social', {
             action: data.following.includes(p.id) ? 'unfollow' : 'follow',
             user_id: p.id
           }))}>{data.following.includes(p.id) ? 'Unfollow' : 'Follow'}</button></div>)}
       <h3 className="font-semibold">Following & followers</h3>{!data.people.length && <p className="text-sm text-slate-500">Your circle starts with a follow.</p>}
-      {data.people.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-2 dark:border-slate-800"><span>{p.display_name}<small className="ml-2 text-slate-500">{data.followers.includes(p.id) ? 'Follows you' : ''}</small></span><div className="flex gap-2">{mutual.some(x => x.id === p.id) && p.share_activity && <button className="account-secondary" disabled={busy} onClick={() => act(async () => setFriendLibrary({
+      {data.people.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 py-2 dark:border-slate-800"><span className="inline-flex items-center gap-2"><UserAvatar user={p} name={p.display_name} className="friend-avatar" />{p.display_name}<small className="ml-2 text-slate-500">{data.followers.includes(p.id) ? 'Follows you' : ''}</small></span><div className="flex gap-2">{mutual.some(x => x.id === p.id) && p.share_activity && <button className="account-secondary" disabled={busy} onClick={() => act(async () => setFriendLibrary({
               name: p.display_name,
               rows: (await backend('social', {
                 action: 'friend-library',
@@ -77,7 +78,7 @@ export default function FriendsPage() {
     </section>
     <section className="account-panel space-y-4"><p className="eyebrow">MAKE A NIGHT OF IT</p><h2 className="text-xl font-semibold">One film. Everyone happy.</h2><p className="text-sm text-slate-500">Choose up to three friends. Picks balance everyone's ratings and exclude films anyone has already watched.</p>
       {!mutual.length && <p className="text-sm">Follow each other to plan a movie night.</p>}
-      {mutual.map(p => <label key={p.id} className="flex items-center gap-3"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => select(p.id)} />{p.display_name}{!p.share_activity && <span className="text-xs text-slate-500">Activity private</span>}</label>)}
+      {mutual.map(p => <label key={p.id} className="flex items-center gap-3"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => select(p.id)} /><UserAvatar user={p} name={p.display_name} className="friend-avatar" />{p.display_name}{!p.share_activity && <span className="text-xs text-slate-500">Activity private</span>}</label>)}
       <button className="account-button" disabled={busy || !selected.length} onClick={() => act(async () => setPicks(await backend('recommend', {
           members: selected
         })))}>Find our film</button>

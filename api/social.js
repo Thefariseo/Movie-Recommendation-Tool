@@ -10,12 +10,12 @@ export async function social(ctx) {
       if (q.length < 2 || q.length > 60) throw new HttpError(400, 'Search with 2–60 characters.');
       const safe = q.replace(/[%,.*()]/g, '');
       return {
-        people: await db(`profiles?discoverable=eq.true&id=neq.${me}&display_name=ilike.${encodeURIComponent(`*${safe}*`)}&select=id,display_name&limit=20&order=display_name,id`)
+        people: await db(`profiles?discoverable=eq.true&id=neq.${me}&display_name=ilike.${encodeURIComponent(`*${safe}*`)}&select=id,display_name,avatar_url&limit=20&order=display_name,id`)
       };
     }
     const [following, followers, lists] = await Promise.all([db(`follows?follower_id=eq.${me}&select=followed_id&limit=500`), db(`follows?followed_id=eq.${me}&select=follower_id&limit=500`), db('shared_lists?select=*,list_members(user_id),list_movies(*)&order=created_at.desc&limit=100')]);
     const ids = [...new Set([...following.map(f => f.followed_id), ...followers.map(f => f.follower_id)])];
-    const people = ids.length ? await db(`profiles?id=in.(${ids.join(',')})&select=id,display_name,share_activity&limit=1000`) : [];
+    const people = ids.length ? await db(`profiles?id=in.(${ids.join(',')})&select=id,display_name,avatar_url,share_activity&limit=1000`) : [];
     const activity = await db(`user_movies?user_id=neq.${me}&deleted=eq.false&select=user_id,movie_id,movie,kind,rating,updated_at&order=updated_at.desc&limit=40`);
     return {
       following: following.map(f => f.followed_id),

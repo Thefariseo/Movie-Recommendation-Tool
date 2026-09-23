@@ -5,6 +5,9 @@ import { database, HttpError, uuid } from './http.js';
 import { recommendations, tmdb } from './recommendations.js';
 import { MOODS, TIMES, VOTES, compromise, fairnessWeights, tally, passesFilters, avoidedGenres } from '../shared/tonight.js';
 
+import { LOOKS } from '../shared/visual.js';
+import { filmLook } from './visual.js';
+
 const BALLOT = 5;
 const compact = m => ({
   id: Number(m.id), title: m.title, poster_path: m.poster_path || null, release_date: m.release_date || null,
@@ -32,18 +35,32 @@ async function history(db, members) {
   return nights.map(n => ({ ...n, votes: votes.filter(v => v.session_id === n.id) }));
 }
 
-export async function createNight(ctx, { members = [], mood = null, time = null, providers = [], region = 'IT', rent = false, era = null, language = null, minRating = null, popularity = null, avoid = [], gentle = false } = {}) {
+export async function createNight(ctx, { members = [], mood = null, time = null, providers = [], region = 'IT', rent = false, era = null, language = null, minRating = null, popularity = null, avoid = [], gentle = false, watchlistOnly = false, look = null } = {}) {
   if (!Array.isArray(members) || !members.length || members.length > 3) throw new HttpError(400, 'Choose one to three friends.');
   const friends = [...new Set(members.map(uuid))].filter(id => id !== ctx.user.id);
+  if (!friends.length) throw new HttpError(400, 'Choose at least one friend.');
+  if (look && !Object.hasOwn(LOOKS, look)) throw new HttpError(400, 'Choose a valid visual style.');
   const genres = MOODS[mood]?.genres || [];
   const filters = { era, language, minRating: Number(minRating) || null, popularity, avoid: Array.isArray(avoid) ? avoid.map(Number).filter(Number.isSafeInteger).slice(0, 12) : [], gentle: gentle === true };
   const max = TIMES[time]?.max || null;
   // Group picks check that every friend follows back and shares their activity.
-  const picks = await recommendations(ctx, friends, { genre_ids: genres, avoid_genres: avoidedGenres(filters), avoid_violence: filters.gentle, max_runtime: max, theme: null, marathon_count: 1, excluded_ids: [] });
+  const picks = await recommendations(ctx, friends, { watchlist_only: watchlistOnly === true, genre_ids: genres, avoid_genres: avoidedGenres(filters), avoid_violence: filters.gentle, max_runtime: max, theme: null, marathon_count: 1, excluded_ids: [] }, [], { limit: 36, nightFilters: filters });
   const services = Array.isArray(providers) ? providers.map(Number).filter(Number.isSafeInteger).slice(0, 12) : [];
   const safeRegion = /^[A-Z]{2}$/.test(region) ? region : 'IT';
+  let candidates = picks.movies;
+  if (look) {
+    const measured = [];
+    for (let i = 0; i < candidates.length; i += 6) {
+      const batch = await Promise.all(candidates.slice(i, i + 6).map(async m => {
+        const measuredLook = await filmLook(m);
+        return measuredLook && LOOKS[look].test(measuredLook) ? m : null;
+      }));
+      measured.push(...batch.filter(Boolean));
+    }
+    candidates = measured;
+  }
   let ballot = [];
-  for (const m of picks.movies) {
+  for (const m of candidates) {
     if (ballot.length >= BALLOT) break;
     if (!passesFilters(m, filters)) continue;
     if (!services.length) { ballot.push(m); continue; }
@@ -64,7 +81,7 @@ export async function readNight(ctx, id) {
   if (!night) throw new HttpError(404, 'This movie night does not exist or you are not invited.');
   const [votes, people] = await Promise.all([
     db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote`),
-    db(`profiles?id=in.(${night.members.join(',')})&select=id,display_name`)
+    db(`profiles?id=in.(${night.members.join(',')})&select=id,display_name,avatar_url`)
   ]);
   return { night, votes, people, ranking: tally(night.films, votes, night.weights) };
 }

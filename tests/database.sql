@@ -179,5 +179,15 @@ do $$begin
  begin insert into public.tonight_votes(session_id,user_id,movie_id,vote) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',auth.uid(),1,2);raise exception 'Voted after the decision';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Friend photos sync without granting direct writes or exposing auth metadata.
+select public.test_assert(private.profile_photo('{"picture":"https://lh3.googleusercontent.com/a/test"}') = 'https://lh3.googleusercontent.com/a/test', 'Google photo accepted');
+select public.test_assert(private.profile_photo('{"picture":"https://googleusercontent.com@evil.test/a"}') is null, 'foreign photo host rejected');
+update auth.users set raw_user_meta_data = jsonb_build_object('picture','https://lh3.googleusercontent.com/a/test') where id='11111111-1111-4111-8111-111111111111';
+select public.test_assert((select avatar_url='https://lh3.googleusercontent.com/a/test' from public.profiles where id='11111111-1111-4111-8111-111111111111'), 'updated photo synced');
+select public.test_assert(not has_column_privilege('authenticated','public.profiles','avatar_url','UPDATE'), 'members cannot overwrite photos');
+select public.test_assert(not has_schema_privilege('authenticated','private','USAGE'), 'photo triggers are private');
+update auth.users set raw_user_meta_data='{}' where id='11111111-1111-4111-8111-111111111111';
+select public.test_assert((select avatar_url is null from public.profiles where id='11111111-1111-4111-8111-111111111111'), 'removed photo cleared');
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'
