@@ -135,10 +135,11 @@ MovieLens is licensed for non-commercial research use and requires acknowledgeme
 Without either, the page says the critic is unavailable and nothing else changes.
 
 - **Grounding.** Each call sends a compact dossier (`server/critic.js`): the titles and stars of the member's most and least liked films, recent and saved titles, the directors, themes and languages their signed evidence favours or avoids, and, in conversation, the taste space's current picks. The instructions require every claim to cite the member's own films and forbid recommending a watched film; suggestions are resolved on TMDB and watched ones dropped server-side regardless. Member text is treated as data.
-- **Memory.** One conversation per member (last 40 messages), up to 12 notes the critic keeps about their taste, and the last portrait, in `critic_memory` under RLS. "Forget" deletes all three.
+- **Memory.** Separate chats (`critic_threads`, last 40 messages each, with the posters each reply suggested), plus up to 12 notes about the member's taste and their portrait shared across chats (`critic_memory`), all under RLS. Chats can be started, reopened and deleted; "Forget" deletes everything.
+- **Nothing seen twice.** The dossier lists every film the member has watched; if a reply still recommends one, the critic is asked once more (not counted against the member) and watched films never get a poster.
 - **Interview.** A member with fewer than five ratings starts with an interview: one question at a time, with well-known films to rate in one tap, ending in a summary and first picks.
 - **Portrait** (rewritten only when the diary changes) and **"What would my critic say?"** on any film, which also receives the taste space's fit as a hint.
-- Calls are limited to 6 a minute and 60 a day per member (`critic-minute`, `critic-day`).
+- Each member may ask the critic 15 things a day (messages, portraits and verdicts alike) and 6 a minute (`critic-day`, `critic-minute`).
 
 ## Tonight
 
