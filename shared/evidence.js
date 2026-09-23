@@ -55,9 +55,12 @@ export function evidenceSample(library, { loved = 18, disliked = 10 } = {}) {
 export function tasteEvidence(films, library = films) {
   const mean = ratingMean(ratedOnly(library));
   const maps = { directors: new Map(), cast: new Map(), keywords: new Map(), languages: new Map(), countries: new Map() };
-  const add = (kind, key, signal, weight = 1, name) => {
-    const old = maps[kind].get(key) || { sum: 0, count: 0, films: 0, name };
-    maps[kind].set(key, { sum: old.sum + signal * weight, count: old.count + weight, films: old.films + 1, name: old.name || name });
+  // Examples are the loved films behind a value, kept so a reason can name the
+  // member's own films. A disliked film is never kept as an example.
+  const add = (kind, key, signal, weight = 1, name, film) => {
+    const old = maps[kind].get(key) || { sum: 0, count: 0, films: 0, name, examples: [] };
+    const examples = signal > 0 && film ? [...old.examples, film].sort((a, b) => b.rated - a.rated).slice(0, 3) : old.examples;
+    maps[kind].set(key, { sum: old.sum + signal * weight, count: old.count + weight, films: old.films + 1, name: old.name || name, examples });
   };
   let used = 0;
   for (const film of ratedOnly(films)) {
@@ -65,14 +68,16 @@ export function tasteEvidence(films, library = films) {
     if (!d) continue;
     used++;
     const s = ratingSignal(Number(film.rated), mean);
-    for (const p of directorsOf(d)) add('directors', p.id, s, 1, p.name);
-    for (const p of castOf(d)) add('cast', p.id, s, p.weight, p.name);
-    for (const k of keywordsOf(d)) add('keywords', k.id, s, 1, k.name);
+    const title = film.title || d.title || d.original_title;
+    const example = title ? { title, rated: Number(film.rated) } : null;
+    for (const p of directorsOf(d)) add('directors', p.id, s, 1, p.name, example);
+    for (const p of castOf(d)) add('cast', p.id, s, p.weight, p.name, example);
+    for (const k of keywordsOf(d)) add('keywords', k.id, s, 1, k.name, example);
     const lang = languageOf(d);
-    if (lang) add('languages', lang, s);
+    if (lang) add('languages', lang, s, 1, lang, example);
     for (const c of countriesOf(d)) add('countries', c, s);
   }
-  const shrink = (kind) => new Map([...maps[kind]].map(([key, v]) => [key, { value: v.sum / (v.count + PRIOR[kind]), count: v.films, name: v.name }]));
+  const shrink = (kind) => new Map([...maps[kind]].map(([key, v]) => [key, { value: v.sum / (v.count + PRIOR[kind]), count: v.films, name: v.name, examples: v.examples }]));
   return {
     directors: shrink('directors'), cast: shrink('cast'), keywords: shrink('keywords'),
     languages: shrink('languages'), countries: shrink('countries'), films: used, mean
@@ -93,7 +98,7 @@ export function languageAffinity(movie, evidence) {
  * the concrete matches worth telling the member about.
  */
 export function evidenceMatch(details, evidence) {
-  if (!evidence || !details) return { director: 0, cast: 0, keywords: 0, country: 0, because: {} };
+  if (!evidence || !details) return { director: 0, cast: 0, keywords: 0, country: 0, because: { director: null, actor: null, themes: [], language: null } };
   const dirs = directorsOf(details).map(p => ({ ...p, e: evidence.directors.get(p.id) })).filter(p => p.e);
   const director = dirs.length ? clamp(dirs.reduce((s, p) => s + p.e.value, 0) / dirs.length) : 0;
 
@@ -110,24 +115,99 @@ export function evidenceMatch(details, evidence) {
   const country = countries.length ? clamp(countries.reduce((a, b) => a + b, 0) / countries.length) : 0;
 
   // Only well-supported, clearly positive matches are cited: a reason must be
-  // something the member's own ratings actually show.
-  const lovedDirector = dirs.filter(p => p.e.count >= 2 && p.e.value >= .3).sort((a, b) => b.e.value - a.e.value)[0];
-  const lovedCast = cast.filter(p => p.e.count >= 2 && p.e.value >= .3 && p.weight === 1).sort((a, b) => b.e.value - a.e.value)[0];
-  const lovedThemes = kws.filter(k => k.e.count >= 2 && k.e.value >= .25).sort((a, b) => b.e.value - a.e.value).slice(0, 2);
+  // something the member's own ratings actually show, and it names the films.
+  const lovedDirector = dirs.filter(p => p.e.count >= 2 && p.e.value >= .3 && p.e.examples.length).sort((a, b) => b.e.value - a.e.value)[0];
+  const lovedCast = cast.filter(p => p.e.count >= 2 && p.e.value >= .3 && p.weight === 1 && p.e.examples.length).sort((a, b) => b.e.value - a.e.value)[0];
+  const lovedThemes = kws.filter(k => k.e.count >= 2 && k.e.value >= .25 && k.e.examples.length).sort((a, b) => b.e.value - a.e.value).slice(0, 2);
+  const lang = evidence.languages.get(languageOf(details));
+  // English is the default of most catalogues, so it is not a taste worth naming.
+  const lovedLanguage = lang && languageOf(details) !== 'en' && lang.count >= 3 && lang.value >= .3 && lang.examples.length ? lang : null;
+  const person = p => ({ name: p.name, films: p.e.count, examples: p.e.examples });
   return {
     director, cast: castScore, keywords, country,
     because: {
-      director: lovedDirector ? { name: lovedDirector.name, films: lovedDirector.e.count } : null,
-      actor: lovedCast ? { name: lovedCast.name, films: lovedCast.e.count } : null,
-      themes: lovedThemes.map(k => k.name)
+      director: lovedDirector ? person(lovedDirector) : null,
+      actor: lovedCast ? person(lovedCast) : null,
+      themes: lovedThemes.map(k => ({ name: k.name, examples: k.e.examples })),
+      language: lovedLanguage ? { code: languageOf(details), films: lovedLanguage.count, examples: lovedLanguage.examples } : null
     }
   };
 }
 
-/** The member-facing sentence for the strongest cited match, or null. */
+/** A 1-10 rating as the app shows it: half stars out of five. */
+export function stars(rated) {
+  const n = Number(rated) / 2;
+  return `${Number.isInteger(n) ? n : n.toFixed(1)}★`;
+}
+
+let languageNames = null;
+function languageName(code) {
+  try {
+    languageNames ??= new Intl.DisplayNames(['en'], { type: 'language' });
+    const name = languageNames.of(code);
+    return name && name !== code ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+const quoted = f => `"${f.title}"`;
+// "you gave "Ran" 5★ and "Ikiru" 4.5★"
+const gave = films => films.map(f => `${quoted(f)} ${stars(f.rated)}`).join(' and ');
+// ""Ran" (5★) and "Ikiru" (4.5★)"
+const listed = films => films.map(f => `${quoted(f)} (${stars(f.rated)})`).join(' and ');
+const themeList = themes => themes.map(t => t.name).join(' and ');
+const distinct = films => [...new Map(films.map(f => [f.title, f])).values()].sort((a, b) => b.rated - a.rated);
+
+/**
+ * What the member's own ratings say about a film, in two lengths: `short` fits
+ * on one line under a poster, `full` explains it where there is room. Every
+ * film named is one the member rated, and rated well. Returns null when the
+ * evidence is not strong enough to say anything.
+ */
 export function evidenceReason(because) {
-  if (because?.director) return `Directed by ${because.director.name}, whose films you rate highly`;
-  if (because?.themes?.length) return `Shares themes from films you rated highly: ${because.themes.join(', ')}`;
-  if (because?.actor) return `With ${because.actor.name}, from films you rated highly`;
-  return null;
+  if (!because) return null;
+  const { director, actor, themes = [], language } = because;
+  const clauses = [];
+  if (director) clauses.push({
+    kind: 'director', films: director.examples,
+    short: `By ${director.name} — you gave ${gave(director.examples.slice(0, 1))}`,
+    full: `By ${director.name}: you gave ${gave(director.examples.slice(0, 2))}.`
+  });
+  if (themes.length) {
+    const films = distinct(themes.flatMap(t => t.examples));
+    clauses.push({
+      kind: 'themes', films,
+      short: `About ${themeList(themes)} — like ${quoted(films[0])} ${stars(films[0].rated)}`,
+      full: `About ${themeList(themes)}, like ${listed(films.slice(0, 2))}.`
+    });
+  }
+  if (actor) clauses.push({
+    kind: 'actor', films: actor.examples,
+    short: `With ${actor.name} — you gave ${gave(actor.examples.slice(0, 1))}`,
+    full: `With ${actor.name}, whom you rated highly in ${listed(actor.examples.slice(0, 2))}.`
+  });
+  const tongue = language && languageName(language.code);
+  if (tongue) clauses.push({
+    kind: 'language', films: language.examples,
+    short: `${tongue} cinema — like ${quoted(language.examples[0])} ${stars(language.examples[0].rated)}`,
+    full: `${tongue}-language cinema, which you rate highly: ${listed(language.examples.slice(0, 2))}.`
+  });
+  if (!clauses.length) return null;
+  const [lead, next] = clauses;
+  let full = lead.full;
+  // A second, different kind of evidence adds depth, named through a film the
+  // lead clause has not already cited.
+  if (next) {
+    const cited = new Set(lead.films.slice(0, 2).map(f => f.title));
+    const fresh = next.films.find(f => !cited.has(f.title));
+    const also = {
+      themes: () => `It is also about ${themeList(themes)}`,
+      actor: () => `It also stars ${actor.name}`,
+      language: () => `It is also ${tongue}-language cinema`,
+      director: () => `It is also by ${director.name}`
+    }[next.kind]();
+    full += fresh ? ` ${also}, like ${listed([fresh])}.` : ` ${also}.`;
+  }
+  return { short: lead.short, full };
 }

@@ -74,8 +74,11 @@ test('a disliked director is penalised even when the film arrives through generi
 test('reasons cite only what the member\'s ratings show', async () => {
   const picks = await getRecommendations({ watched: library(), top: 10 });
   const reason = id => picks.find(p => p.id === id)?.reason;
-  assert.equal(reason(100), 'Directed by Alma Loved, whose films you rate highly');
-  assert.equal(reason(300), 'Shares themes from films you rated highly: time travel');
+  const detail = id => picks.find(p => p.id === id)?.reasonDetail;
+  assert.equal(reason(100), 'By Alma Loved — you gave "Film 1" 5★');
+  assert.equal(detail(100), 'By Alma Loved: you gave "Film 1" 5★ and "Film 2" 4.5★.');
+  assert.equal(reason(300), 'About time travel — like "Film 1" 5★');
+  assert.equal(detail(300), 'About time travel, like "Film 1" (5★) and "Film 2" (4.5★).');
   assert.ok(!/Bruno Disliked|found footage/.test(picks.map(p => p.reason).join(' ')), 'disliked evidence is never offered as a reason');
 });
 
