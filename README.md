@@ -129,7 +129,7 @@ MovieLens is licensed for non-commercial research use and requires acknowledgeme
 
 `/critic` is a critic that has read the member's diary. Configure one of:
 
-- **OpenAI:** `OPENAI_API_KEY` and `OPENAI_CRITIC_MODEL` (falling back to `OPENAI_CHAT_MODEL`), a model that supports Responses Structured Outputs.
+- **OpenAI:** `OPENAI_API_KEY` and `OPENAI_CRITIC_MODEL` (falling back to `OPENAI_CHAT_MODEL`), a model that supports Responses Structured Outputs. Reasoning runs at `low` effort with 2,000 tokens of headroom; set `OPENAI_CRITIC_REASONING` to another effort, or `off` for a model without the setting.
 - **Any OpenAI-compatible Chat Completions provider:** `CRITIC_API_URL` (the base URL, e.g. `https://api.groq.com/openai/v1` or `https://api.mistral.ai/v1`), `CRITIC_API_KEY` and `CRITIC_MODEL`. JSON mode is used and the answer is fitted to the schema (`conform` in `server/llm.js`). Before choosing a free plan, check its terms: Google's unpaid Gemini tier may not serve users in the EEA, UK or Switzerland, and Mistral's free tier trains on data unless you opt out.
 
 Without either, the page says the critic is unavailable and nothing else changes.

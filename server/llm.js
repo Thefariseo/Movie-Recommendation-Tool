@@ -42,7 +42,28 @@ function parse(text) {
   }
 }
 
-export async function structured({ instructions, input, name, schema, maxTokens = 1500, timeout = 45000 }) {
+// OpenAI's current models reason before answering, and the hidden reasoning
+// counts against the output limit. A critic's reply needs little of it, so it
+// runs at low effort (OPENAI_CRITIC_REASONING overrides; "off" sends nothing,
+// for older models without the setting), with room left for the answer.
+const REASONING_HEADROOM = 2000;
+const reasoning = () => {
+  const effort = process.env.OPENAI_CRITIC_REASONING || 'low';
+  return effort === 'off' ? null : effort;
+};
+
+// A spending cap or a provider's rate limit both answer 429; either way the
+// member should read that the critic is resting, not the provider's error.
+export async function structured(options) {
+  try {
+    return await call(options);
+  } catch (e) {
+    if (e.status === 429) throw new HttpError(429, 'Your critic is taking a break: its usage limit has been reached. Please try again later.');
+    throw e;
+  }
+}
+
+async function call({ instructions, input, name, schema, maxTokens = 1500, timeout = 45000 }) {
   if (!criticEnabled()) throw new HttpError(503, 'The critic is not configured on this server yet.');
   const content = typeof input === 'string' ? input : JSON.stringify(input);
   if (compatible()) {
@@ -70,11 +91,13 @@ export async function structured({ instructions, input, name, schema, maxTokens 
     body: JSON.stringify({
       model: criticModel(),
       store: false,
-      max_output_tokens: maxTokens,
+      max_output_tokens: maxTokens + (reasoning() ? REASONING_HEADROOM : 0),
+      ...(reasoning() ? { reasoning: { effort: reasoning() } } : {}),
       instructions,
       input: content,
       text: { format: { type: 'json_schema', name, strict: true, schema } }
     })
   });
+  if (response.status === 'incomplete') throw new HttpError(502, 'The critic ran out of room for its answer. Please try again.');
   return conform(schema, parse(response.output?.flatMap(item => item.content || []).find(c => c.type === 'output_text')?.text));
 }
