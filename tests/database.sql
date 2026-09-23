@@ -133,5 +133,37 @@ end$$;
 update public.critic_memory set notes='[]';
 reset role;
 select public.test_assert((select notes='["Loves slow cinema"]'::jsonb from public.critic_memory),'another member cannot change the critic memory');
+-- Movie nights: only mutual sharing friends can be invited, only members see and
+-- vote, votes close once the host decides, and the ballot itself never changes.
+insert into public.follows values('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222'),('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111') on conflict do nothing;
+update public.profiles set share_activity=true where id in ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $$begin
+ begin insert into public.tonight_sessions(host,members,films) values(auth.uid(),array[auth.uid(),'33333333-3333-4333-8333-333333333333'::uuid],'[{"id":1}]');raise exception 'Invited a stranger';exception when insufficient_privilege then null;end;
+ begin insert into public.tonight_sessions(host,members,films) values('22222222-2222-4222-8222-222222222222',array[auth.uid(),'22222222-2222-4222-8222-222222222222'::uuid],'[{"id":1}]');raise exception 'Hosted as someone else';exception when insufficient_privilege then null;end;
+end$$;
+insert into public.tonight_sessions(id,host,members,films) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',auth.uid(),array[auth.uid(),'22222222-2222-4222-8222-222222222222'::uuid],'[{"id":1},{"id":2}]');
+insert into public.tonight_votes(session_id,user_id,movie_id,vote) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',auth.uid(),1,2);
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=1 from public.tonight_sessions),'an invited friend sees the movie night');
+select public.test_assert((select count(*)=1 from public.tonight_votes),'an invited friend sees the votes');
+insert into public.tonight_votes(session_id,user_id,movie_id,vote) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',auth.uid(),2,2);
+do $$begin
+ begin insert into public.tonight_votes(session_id,user_id,movie_id,vote) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc','11111111-1111-4111-8111-111111111111',2,-1);raise exception 'Voted for someone else';exception when insufficient_privilege then null;end;
+ begin update public.tonight_sessions set films='[{"id":9}]';raise exception 'Ballot changed';exception when insufficient_privilege then null;end;
+end$$;
+update public.tonight_sessions set status='decided',winner=2,decided_at=now();
+select public.test_assert((select status='open' from public.tonight_sessions),'only the host decides');
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=0 from public.tonight_sessions) and (select count(*)=0 from public.tonight_votes),'strangers see nothing');
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+update public.tonight_sessions set status='decided',winner=2,decided_at=now();
+select public.test_assert((select status='decided' and winner=2 from public.tonight_sessions),'the host decides');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+do $$begin
+ begin insert into public.tonight_votes(session_id,user_id,movie_id,vote) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',auth.uid(),1,2);raise exception 'Voted after the decision';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

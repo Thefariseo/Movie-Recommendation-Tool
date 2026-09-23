@@ -135,6 +135,14 @@ MovieLens is licensed for non-commercial research use and requires acknowledgeme
 - **Portrait** (rewritten only when the diary changes) and **"What would my critic say?"** on any film, which also receives the taste space's fit as a hint.
 - Calls are limited to 6 a minute and 60 a day per member (`critic-minute`, `critic-day`).
 
+## Tonight
+
+`/tonight` finds one film for tonight: a mood, the time available, the streaming services the member pays for in their region (TMDB/JustWatch availability, remembered in the browser), and a nudge away from genres watched in the last few days.
+
+**With friends** it becomes a movie night: the host picks up to three mutual friends who share their activity, Umbrify builds group picks (the taste space ranks each film by its weakest match among them) filtered to the host's services, and everyone votes *No / Fine / Yes please* from their own phone at `/tonight/:id`, which refreshes every three seconds. The host decides.
+
+**Fairness.** Decided nights are the group's history. For each member, the gap between the best vote they gave and their vote on the film that won is their compromise, newest nights weighing most (`shared/tonight.js`). Whoever compromised lately gets up to ×1.5 weight on the next ballot, and the page says so. Sessions and votes live in `tonight_sessions` and `tonight_votes` under RLS: only invited members see or vote, votes close at the decision, and the ballot cannot change after creation.
+
 ## Trakt, Letterboxd and streaming
 
 Register this exact callback in your Trakt application:
