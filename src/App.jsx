@@ -19,6 +19,7 @@ import FriendsPage from "./pages/FriendsPage";
 import Profile from "./pages/Profile";
 import WatchedPage from "./pages/WatchedPage";
 import StatsPage from "./pages/StatsPage";
+import JourneysPage from "./pages/JourneysPage";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
 import { ModalProvider } from "@/hooks/useModal";
@@ -64,6 +65,7 @@ function AppContent() {
                         <Route path="watchlist" element={<WatchlistPage />} />
                         <Route path="watched" element={<WatchedPage />} />
                         <Route path="stats" element={<StatsPage />} />
+                        <Route path="journeys" element={<JourneysPage />} />
                       </Route>
                       <Route
                         path="/watchlist"

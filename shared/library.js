@@ -25,7 +25,11 @@ export function rowToMovie(row) {
     ...(row.kind === 'watched' ? {
       rated: row.rating
     } : {}),
-    _version: row.version
+    _version: row.version,
+    // When the entry last changed, used to draw how a member's taste grew.
+    ...(row.updated_at ? {
+      _updated: row.updated_at
+    } : {})
   };
 }
 export function mergeRows(current, incoming) {
