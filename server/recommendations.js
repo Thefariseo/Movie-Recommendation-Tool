@@ -7,7 +7,7 @@ import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReaso
 import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
 import { loadTasteSpace } from './tasteSpace.js';
 export { tmdb };
-const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
+export const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
 const filmDetails = id => tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
 async function inBatches(items, work, size = 6) {
   const settled = [];
@@ -17,7 +17,7 @@ async function inBatches(items, work, size = 6) {
 // Signed evidence from the member's most telling films: who made them, who is
 // in them, what they are about, where they come from. Smaller than the
 // browser's sample, since it runs inside a request's time budget.
-async function memberEvidence(movies) {
+export async function memberEvidence(movies) {
   const sample = evidenceSample(movies, { loved: 12, disliked: 6 });
   const details = await inBatches(sample, m => filmDetails(m.id));
   return tasteEvidence(sample.map((m, i) => ({ rated: m.rated, title: m.title, details: details[i].status === 'fulfilled' ? details[i].value : null })), movies);

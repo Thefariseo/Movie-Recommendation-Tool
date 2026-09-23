@@ -83,7 +83,8 @@
   <h3>Only if you ask for it</h3>
   <ul>
     <li><strong>Trakt</strong> — contacted only after you connect your Trakt account, to import or export what you choose.</li>
-    <li><strong>OpenAI</strong> — if the AI assistant is enabled, the text of your message is sent to OpenAI to interpret it. This is not enabled at the time of writing, and the assistant runs on Umbrify's own logic instead.</li>
+    <li><strong>OpenAI</strong> — if the AI assistant is enabled, the text of your message is sent to OpenAI to interpret it; otherwise the assistant runs on Umbrify's own logic.</li>
+    <li><strong>OpenAI, for your critic</strong> — only when you use the critic (its conversation, your taste portrait or "What would my critic say?"), our server sends OpenAI a summary of your diary: the titles and star ratings of your most and least liked films, recent and saved titles, the directors, themes and languages your ratings favour or avoid, the critic's notes about your taste and the recent conversation. It carries no name, e-mail or account identifier, and we ask OpenAI not to store it (<code>store: false</code>). The conversation, the notes and your portrait are kept in your account until you press "Forget" or delete the account.</li>
   </ul>
   <p class="note">Links to Letterboxd, JustWatch and IMDb are ordinary outbound links: those sites only learn about you if you follow one. A Letterboxd import is a file you upload yourself; it is read to create your entries and not sent anywhere else.</p>
 

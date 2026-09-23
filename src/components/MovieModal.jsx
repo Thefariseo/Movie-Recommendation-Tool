@@ -21,6 +21,7 @@ import useWatchlist from "@/hooks/useWatchlist";
 import useWatched from "@/hooks/useWatched";
 import { externalIds, movieDetails, movieWatchProviders } from "@/utils/api";
 import FilmRatings from "./FilmRatings";
+import CriticVerdict from "./CriticVerdict";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
@@ -34,7 +35,7 @@ function detectCountry() {
 }
 
 export default function MovieModal({ movie, onClose }) {
-  const {profile} = useAuth();
+  const {profile, user} = useAuth();
   const country = profile?.country || detectCountry();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { isWatched, addWatched, removeWatched, updateRating, watched } = useWatched();
@@ -312,6 +313,8 @@ export default function MovieModal({ movie, onClose }) {
             </p>
           </div>
         )}
+
+        {user && <CriticVerdict movieId={movie.id} />}
 
         {/* ── Keywords / nanogenre tags ── */}
         {keywords.length > 0 && (

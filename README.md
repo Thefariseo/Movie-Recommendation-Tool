@@ -125,6 +125,16 @@ Offline, on 2,000 held-out MovieLens users who reveal 5, 10 or 20 random ratings
 
 MovieLens is licensed for non-commercial research use and requires acknowledgement: F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM TiiS 5, 4, Article 19. GroupLens does not endorse Umbrify. **Commercial use needs GroupLens' permission, or the space retrained on Umbrify's own consenting ratings.**
 
+## Personal critic
+
+`/critic` is a critic that has read the member's diary. It needs `OPENAI_API_KEY` and a model in `OPENAI_CRITIC_MODEL` (falling back to `OPENAI_CHAT_MODEL`) that supports Responses Structured Outputs; without them the page says the critic is unavailable and nothing else changes.
+
+- **Grounding.** Each call sends a compact dossier (`server/critic.js`): the titles and stars of the member's most and least liked films, recent and saved titles, the directors, themes and languages their signed evidence favours or avoids, and, in conversation, the taste space's current picks. The instructions require every claim to cite the member's own films and forbid recommending a watched film; suggestions are resolved on TMDB and watched ones dropped server-side regardless. Member text is treated as data.
+- **Memory.** One conversation per member (last 40 messages), up to 12 notes the critic keeps about their taste, and the last portrait, in `critic_memory` under RLS. "Forget" deletes all three.
+- **Interview.** A member with fewer than five ratings starts with an interview: one question at a time, with well-known films to rate in one tap, ending in a summary and first picks.
+- **Portrait** (rewritten only when the diary changes) and **"What would my critic say?"** on any film, which also receives the taste space's fit as a hint.
+- Calls are limited to 6 a minute and 60 a day per member (`critic-minute`, `critic-day`).
+
 ## Trakt, Letterboxd and streaming
 
 Register this exact callback in your Trakt application:

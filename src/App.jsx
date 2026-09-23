@@ -9,6 +9,7 @@ import LibraryLayout from "./components/LibraryLayout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LibraryProvider } from "./contexts/LibraryContext";
 import ChatPage from "./pages/ChatPage";
+import CriticPage from "./pages/CriticPage";
 import AuthCallback from "./pages/AuthCallback";
 import Home from "./pages/Home";
 import WatchlistPage from "./pages/WatchlistPage";
@@ -76,6 +77,7 @@ function AppContent() {
                       />
                       <Route path="/friends" element={<FriendsPage />} />
                       <Route path="/chat" element={<ChatPage />} />
+                      <Route path="/critic" element={<CriticPage />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<Profile />} />
                       {/* 404 */}

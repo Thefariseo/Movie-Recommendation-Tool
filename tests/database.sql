@@ -118,5 +118,20 @@ do $$begin
  begin insert into public.film_ratings(tmdb_id,imdb_id) values(7,'not-an-id');raise exception 'Malformed IMDb id accepted';exception when check_violation then null;end;
  begin insert into public.film_ratings(tmdb_id,rt_score) values(8,101);raise exception 'Out-of-range RT score accepted';exception when check_violation then null;end;
 end$$;
+-- The critic's memory belongs to its member alone, and critic calls have their own limits.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.critic_memory(user_id,notes) values('11111111-1111-4111-8111-111111111111','["Loves slow cinema"]');
+select public.test_assert((select count(*)=1 from public.critic_memory),'member reads own critic memory');
+select public.test_assert((select bool_and(public.consume_limit('critic-minute',1000,1)) from generate_series(1,6)),'six critic calls a minute are allowed');
+select public.test_assert(not public.consume_limit('critic-minute',1000,1),'the seventh critic call in a minute is refused');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=0 from public.critic_memory),'another member cannot read the critic memory');
+do $$begin
+ begin insert into public.critic_memory(user_id) values('11111111-1111-4111-8111-111111111111');raise exception 'Wrote another member''s critic memory';exception when insufficient_privilege then null;end;
+end$$;
+update public.critic_memory set notes='[]';
+reset role;
+select public.test_assert((select notes='["Loves slow cinema"]'::jsonb from public.critic_memory),'another member cannot change the critic memory');
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'
