@@ -1,16 +1,19 @@
-"""Extract each film's visual style from its textless TMDB stills.
+"""Measure the look of well-known films from their textless TMDB stills.
 
 Usage (offline; TMDB_KEY in the environment; resumable, one JSON per film):
   pip install numpy pillow
-  python scripts/visual-style/extract.py public/models/taste-space.bin cache/visual
-  python scripts/visual-style/build.py cache/visual public/models/visual-style.bin
+  LIMIT=4000 STILLS=3 WORKERS=3 python scripts/visual-style/extract.py public/models/taste-space.bin cache/visual
+  python scripts/visual-style/evaluate.py cache/visual ml-32m
 
-For every film the taste space knows, up to four of the best-voted backdrops
-without text are downloaded at 300 px and measured: light (brightness,
-contrast, share of deep shadow and of highlights), colour (saturation,
-colourfulness, warm-cool balance, black-and-white), the hue mix, and a
-five-colour palette. These describe colour and light only: stills say nothing
-reliable about editing rhythm or camera movement.
+The app measures looks in the browser (src/utils/visualStyle.js, the same
+maths as shared/visual.js). This offline run exists to set the reference
+distribution in shared/visual.js and to test, with evaluate.py, whether films
+that look alike are rated alike. They are not, so looks never rank.
+
+Up to four (STILLS) of the best-voted backdrops without text are measured at
+300 px: light (brightness, contrast, deep shadow, highlights), colour
+(saturation, colourfulness, warm-cool balance), the hue mix and a palette.
+Stills say nothing reliable about editing rhythm or camera movement.
 """
 import io, json, os, struct, sys, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -19,11 +22,16 @@ from PIL import Image
 
 space, out = sys.argv[1], sys.argv[2]
 KEY = os.environ['TMDB_KEY']
+STILLS = int(os.environ.get('STILLS', 4))
 os.makedirs(out, exist_ok=True)
 
 b = open(space, 'rb').read()
 _, n, k, _ = struct.unpack('<IIIf', b[4:20])
 ids = np.frombuffer(b, '<i4', n, 20 + 4 * k * k)
+counts = np.frombuffer(b, '<u4', n, 20 + 4 * k * k + 8 * n)
+# Best-known films first, so a partial run still covers what most people watch.
+LIMIT = int(os.environ.get('LIMIT', n))
+ids = ids[np.argsort(-counts, kind='stable')][:LIMIT]
 
 def get(url, tries=4):
     for t in range(tries):
@@ -32,7 +40,7 @@ def get(url, tries=4):
                 return r.read()
         except Exception as e:
             if getattr(e, 'code', None) == 404: return None
-            time.sleep(1.5 * (t + 1))
+            time.sleep(3 * (t + 1))
     return None
 
 def measure(img):
@@ -69,11 +77,12 @@ def film(tmdb):
     path = f'{out}/{tmdb}.json'
     if os.path.exists(path): return 'cached'
     meta = get(f'https://api.themoviedb.org/3/movie/{tmdb}/images?api_key={KEY}&include_image_language=null')
-    stills = sorted(json.loads(meta).get('backdrops', []), key=lambda x: -x.get('vote_count', 0))[:4] if meta else []
+    if meta is None: return 'failed'   # retried on the next run
+    stills = sorted(json.loads(meta).get('backdrops', []), key=lambda x: -x.get('vote_count', 0))[:STILLS]
     shots, pixels = [], []
     for s in stills:
         raw = get(f'https://image.tmdb.org/t/p/w300{s["file_path"]}')
-        if not raw: continue
+        if not raw: return 'failed'
         m, px = measure(Image.open(io.BytesIO(raw)))
         shots.append(m); pixels.append(px)
     result = {'id': int(tmdb), 'stills': len(shots)}
@@ -85,8 +94,8 @@ def film(tmdb):
     return 'ok' if shots else 'empty'
 
 done = 0
-with ThreadPoolExecutor(16) as pool:
+with ThreadPoolExecutor(int(os.environ.get('WORKERS', 4))) as pool:
     for status in pool.map(film, ids.tolist()):
         done += 1
-        if done % 500 == 0: print(done, 'of', n, flush=True)
-print('finished', n)
+        if done % 250 == 0: print(done, 'of', len(ids), flush=True)
+print('finished', len(ids))

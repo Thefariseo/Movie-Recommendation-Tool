@@ -5,10 +5,12 @@ import { getRecommendations } from "./recommender";
 import { movieDetails, movieWatchProviders } from "../utils/api";
 import { genreIds } from "../../shared/taste.js";
 import { MOODS, TIMES, sameAgain } from "../../shared/tonight.js";
+import { LOOKS } from "../../shared/visual.js";
+import { lookOf } from "../utils/visualStyle";
 
 const PICKS = 5;
 
-export async function tonightPicks({ watched = [], watchlist = [], mood = null, time = null, providers = [], region = "IT", recentlyShown = new Set() } = {}) {
+export async function tonightPicks({ watched = [], watchlist = [], mood = null, time = null, look = null, providers = [], region = "IT", recentlyShown = new Set() } = {}) {
   const genres = MOODS[mood]?.genres || [];
   const max = TIMES[time]?.max || null;
   const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 40, recentlyShown });
@@ -24,6 +26,10 @@ export async function tonightPicks({ watched = [], watchlist = [], mood = null, 
     const batch = await Promise.allSettled(ordered.slice(i, i + 6).map(async (r) => {
       const details = await movieDetails(r.id);
       if (max && (!details.runtime || details.runtime > max)) return null;
+      if (LOOKS[look]) {
+        const measured = await lookOf(details);
+        if (!measured || !LOOKS[look].test(measured)) return null;
+      }
       let on = [];
       if (services.size) {
         const offers = await movieWatchProviders(r.id, region);

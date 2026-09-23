@@ -143,6 +143,18 @@ MovieLens is licensed for non-commercial research use and requires acknowledgeme
 
 **Fairness.** Decided nights are the group's history. For each member, the gap between the best vote they gave and their vote on the film that won is their compromise, newest nights weighing most (`shared/tonight.js`). Whoever compromised lately gets up to ×1.5 weight on the next ballot, and the page says so. Sessions and votes live in `tonight_sessions` and `tonight_votes` under RLS: only invited members see or vote, votes close at the decision, and the ballot cannot change after creation.
 
+## Journeys and the taste map
+
+`/library/journeys` draws the taste space as a map (t-SNE of the normalised film vectors, `scripts/taste-space/map.py` → `public/models/taste-map.bin` and `.json`, 0.1 MB) split into 48 regions named after their genres, decade and best-known films. The member's films sit on it, loved and disliked, with their centre and how many regions they have visited (month by month when the library has dates).
+
+A **journey** (`shared/journeys.js`) leads from a loved film into a region the member has never visited but whose films point the same way as their taste (cosine to the member's vector, so popularity does not decide). Its six steps follow the straight line from home to the destination in the taste space, each the unseen film closest to that point, the last two inside the destination. For a Ghibli lover one runs Howl's Moving Castle → Grave of the Fireflies → Porco Rosso → Tekkonkinkreet → Persepolis → 3-Iron. Journeys can be followed; progress is the steps watched.
+
+## The look of a film
+
+Each film's colour and light (brightness, contrast, deep shadow, highlights, saturation, colourfulness, warm or cool) is measured in the browser from its main TMDB still and cached (`shared/visual.js`, `src/utils/visualStyle.js`). It shows as a palette and named looks on the film page ("Dark & moody · Cool tones", and which loved film it looks like), as **Your eye** on the stats page, and as an optional *look* filter in Tonight.
+
+It never ranks. Offline (`scripts/visual-style/`), on 445 well-known films and 22,820 MovieLens ratings, predicting a rating from visually similar films the member rated did no better than their plain mean (RMSE 0.9484 against 0.9485). Stills say nothing reliable about editing or camera movement, so neither is claimed.
+
 ## Trakt, Letterboxd and streaming
 
 Register this exact callback in your Trakt application:
