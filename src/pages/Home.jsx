@@ -22,7 +22,7 @@ export default function Home() {
           <h1>What will you watch tonight?</h1>
           <p>Find your next favourite, then make it a movie night.</p>
         </div>
-        <Link to="/chat" className="choose-link">
+        <Link to="/critic" className="choose-link">
           <MessageCircle size={18} aria-hidden="true" />
           <span>Help me choose</span>
           <ArrowRight size={16} aria-hidden="true" />
@@ -53,20 +53,7 @@ export default function Home() {
       ) : (
         <div className="space-y-8 pt-7">
           {user ? (
-            <>
-              <CommunityPicks />
-              {hasTaste && (
-                <details className="discovery-details">
-                  <summary>
-                    Fine-tune by mood, decade or filmmaker
-                    <span>More ways to explore your taste</span>
-                  </summary>
-                  <div className="pt-6">
-                    <ForYouSection />
-                  </div>
-                </details>
-              )}
-            </>
+            <CommunityPicks />
           ) : hasTaste ? (
             <ForYouSection />
           ) : (

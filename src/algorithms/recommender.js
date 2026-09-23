@@ -654,13 +654,14 @@ export async function getRecommendations({
   // not yet in the shared cache keeps TMDB's figures until it is.
   const ratings = await loadRatings(pool.map((p) => p.id));
   pool = pool.map((p) => ({ ...p, raw: withRatings(p.raw, ratings.get(Number(p.id))) }));
-  if (prefs.country || hasPersonFilter) {
+  if (prefs.country || hasPersonFilter || prefs.maxRuntime) {
     pool = pool.filter(({id, raw}) => !watched.some(m => Number(m.id) === Number(id)) && !raw.adult)
       .sort((a,b) => qualityScore(b.raw)-qualityScore(a.raw)).slice(0,80);
     const checked = [];
     for (let offset = 0; offset < pool.length; offset += 6) {
       checked.push(...await Promise.allSettled(pool.slice(offset, offset + 6).map(async item => {
       const d = await movieDetails(item.id);
+      if (prefs.maxRuntime && (!d.runtime || d.runtime > prefs.maxRuntime)) return null;
       if (prefs.country && !(d.origin_country || d.production_countries?.map(c => c.iso_3166_1) || []).includes(prefs.country)) return null;
       if (prefs.directorId && !d.credits?.crew?.some(p => p.job === 'Director' && Number(p.id) === Number(prefs.directorId))) return null;
       if (prefs.actorId && !d.credits?.cast?.some(p => Number(p.id) === Number(prefs.actorId))) return null;

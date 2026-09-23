@@ -1235,3 +1235,5 @@ summary {
     padding: 10px 12px;
   }
 }
+
+.user-avatar.friend-avatar { width: 2.25rem; height: 2.25rem; min-width: 2.25rem; font-size: .7rem; border-width: 1px; box-shadow: none; }

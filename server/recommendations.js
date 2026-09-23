@@ -5,6 +5,8 @@ import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
 import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
 import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
+import { matchesDiscovery } from '../shared/discovery.js';
+import { passesFilters } from '../shared/tonight.js';
 import { loadTasteSpace } from './tasteSpace.js';
 import { readSignals } from './signals.js';
 import { signalMap, blocked, signalOf, jitter, withoutRecent } from '../shared/signals.js';
@@ -37,7 +39,7 @@ const peerPoints = z => PEER_WEIGHT * peerStrength(z);
 // never reaches scoring: those films are excluded outright.
 const SIGNAL_POINTS = { '-1': -2, '1': 1.2, '2': 2 };
 export const contentScore = tasteScore;
-export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
+export async function recommendations(ctx, members = [], constraints = {}, recentIds = [], { limit = 12, nightFilters = null } = {}) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
   const ids = [...new Set([ctx.user.id, ...members.map(uuid)])],
     db = database(ctx.token);
@@ -62,6 +64,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // warned against, judged "skip", or they dismissed is never offered.
   const signals = signalMap(await readSignals(ctx).catch(() => []));
   for (const [id] of signals) if (blocked(signals, id)) excluded.add(id);
+  const savedIds = new Set(libraries.flat().filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
   let model = null;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -76,9 +79,19 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     body: {}
   }) : [];
   const candidateMap = new Map();
+  const personSets = [];
+  const personFilms = [];
+  for (const [id, role] of [[constraints.director_id, 'director'], [constraints.actor_id, 'actor']]) {
+    if (!id) continue;
+    const credits = await tmdb(`person/${id}/movie_credits`);
+    const films = role === 'director' ? (credits.crew || []).filter(p => p.job === 'Director') : credits.cast || [];
+    personSets.push(new Set(films.map(m => Number(m.id))));
+    personFilms.push(...films);
+  }
   const add = movies => {
-    for (const m of movies || []) if (m.id && !excluded.has(Number(m.id))) candidateMap.set(Number(m.id), {...candidateMap.get(Number(m.id)), ...m, genre_ids: genreIds(m)});
+    for (const m of movies || []) if (m.id && !excluded.has(Number(m.id)) && (!constraints.watchlist_only || savedIds.has(Number(m.id))) && personSets.every(ids => ids.has(Number(m.id)))) candidateMap.set(Number(m.id), {...candidateMap.get(Number(m.id)), ...m, genre_ids: genreIds(m)});
   };
+  add(personFilms);
   const modelIds = model ? [...new Set(ids.flatMap(id => Object.keys(model.items).map(mid => ({
     id: Number(mid),
     score: predict(model, id, mid)
@@ -107,7 +120,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     spaceIds.push(...ranked.sort((a, b) => b[1] - a[1]).slice(0, PEER_PICKS).map(([id]) => id));
   }
   const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has('critic_pick') && !excluded.has(id)).slice(0, 8).map(([id]) => id);
-  const detailIds = [...new Set([...criticPicks, ...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 56);
+  const detailIds = constraints.watchlist_only ? [] : [...new Set([...criticPicks, ...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 56);
   for (let i = 0; i < detailIds.length; i += 5) {
     const results = await Promise.allSettled(detailIds.slice(i, i + 5).map(id => tmdb(`movie/${id}`)));
     for (const r of results) if (r.status === 'fulfilled') add([{
@@ -116,10 +129,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     }]);
   }
   for (const rows of libraries) {
-    const liked = seedMovies(watchedMovies(rows), 4);
+    const liked = constraints.watchlist_only ? [] : seedMovies(watchedMovies(rows), 4);
     const results = await Promise.allSettled(liked.map(r => tmdb(`movie/${r.id}/recommendations`)));
     for (const r of results) if (r.status === 'fulfilled') add(r.value.results);
-    const saved = rows.filter(r => r.kind === 'watchlist' && !excluded.has(Number(r.movie_id))).slice(0, 12);
+    const saved = rows.filter(r => r.kind === 'watchlist' && !excluded.has(Number(r.movie_id))).slice(0, constraints.watchlist_only ? 100 : 12);
     for (let i = 0; i < saved.length; i += 6) {
       const details = await Promise.allSettled(saved.slice(i, i + 6).map(r => tmdb(`movie/${r.movie_id}`)));
       for (const r of details) if (r.status === 'fulfilled') add([r.value]);
@@ -132,21 +145,32 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const evidence = ids.length === 1 ? await memberEvidence(watchedMovies(libraries[0])) : null;
   const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...new Set(profiles.flatMap(p => [...p.genres].filter(([,score]) => score > 0).sort((a,b) => b[1] - a[1]).slice(0, 2).map(([id]) => id)))].slice(0, 6);
   const discoveryParams = {
+    ...(constraints.decade ? {'primary_release_date.gte': `${constraints.decade}-01-01`, 'primary_release_date.lte': `${constraints.decade + 9}-12-31`} : {}),
+    ...(constraints.country ? {with_origin_country: constraints.country} : {}),
+    ...(constraints.actor_id ? {with_cast: String(constraints.actor_id)} : {}),
+    ...(constraints.director_id ? {with_crew: String(constraints.director_id)} : {}),
     sort_by: 'vote_average.desc',
     'vote_count.gte': '50',
     include_adult: 'false',
-    'primary_release_date.lte': new Date().toISOString().slice(0, 10),
+    'primary_release_date.lte': constraints.decade ? `${constraints.decade + 9}-12-31` : new Date().toISOString().slice(0, 10),
     ...(constraints.avoid_genres?.length ? { without_genres: constraints.avoid_genres.join(',') } : {}),
-    ...(genres.length ? {
+    ...((genres.length && (!constraints.director_id && !constraints.actor_id || constraints.genre_ids?.length)) ? {
       with_genres: genres.join('|')
     } : {}),
     ...(constraints.max_runtime ? {
       'with_runtime.lte': String(constraints.max_runtime)
     } : {})
   };
-  const discovery = await Promise.allSettled([1, 2, 3].map(page => tmdb('discover/movie', {...discoveryParams, page: String(page)})));
-  for (const r of discovery) if (r.status === 'fulfilled') add(r.value.results);
-  if (!candidateMap.size && discovery.every(r => r.status === 'rejected')) throw new HttpError(502, 'Film discovery is temporarily unavailable. Please try again.');
+  const discovery = constraints.watchlist_only ? [] : await Promise.allSettled([1, 2, 3].map(page => tmdb('discover/movie', {...discoveryParams, page: String(page)})));
+  const originMatches = new Set();
+  for (const r of discovery) if (r.status === 'fulfilled') {
+    add(r.value.results);
+    if (constraints.country) for (const m of r.value.results || []) originMatches.add(Number(m.id));
+  }
+  if (constraints.country) for (const [id,m] of candidateMap) {
+    if (!originMatches.has(id) && !matchesDiscovery(m, {country:constraints.country})) candidateMap.delete(id);
+  }
+  if (!candidateMap.size && discovery.length && discovery.every(r => r.status === 'rejected')) throw new HttpError(502, 'Film discovery is temporarily unavailable. Please try again.');
   // IMDb and Rotten Tomatoes drive quality inside tasteScore. A few uncached
   // films are filled per request, so coverage grows as Umbrify is used.
   for (const m of await attachRatings([...candidateMap.values()], { fill: 4 })) candidateMap.set(Number(m.id), m);
@@ -175,6 +199,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       _support: neighbor ? Number(neighbor.support) : undefined
     };
   }).sort((a, b) => b._score - a._score);
+  if (constraints.decade) movies = movies.filter(m => matchesDiscovery(m, {decade: constraints.decade}));
+  if (nightFilters) movies = movies.filter(m => passesFilters(m, nightFilters));
   if (constraints.genre_ids?.length) movies = movies.filter(m => (m.genre_ids || []).some(id => constraints.genre_ids.includes(id)));
   if (constraints.avoid_genres?.length) movies = movies.filter(m => !(m.genre_ids || []).some(id => constraints.avoid_genres.includes(id)));
   // List results carry no credits or keywords, so the shortlist is fetched in
@@ -196,20 +222,21 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     });
     movies.sort((a, b) => b._score - a._score);
   }
-  if (constraints.max_runtime || constraints.avoid_violence || constraints.theme) {
+  if (constraints.max_runtime || constraints.avoid_violence || constraints.theme || constraints.country || constraints.director_id || constraints.actor_id || constraints.decade || nightFilters) {
     const enriched = [];
     // Bound provider calls; never backfill with films that violate an explicit constraint.
     for (let i = 0; i < Math.min(movies.length, 36); i += 6) {
       const part = await Promise.allSettled(movies.slice(i, i + 6).map(async m => ({
         ...m,
         ...(await tmdb(`movie/${m.id}`, {
-          append_to_response: 'keywords'
+          append_to_response: 'keywords,credits'
         }))
       })));
       for (const r of part) if (r.status === 'fulfilled') enriched.push(r.value);
       // Check the whole bounded shortlist: early non-matches must not hide later matches.
     }
     movies = enriched.filter(m => {
+      if (!matchesDiscovery(m, constraints) || (nightFilters && !passesFilters(m, nightFilters))) return false;
       if (m.adult || (m.release_date && m.release_date > new Date().toISOString().slice(0, 10))) return false;
       const genres = genreIds(m);
       if (constraints.genre_ids?.length && !genres.some(g => constraints.genre_ids.includes(g))) return false;
@@ -224,11 +251,11 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   }
   // "Other picks": films just shown are left out while enough others remain,
   // and each round draws with a little variety among close candidates.
-  movies = jitter(withoutRecent(movies, recentIds, 12), { seed: recentIds.length, spread: 0.35 });
-  movies = diversePicks(movies, 12, { recent: new Set(recentIds.map(Number)) });
+  movies = jitter(withoutRecent(movies, recentIds, limit), { seed: recentIds.length, spread: 0.35 });
+  movies = diversePicks(movies, limit, { recent: new Set(recentIds.map(Number)) });
   const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : movies.some(m => m._engine === 'taste-space') ? 'taste-space' : 'content';
   return {
-    movies: movies.slice(0, 12),
+    movies: movies.slice(0, limit),
     engine,
     message: ids.length > 1 ? 'Picks balance everyone’s taste; films already watched by anyone are excluded.' : engine === 'content' ? 'Not enough shared rating history yet. These picks use your film tastes.' : engine === 'collaborative' ? 'These picks use ratings from people with similar tastes.' : engine === 'taste-space' ? 'These picks draw on what people with your taste love.' : 'These picks include predictions from the trained community model.'
   };
