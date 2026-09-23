@@ -67,6 +67,9 @@
     },
     "api/trakt.js": {
       "maxDuration": 60
+    },
+    "api/critic.js": {
+      "maxDuration": 60
     }
   }
 }

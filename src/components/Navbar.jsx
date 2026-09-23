@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Compass, Library, Users, UserRound, Sun, Moon } from "lucide-react";
+import { Compass, Library, Users, UserRound, Sun, Moon, Feather } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
+  { path: "/critic", label: "Critic", icon: Feather },
   { path: "/library", label: "Library", icon: Library },
   { path: "/friends", label: "Friends", icon: Users },
 ];
