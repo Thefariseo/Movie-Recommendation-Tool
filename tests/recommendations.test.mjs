@@ -53,3 +53,31 @@ test('cloud discovery excludes watched/adult/future films, preserves runtime con
   assert(result.movies.length>0,'later runtime matches must not be hidden by an early batch');
   assert(result.movies.every(m=>m.id>=20 && m.id<=30 && m.runtime<=90));
 });
+test('single-member cloud picks weigh signed director and theme evidence from full credits',async()=>{
+  process.env.APP_URL='https://umbrify.test';process.env.SUPABASE_URL='https://db.test';process.env.SUPABASE_ANON_KEY='test';process.env.TMDB_KEY='test';delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Identical genre, decade and TMDB figures everywhere: only evidence can separate them.
+  const full=(id,dir,keywords=[])=>({...movie(id,[18]),original_language:'en',credits:{crew:[{id:dir[0],name:dir[1],job:'Director'}],cast:[]},keywords:{keywords:keywords.map(([kid,name])=>({id:kid,name}))}});
+  const LOVED=[10,'Alma Loved'], HATED=[20,'Bruno Disliked'], THEME=[500,'time travel'];
+  const details=new Map([
+    [1,full(1,LOVED,[THEME])],[2,full(2,LOVED,[THEME])],[3,full(3,HATED)],[4,full(4,HATED)],[5,full(5,[30,'Carla'])],
+    [100,full(100,LOVED)],[200,full(200,HATED)],[300,full(300,[40,'Dario'],[THEME])],[400,full(400,[50,'Elena'])]
+  ]);
+  const rows=[[1,10],[2,9],[3,2],[4,1],[5,7]].map(([id,rating])=>({kind:'watched',movie_id:id,rating,movie:movie(id,[18])}));
+  globalThis.fetch=async url=>{
+    const u=new URL(url);
+    if(u.pathname.endsWith('/user_movies')) return Response.json(rows);
+    if(u.pathname.endsWith('collaborative_candidates')) return Response.json([]);
+    if(u.pathname.endsWith('/recommendations')) return Response.json({results:[]});
+    if(u.pathname.endsWith('/discover/movie')) return Response.json({results:[100,200,300,400].map(id=>movie(id,[18],{original_language:'en'}))});
+    const m=u.pathname.match(/\/movie\/(\d+)$/);
+    if(m&&details.has(Number(m[1]))) return Response.json(details.get(Number(m[1])));
+    throw new Error(`Unexpected request: ${u.pathname}`);
+  };
+  const {movies}=await recommendations({user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'});
+  const rank=id=>movies.findIndex(m=>m.id===id);
+  assert.equal(rank(100),0,'a director rated highly twice leads');
+  assert(rank(300)<rank(400),'a loved theme beats a neutral film');
+  assert.equal(rank(200),movies.length-1,'a disliked director sinks to the bottom');
+  assert.equal(movies[0]._reason,'Directed by Alma Loved, whose films you rate highly');
+  assert(!('credits' in movies[0]) && !('keywords' in movies[0]),'full credits are used for scoring, not sent to the browser');
+});

@@ -5,10 +5,10 @@ import {
   upcomingMovies,
   movieDetails,
   discoverMovies,
-  movieCredits,
   personMovieCredits,
 } from "../utils/api";
 import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
+import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, languageAffinity, directorsOf, languageOf } from "../../shared/evidence.js";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { GENRE_MAP } from "../utils/genres";
 
@@ -267,6 +267,31 @@ function sigmoidVoteScore(avg) {
   return 1 / (1 + Math.exp(-2.2 * ((avg || 0) - 7.0)));
 }
 
+// How many of the strongest candidates are fetched in full for the second stage.
+// Details are cached, and the final cards reuse them.
+const SHORTLIST = 36;
+
+const LANGUAGE_NAMES = (() => {
+  try { return new Intl.DisplayNames(["en"], { type: "language" }); } catch { return null; }
+})();
+
+// The most specific thing the member's own ratings show about a shortlisted
+// film. Nothing here is claimed without at least two rated films behind it.
+function shortlistReason(candidate, because, evidence) {
+  // An explicit director or actor filter already explains itself.
+  if (candidate.source === "director-pick" || candidate.source === "actor-pick") return null;
+  // "You gave X 4.5★" names a concrete film; only a loved director beats it.
+  if (candidate.source?.startsWith("similar:")) return because.director ? evidenceReason(because) : null;
+  const cited = evidenceReason(because);
+  if (cited) return cited;
+  const lang = evidence.languages.get(candidate.original_language);
+  if (candidate.original_language !== "en" && lang && lang.count >= 3 && lang.value >= 0.3) {
+    const name = LANGUAGE_NAMES?.of(candidate.original_language);
+    if (name && name !== candidate.original_language) return `${name}-language cinema, which you rate highly`;
+  }
+  return null;
+}
+
 // Random page from range 2–15 (much broader than v9's 2–8)
 function randPage() {
   return Math.floor(Math.random() * 14) + 2;
@@ -286,7 +311,6 @@ function randPage() {
  *   prefs.country     {string}      – ISO-3166 origin country code
  *   prefs.directorId  {number}      – TMDB person id (manual override)
  *   prefs.actorId     {number}      – TMDB person id
- *   prefs.keywordMap  {Map}         – keyword frequency map from liked films
  * @param {number}    top            – how many results to return
  * @param {number}    maxCandidates
  * @param {Set}       recentlyShown  – film IDs shown this session (exclude)
@@ -321,68 +345,32 @@ export async function getRecommendations({
   });
 
   /* ================================================================= */
-  /* 2. Director + Actor affinity                                        */
+  /* 2. Signed evidence: directors, cast, themes, languages, countries   */
   /* ================================================================= */
 
-  const directorAffinity = new Map();
-  const actorAffinity    = new Map();
-
-  const topRatedForCredits = [...watched]
-    .filter((m) => m.rated >= 8)
-    .sort((a, b) => (b.rated || 0) - (a.rated || 0))
-    .slice(0, 15);
-
-  await Promise.all(
-    topRatedForCredits.map(async (m) => {
-      try {
-        const credits  = await movieCredits(m.id);
-        const director = credits?.crew?.find((p) => p.job === "Director");
-        if (director) {
-          const prev = directorAffinity.get(director.id) || { sum: 0, count: 0, name: director.name };
-          directorAffinity.set(director.id, {
-            sum:   prev.sum + (m.rated || 8) / 10,
-            count: prev.count + 1,
-            name:  director.name,
-          });
-        }
-        const topCast = (credits?.cast || []).slice(0, 5);
-        topCast.forEach((actor) => {
-          const prev = actorAffinity.get(actor.id) || { sum: 0, count: 0, name: actor.name };
-          actorAffinity.set(actor.id, {
-            sum:   prev.sum + (m.rated || 8) / 10,
-            count: prev.count + 1,
-            name:  actor.name,
-          });
-        });
-      } catch { /* ignore */ }
-    })
+  // One cached details call per sampled film carries credits, keywords,
+  // language and country together.
+  const sample = evidenceSample(watched);
+  const sampleDetails = await Promise.allSettled(sample.map((m) => movieDetails(m.id)));
+  const evidence = tasteEvidence(
+    sample.map((m, i) => ({ rated: m.rated, details: sampleDetails[i].status === "fulfilled" ? sampleDetails[i].value : null })),
+    watched,
   );
 
-  const dirScores   = new Map();
-  const dirAvgStars = new Map();
-  directorAffinity.forEach(({ sum, count, name }, id) => {
-    dirScores.set(id, { score: sum / count, name });
-    dirAvgStars.set(id, (sum / count) * 5);
-  });
+  // Filmographies worth exploring: people the evidence says the member likes.
+  // 0.3 takes a film rated clearly above the member's own mean, so the reason
+  // "a director among your highly rated films" is never an overstatement.
+  const topDirs = [...evidence.directors.entries()]
+    .filter(([, e]) => e.value >= 0.3)
+    .sort((a, b) => b[1].value - a[1].value)
+    .slice(0, 3)
+    .map(([id, e]) => [id, { name: e.name, score: e.value }]);
 
-  const topDirs = [...dirScores.entries()]
-    .sort((a, b) => b[1].score - a[1].score)
-    .slice(0, 3);
-
-  const actorScores = new Map();
-  actorAffinity.forEach(({ sum, count, name }, id) => {
-    if (count >= 2) actorScores.set(id, { score: sum / count, name });
-  });
-
-  const topActors = [...actorScores.entries()]
-    .sort((a, b) => b[1].score - a[1].score)
-    .slice(0, 3);
-
-  /* ================================================================= */
-  /* 3. Keyword profile (Nanocrowd-style nanogenre matching)            */
-  /* Passed in from useRecommend after pre-building from liked films.  */
-  /* ================================================================= */
-  const keywordMap = prefs.keywordMap instanceof Map ? prefs.keywordMap : new Map();
+  const topActors = [...evidence.cast.entries()]
+    .filter(([, e]) => e.count >= 2 && e.value >= 0.3)
+    .sort((a, b) => b[1].value - a[1].value)
+    .slice(0, 3)
+    .map(([id, e]) => [id, { name: e.name, score: e.value }]);
 
   /* ================================================================= */
   /* 4. Lookup maps for reason tags                                      */
@@ -670,8 +658,13 @@ export async function getRecommendations({
       const voteScore = sigmoidVoteScore(qualityScore(raw));
 
       const decScore   = decadeAffinity.get(movieDecade) || 0;
+      // Provisional: which filmography a candidate came from. The second stage
+      // replaces these with signed evidence from the film's actual credits.
       const dirBonus   = dirScore  > 0 ? Math.min(dirScore,          1) : 0;
       const actorBonus = actorScore > 0 ? Math.min(actorScore * 0.85, 0.85) : 0;
+      // Original language comes with every TMDB list result, so it can shape
+      // the whole pool, not only the shortlist.
+      const langScore  = languageAffinity(raw, evidence);
 
       // ── Film quality categories ──
       let qualityBoost = 0;
@@ -693,18 +686,6 @@ export async function getRecommendations({
       // ── Cinephile seed boost ──
       const cinephileBoost = source === "cinephile_seed" ? 0.01 : 0;
 
-      // ── Keyword / nanogenre score (Nanocrowd-inspired) ──
-      // keywordMap: Map<keywordId, {name, weight}> built from liked films' keywords
-      let keywordScore = 0;
-      if (keywordMap.size > 0 && raw._keywords?.length > 0) {
-        const kwIds = raw._keywords;
-        const matched = kwIds.filter((kwId) => keywordMap.has(kwId));
-        if (matched.length > 0) {
-          const kwWeight = matched.reduce((s, kwId) => s + (keywordMap.get(kwId)?.weight || 0), 0);
-          keywordScore = Math.min(kwWeight / Math.sqrt(keywordMap.size) * 0.5, 0.15);
-        }
-      }
-
       // ── Final score ──
       const score =
         genreScore         * 0.55 +
@@ -716,7 +697,7 @@ export async function getRecommendations({
         criterionBoost           +
         strongAffinityBoost      +
         cinephileBoost           +
-        keywordScore             -
+        langScore          * 0.15 -
         mainstreamPenalty        +
         0;
 
@@ -728,24 +709,11 @@ export async function getRecommendations({
       } else if (source === "actor-pick") {
         reason = `From your selected actor's filmography`;
       } else if (source === "director" && dirName) {
-        const avgStars = dirId != null ? dirAvgStars.get(dirId) : null;
-        if (avgStars != null && avgStars > 0) {
-          const avgStr = avgStars % 1 === 0 ? avgStars.toFixed(0) : avgStars.toFixed(1);
-          reason = `From ${dirName}, a director among your highly rated films`;
-        } else {
-          reason = `Because you love ${dirName}'s films`;
-        }
+        reason = `From ${dirName}, a director among your highly rated films`;
       } else if (source === "cinephile_seed" && dirName) {
         reason = "A world-cinema discovery to explore";
       } else if (source === "actor" && actorName) {
-        const actScore = actorId != null ? actorScores.get(actorId)?.score : null;
-        if (actScore != null) {
-          const stars = ((actScore * 5) % 1 === 0)
-            ? (actScore * 5).toFixed(0) : (actScore * 5).toFixed(1);
-          reason = `Features ${actorName}, who appears in films you rated highly`;
-        } else {
-          reason = `Starring ${actorName}`;
-        }
+        reason = `Features ${actorName}, who appears in films you rated highly`;
       } else if (source?.startsWith("similar:")) {
         const seedTitle = source.slice(8);
         const seedEntry = watchedByTitle.get(seedTitle.toLowerCase().trim());
@@ -768,7 +736,11 @@ export async function getRecommendations({
         reason = cited ? `Your top ${genreName} taste — ${ql} (${cited})` : `Your top ${genreName} taste — ${ql}`;
       }
 
-      return { id, score, reason, year: movieYear, genreIds, dirName: dirName || null, isCriterion: criterionBoost > 0 };
+      return {
+        id, score, reason, source, year: movieYear, genreIds, dirName: dirName || null,
+        original_language: raw.original_language, isCriterion: criterionBoost > 0,
+        provisional: dirBonus * 0.18 + actorBonus * 0.09,
+      };
     });
 
   /* ================================================================= */
@@ -791,6 +763,36 @@ export async function getRecommendations({
     results = results.filter(({ genreIds: gIds }) =>
       effectiveGenres.some((g) => gIds.includes(g))
     );
+  }
+
+  /* ================================================================= */
+  /* 10. Second stage: the shortlist, judged on its real credits        */
+  /* ================================================================= */
+
+  // List results carry no credits or keywords, so the strongest candidates are
+  // fetched in full and re-scored on signed evidence. A director the member
+  // rates low now counts against a film and a shared theme counts for it,
+  // whichever source the film came from.
+  if (evidence.films > 0) {
+    const shortlist = results.slice(0, SHORTLIST);
+    const details = [];
+    for (let i = 0; i < shortlist.length; i += 6) {
+      details.push(...await Promise.allSettled(shortlist.slice(i, i + 6).map((r) => movieDetails(r.id))));
+    }
+    shortlist.forEach((r, i) => {
+      const d = details[i].status === "fulfilled" ? details[i].value : null;
+      if (!d) return;
+      const match = evidenceMatch(d, evidence);
+      r.score += -r.provisional
+        + 0.35 * match.director
+        + 0.12 * match.cast
+        + 0.30 * match.keywords
+        + 0.08 * match.country;
+      r.dirName = directorsOf(d)[0]?.name || r.dirName;
+      r.original_language = languageOf(d) || r.original_language;
+      r.reason = shortlistReason(r, match.because, evidence) || r.reason;
+    });
+    results.sort((a, b) => b.score - a.score);
   }
 
   return diversePicks(results.map(m => ({...m, genre_ids: m.genreIds, _score: m.score})), top, {recent: new Set([...recentlyShown].map(Number)), strength: hasPersonFilter ? .06 : .12});
