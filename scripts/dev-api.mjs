@@ -5,6 +5,7 @@ import library from '../api/library.js';
 import social from '../api/social.js';
 import chat from '../api/chat.js';
 import trakt from '../api/trakt.js';
+import ratings from '../api/ratings.js';
 import { nodeHandler, identify, body, rateLimit } from '../server/http.js';
 import { recommendations } from '../server/recommendations.js';
 const recommend = nodeHandler(async ctx => {
@@ -19,6 +20,7 @@ const routes = {
   social,
   chat,
   trakt,
+  ratings,
   recommend
 };
 http.createServer(async (req, res) => {
