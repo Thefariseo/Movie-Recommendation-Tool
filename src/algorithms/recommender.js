@@ -12,6 +12,7 @@ import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReaso
 import { placeMember, affinities, strongest, becauseOf, peerStrength } from "../../shared/tasteSpace.js";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { loadTasteSpace } from "../utils/tasteSpace";
+import { blocked, signalOf, jitter, withoutRecent } from "../../shared/signals.js";
 import { GENRE_MAP } from "../utils/genres";
 
 /* ------------------------------------------------------------------ */
@@ -321,6 +322,12 @@ export async function getRecommendations({
   top = 20,
   maxCandidates = 600,
   recentlyShown = new Set(),
+  // The member's film signals (shared/signals.js): what their critic said
+  // about films and what they dismissed.
+  signals = new Map(),
+  // 0 for the first round; each "other picks" round passes a new number,
+  // which leaves out films just shown and varies the order among close ones.
+  explore = 0,
 } = {}) {
 
   /* ================================================================= */
@@ -355,11 +362,15 @@ export async function getRecommendations({
 
   // One cached details call per sampled film carries credits, keywords,
   // language and country together.
-  const sample = evidenceSample(watched);
+  // Films the member dismissed or their critic advised against count as a
+  // clear dislike (3/10) for their directors, cast and themes too.
+  const vetoed = [...signals].filter(([id, e]) => e.net <= -2 && !watched.some((m) => Number(m.id) === id)).slice(0, 8)
+    .map(([id, e]) => ({ id, title: e.movie?.title, rated: 3 }));
+  const sample = [...evidenceSample(watched), ...vetoed];
   const sampleDetails = await Promise.allSettled(sample.map((m) => movieDetails(m.id)));
   const evidence = tasteEvidence(
     sample.map((m, i) => ({ rated: m.rated, title: m.title, details: sampleDetails[i].status === "fulfilled" ? sampleDetails[i].value : null })),
-    watched,
+    [...watched, ...vetoed],
   );
 
   // Filmographies worth exploring: people the evidence says the member likes.
@@ -618,6 +629,13 @@ export async function getRecommendations({
       }
     }
 
+    // ── Films the member's critic recommended ──
+    const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has("critic_pick") && !candidates.has(id)).slice(0, 8).map(([id]) => id);
+    const fromCritic = await Promise.allSettled(criticPicks.map((id) => movieDetails(id)));
+    fromCritic.forEach((r) => {
+      if (r.status === "fulfilled" && r.value?.id) candidates.set(r.value.id, { id: r.value.id, raw: { ...r.value, genre_ids: genreIds(r.value) }, source: "critic", dirScore: 0, actorScore: 0 });
+    });
+
     // ── TMDB recommendations from top-10 highest-rated watched films ──
     const seedFilms = seedMovies(watched, 8);
 
@@ -661,7 +679,7 @@ export async function getRecommendations({
   const voteCountFloor = watched.length >= 100 ? 80 : 30;
 
   const scored = pool
-    .filter(({ id  }) => !watchedIds.has(Number(id)))
+    .filter(({ id  }) => !watchedIds.has(Number(id)) && !blocked(signals, id))
     .filter(({ raw }) => !raw.adult && (!raw.release_date || raw.release_date <= new Date().toISOString().slice(0, 10)))
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
     .filter(({ raw }) => criticAverage(raw) >= 5.0)
@@ -732,6 +750,7 @@ export async function getRecommendations({
         strongAffinityBoost      +
         cinephileBoost           +
         langScore          * 0.15 +
+        ({ "-1": -0.3, "1": 0.25, "2": 0.4 }[signalOf(signals, id)] || 0) +
         peerScore          * 0.60 -
         mainstreamPenalty        +
         0;
@@ -749,6 +768,9 @@ export async function getRecommendations({
         reason = `From your selected actor's filmography`;
       } else if (source === "director" && dirName) {
         reason = `From ${dirName}, a director among your highly rated films`;
+      } else if (source === "critic") {
+        reason = "Your critic recommended it";
+        reasonDetail = "Your critic recommended it in one of your chats.";
       } else if (peerCited && (source === "taste-space" || source === "discover" || source === "cinephile_seed" || source === "watchlist")) {
         reason = peerCited.short;
         reasonDetail = peerCited.full;
@@ -850,5 +872,9 @@ export async function getRecommendations({
     results.sort((a, b) => b.score - a.score);
   }
 
-  return diversePicks(results.map(m => ({...m, genre_ids: m.genreIds, _score: m.score})), top, {recent: new Set([...recentlyShown].map(Number)), strength: hasPersonFilter ? .06 : .12});
+  // On "other picks", films just shown are left out while enough others
+  // remain, and close candidates trade places from round to round.
+  if (explore) results = withoutRecent(results, recentlyShown, top);
+  const round = jitter(results.map(m => ({...m, genre_ids: m.genreIds, _score: m.score})), { seed: explore, spread: 0.06 });
+  return diversePicks(round, top, {recent: new Set([...recentlyShown].map(Number)), strength: hasPersonFilter ? .06 : .12});
 }

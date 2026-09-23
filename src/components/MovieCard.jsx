@@ -1,10 +1,11 @@
 import React from "react";
 import FilmRatings from "./FilmRatings";
-import { Plus, Check } from "lucide-react";
+import { Plus, Check, EyeOff } from "lucide-react";
+import { dismissFilm } from "../utils/signals";
 import { useModal } from "@/hooks/useModal";
 import useWatchlist from "../hooks/useWatchlist";
 import { useToast } from "@/contexts/ToastContext";
-export default function MovieCard({ movie, showActions = true }) {
+export default function MovieCard({ movie, showActions = true, dismissable = false }) {
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { open } = useModal(),
     { addToast } = useToast();
@@ -51,6 +52,16 @@ export default function MovieCard({ movie, showActions = true }) {
           title={saved ? "Remove from watchlist" : "Save to watchlist"}
         >
           {saved ? <Check size={17} /> : <Plus size={17} />}
+        </button>
+      )}
+      {dismissable && (
+        <button
+          className="film-dismiss"
+          onClick={() => { dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }}
+          aria-label={`Not for me: never suggest ${movie.title} again`}
+          title="Not for me"
+        >
+          <EyeOff size={14} />
         </button>
       )}
     </article>

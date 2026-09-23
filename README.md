@@ -141,6 +141,16 @@ Without either, the page says the critic is unavailable and nothing else changes
 - **Portrait** (rewritten only when the diary changes) and **"What would my critic say?"** on any film, which also receives the taste space's fit as a hint.
 - Each member may ask the critic 15 things a day (messages, portraits and verdicts alike) and 6 a minute (`critic-day`, `critic-minute`).
 
+## Film signals: the critic and the recommender agree
+
+`taste_signals` holds what a member said, or their critic said, about single films: *Not for me* (on recommendation cards and the film page), films the critic warned against in a chat, films it recommended, and its verdicts (`love` +2, `like` +1, `mixed` −1, `skip` −2). Every recommendation path reads them (`shared/signals.js`):
+
+- a −2 from any source (dismissed, warned against, judged *skip*) keeps the film out, and in the browser the film also counts as a 3/10 for its director, cast and themes;
+- other signals nudge the score, and the critic's recommendations join the candidates with "Your critic recommended it";
+- verdicts are stored in `critic_verdicts` and shown again whenever the film is opened, at no cost; *Ask again* spends a new question.
+
+**Rounds.** The first round is stable. Each *Refresh* / *Other picks* round leaves out the films just shown while enough others remain, and adds seeded Gumbel noise so close candidates trade places while clearly better films stay on top.
+
 ## Tonight
 
 `/tonight` finds one film for tonight: a mood, the time available, the streaming services the member pays for in their region (TMDB/JustWatch availability, remembered in the browser), and a nudge away from genres watched in the last few days.

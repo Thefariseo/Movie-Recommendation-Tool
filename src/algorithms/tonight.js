@@ -18,18 +18,18 @@ const PICKS = 5;
  */
 export async function tonightPicks({
   watched = [], watchlist = [], mood = null, time = null, look = null, providers = [], region = "IT",
-  rent = false, watchlistOnly = false, exclude = new Set(), recentlyShown = new Set(), ...filters
+  rent = false, watchlistOnly = false, exclude = new Set(), recentlyShown = new Set(), signals = new Map(), ...filters
 } = {}) {
   const genres = MOODS[mood]?.genres || [];
   const max = TIMES[time]?.max || null;
   const banned = avoidedGenres(filters);
-  const seen = new Set([...watched.map((m) => Number(m.id)), ...[...exclude].map(Number)]);
+  const seen = new Set([...watched.map((m) => Number(m.id)), ...[...exclude].map(Number), ...[...signals].filter(([, e]) => e.net <= -2).map(([id]) => id)]);
 
   let ordered;
   if (watchlistOnly) {
     // From the member's own list: the recommender's order where it has an
     // opinion, the films' quality otherwise.
-    const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown });
+    const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown, signals });
     const score = new Map(ranked.map((r) => [Number(r.id), r._score || 0]));
     ordered = watchlist
       .filter((m) => !seen.has(Number(m.id)))
@@ -38,7 +38,7 @@ export async function tonightPicks({
       .sort((a, b) => b._tonight - a._tonight);
   } else {
     const ranked = await getRecommendations({
-      watched, watchlist, top: 60, recentlyShown: new Set([...recentlyShown, ...exclude]),
+      watched, watchlist, top: 60, recentlyShown: new Set([...recentlyShown, ...exclude]), signals,
       prefs: { genres, era: ERAS[filters.era] ? filters.era : undefined }
     });
     // The library keeps films in the order they were added, so its tail is

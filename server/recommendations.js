@@ -6,6 +6,8 @@ import { attachRatings } from './ratings.js';
 import { tasteEvidence, evidenceSample, evidenceMatch, evidenceReason, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
 import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
 import { loadTasteSpace } from './tasteSpace.js';
+import { readSignals } from './signals.js';
+import { signalMap, blocked, signalOf, jitter, withoutRecent } from '../shared/signals.js';
 export { tmdb };
 export const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
 const filmDetails = id => tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
@@ -31,6 +33,9 @@ const SHORTLIST = 24;
 const PEER_WEIGHT = 3;
 const PEER_PICKS = 20;
 const peerPoints = z => PEER_WEIGHT * peerStrength(z);
+// What the member's critic said, or "Not for me", on tasteScore's scale. A -2
+// never reaches scoring: those films are excluded outright.
+const SIGNAL_POINTS = { '-1': -2, '1': 1.2, '2': 2 };
 export const contentScore = tasteScore;
 export async function recommendations(ctx, members = [], constraints = {}, recentIds = []) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
@@ -53,6 +58,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   }
   const excluded = new Set(libraries.flat().filter(r => r.kind === 'watched').map(r => Number(r.movie_id)));
   for (const id of constraints.excluded_ids || []) excluded.add(Number(id));
+  // The host's signals hold for every night they host: what their critic
+  // warned against, judged "skip", or they dismissed is never offered.
+  const signals = signalMap(await readSignals(ctx).catch(() => []));
+  for (const [id] of signals) if (blocked(signals, id)) excluded.add(id);
   let model = null;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -97,7 +106,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     }
     spaceIds.push(...ranked.sort((a, b) => b[1] - a[1]).slice(0, PEER_PICKS).map(([id]) => id));
   }
-  const detailIds = [...new Set([...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 50);
+  const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has('critic_pick') && !excluded.has(id)).slice(0, 8).map(([id]) => id);
+  const detailIds = [...new Set([...criticPicks, ...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 56);
   for (let i = 0; i < detailIds.length; i += 5) {
     const results = await Promise.allSettled(detailIds.slice(i, i + 5).map(id => tmdb(`movie/${id}`)));
     for (const r of results) if (r.status === 'fulfilled') add([{
@@ -143,7 +153,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(
-      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)),
+      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)) + (index === 0 ? SIGNAL_POINTS[signalOf(signals, m.id)] || 0 : 0),
       predict(model || {users: {}, items: {}}, id, m.id),
       index === 0 ? neighborMap.get(m.id) : null
     ));
@@ -161,7 +171,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       _score: groupScore(scores),
       _engine: learned ? 'matrix-factorization' : neighbor ? 'collaborative' : peer || peerAll ? 'taste-space' : 'content',
       ...(peer ? { _reasonDetail: peer.full, _peer: true } : {}),
-      _reason: peerAll ? 'People with each of your tastes love it' : ids.length > 1 ? 'Balances the group’s film tastes' : peer ? peer.short : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
+      _reason: ids.length === 1 && !peer && signals.get(Number(m.id))?.sources.has('critic_pick') ? 'Your critic recommended it' : peerAll ? 'People with each of your tastes love it' : ids.length > 1 ? 'Balances the group’s film tastes' : peer ? peer.short : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
       _support: neighbor ? Number(neighbor.support) : undefined
     };
   }).sort((a, b) => b._score - a._score);
@@ -212,6 +222,9 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       return true;
     });
   }
+  // "Other picks": films just shown are left out while enough others remain,
+  // and each round draws with a little variety among close candidates.
+  movies = jitter(withoutRecent(movies, recentIds, 12), { seed: recentIds.length, spread: 0.35 });
   movies = diversePicks(movies, 12, { recent: new Set(recentIds.map(Number)) });
   const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : movies.some(m => m._engine === 'taste-space') ? 'taste-space' : 'content';
   return {

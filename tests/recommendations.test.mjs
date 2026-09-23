@@ -111,3 +111,23 @@ test('cloud picks draw on the taste space: a Ghibli lover is offered more Ghibli
   const group=await recommendations({user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'},['22222222-2222-4222-8222-222222222222'],{});
   assert(group.movies.some(m=>m._reason==='People with each of your tastes love it'));
 });
+test('cloud picks leave out what the critic warned against or the member dismissed, and "other picks" does not repeat a round',async()=>{
+  process.env.APP_URL='https://umbrify.test';process.env.SUPABASE_URL='https://db.test';process.env.SUPABASE_ANON_KEY='test';process.env.TMDB_KEY='test';delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const catalog = Array.from({length:40},(_,i)=>movie(i+1,[35]));
+  globalThis.fetch=async url=>{
+    const u=new URL(url); let data;
+    if(u.pathname.endsWith('/user_movies')) data=[{kind:'watched',movie_id:1,rating:9,movie:catalog[0]}];
+    else if(u.pathname.endsWith('/taste_signals')) data=[{movie_id:5,source:'critic_warned',signal:-2,movie:{}},{movie_id:6,source:'dismissed',signal:-2,movie:{}},{movie_id:7,source:'verdict',signal:-1,movie:{}}];
+    else if(u.pathname.endsWith('collaborative_candidates')) data=[];
+    else if(u.pathname.endsWith('/recommendations')) data={results:[]};
+    else if(u.pathname.endsWith('/discover/movie')) data={results:catalog};
+    else if(/\/movie\/\d+$/.test(u.pathname)) {const id=Number(u.pathname.split('/').pop());data={...catalog.find(m=>m.id===id),genres:[{id:35}]};}
+    else throw new Error(`Unexpected request: ${u.pathname}`);
+    return Response.json(data);
+  };
+  const ctx={user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'};
+  const first=await recommendations(ctx,[],{});
+  assert(!first.movies.some(m=>[5,6].includes(m.id)),'warned and dismissed films are never offered');
+  const next=await recommendations(ctx,[],{},first.movies.map(m=>m.id));
+  assert.equal(next.movies.filter(m=>first.movies.some(f=>f.id===m.id)).length,0,'the next round shows other films');
+});

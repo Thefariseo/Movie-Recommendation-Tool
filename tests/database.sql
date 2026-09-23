@@ -127,10 +127,17 @@ select public.test_assert((select bool_and(public.consume_limit('critic-minute',
 select public.test_assert((select bool_and(public.consume_limit('critic-day',1000,1)) from generate_series(1,15)),'fifteen critic questions a day are allowed');
 select public.test_assert(not public.consume_limit('critic-day',1000,1),'the sixteenth critic question of the day is refused');
 insert into public.critic_threads(user_id,title) values('11111111-1111-4111-8111-111111111111','My chat');
+insert into public.taste_signals(user_id,movie_id,source,signal) values('11111111-1111-4111-8111-111111111111',278,'critic_warned',-2);
+insert into public.critic_verdicts(user_id,movie_id,verdict) values('11111111-1111-4111-8111-111111111111',278,'{"verdict":"skip"}');
+do $$begin
+ begin insert into public.taste_signals(user_id,movie_id,source,signal) values(auth.uid(),1,'bogus',1);raise exception 'Unknown signal source accepted';exception when check_violation then null;end;
+ begin insert into public.taste_signals(user_id,movie_id,source,signal) values(auth.uid(),1,'dismissed',0);raise exception 'Empty signal accepted';exception when check_violation then null;end;
+end$$;
 select public.test_assert(not public.consume_limit('critic-minute',1000,1),'the seventh critic call in a minute is refused');
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 select public.test_assert((select count(*)=0 from public.critic_memory),'another member cannot read the critic memory');
 select public.test_assert((select count(*)=0 from public.critic_threads),'another member cannot read the critic chats');
+select public.test_assert((select count(*)=0 from public.taste_signals) and (select count(*)=0 from public.critic_verdicts),'another member cannot read film signals or verdicts');
 do $$begin
  begin insert into public.critic_threads(user_id) values('11111111-1111-4111-8111-111111111111');raise exception 'Created a chat for another member';exception when insufficient_privilege then null;end;
 end$$;

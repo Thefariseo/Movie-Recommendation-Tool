@@ -24,6 +24,7 @@ import FilmRatings from "./FilmRatings";
 import CriticVerdict from "./CriticVerdict";
 import FilmLook from "./FilmLook";
 import TrailerPlayer from "./TrailerPlayer";
+import { dismissFilm, undismissFilm, useSignals } from "../utils/signals";
 import { rankTrailers, viewerLanguage } from "../utils/trailers";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
@@ -43,6 +44,8 @@ export default function MovieModal({ movie, onClose }) {
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { isWatched, addWatched, removeWatched, updateRating, watched } = useWatched();
   const { addToast } = useToast();
+  const signals = useSignals(user?.id);
+  const dismissed = signals.get(Number(movie.id))?.sources.has("dismissed");
 
   const inWatchlist    = isInWatchlist(movie.id);
   const alreadyWatched = isWatched(movie.id);
@@ -388,6 +391,19 @@ export default function MovieModal({ movie, onClose }) {
               className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 ring-1 ring-red-200 transition-colors hover:bg-red-50 dark:ring-red-900 dark:hover:bg-red-900/20"
             >
               <Play className="h-4 w-4" /> Trailer
+            </button>
+          )}
+
+          {!alreadyWatched && (
+            <button
+              onClick={async () => {
+                if (dismissed) { await undismissFilm(movie.id); addToast("It can be suggested again", "info"); }
+                else { await dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }
+              }}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 dark:ring-slate-700 dark:hover:bg-slate-800"
+              title={dismissed ? "Allow Umbrify to suggest this film again" : "Never suggest this film again"}
+            >
+              <EyeOff className="h-4 w-4" /> {dismissed ? "Undo “Not for me”" : "Not for me"}
             </button>
           )}
         </div>

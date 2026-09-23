@@ -5,6 +5,8 @@ import useWatched   from "@/hooks/useWatched";
 import useWatchlist from "./useWatchlist";
 import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recommender";
 import { movieDetails, movieWatchProviders } from "../utils/api";
+import { loadSignals, useSignals } from "../utils/signals";
+import { blocked } from "../../shared/signals.js";
 
 /* ------------------------------------------------------------------ */
 /* Recently-shown tracking (session-scoped)                            */
@@ -79,8 +81,11 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
   const prefsKey     = JSON.stringify(prefs);
   const requestVersion = useRef(0);
   const ratingKey = JSON.stringify(watched.map(m => [m.id, m.rated]));
+  const signals = useSignals(user?.id);
+  // Each explicit refresh is a new round: 0 is the first, stable one.
+  const rounds = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (explore = 0) => {
     const version = ++requestVersion.current;
     if (!watched.length && !watchlist.length) { setList([]); setLoading(false); return; }
     setLoading(true);
@@ -94,6 +99,8 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
         prefs,
         top,
         recentlyShown,
+        signals: await loadSignals(user?.id ?? null),
+        explore,
       });
 
       // Fetch full details (keywords, videos, credits)
@@ -155,18 +162,21 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
       if (version === requestVersion.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watched, watchlist, prefsKey, top, region, shownKey, ratingKey]);
+  }, [watched, watchlist, prefsKey, top, region, shownKey, ratingKey, user?.id]);
 
   useEffect(() => {
-    refresh();
+    load(0);
     return () => { requestVersion.current++; };
-  }, [refresh]);
+  }, [load]);
+  const refresh = useCallback(() => load(++rounds.current), [load]);
 
+  // A film dismissed with "Not for me" leaves the list at once.
+  const visible = list.filter((m) => !blocked(signals, m.id));
   return {
     loading,
     error,
-    pick: list[0] || null,
-    list: list.slice(1),
+    pick: visible[0] || null,
+    list: visible.slice(1),
     refresh,
   };
 }

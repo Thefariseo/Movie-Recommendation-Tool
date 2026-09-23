@@ -12,12 +12,13 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  RefreshCw, Sparkles, Play, Plus, Check,
+  RefreshCw, Sparkles, Play, Plus, Check, EyeOff,
   SlidersHorizontal, X, Shuffle, User, Film,
   Video, ChevronDown, Globe, Tv, Award,
 } from "lucide-react";
 import { useModal }        from "@/hooks/useModal";
 import useRecommend        from "@/hooks/useRecommend";
+import { dismissFilm } from "../utils/signals";
 import useWatchlist        from "@/hooks/useWatchlist";
 import useWatched          from "@/hooks/useWatched";
 import { useToast }        from "@/contexts/ToastContext";
@@ -156,13 +157,22 @@ function PickCard({ movie }) {
         <p className="mb-1 line-clamp-2 text-[11px] font-semibold leading-tight text-white">
           {movie.title}
         </p>
-        <button
-          onClick={handleWL}
-          className="flex items-center gap-0.5 self-end rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-indigo-500 transition-colors"
-        >
-          {inList ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-          {inList ? "Added" : "+List"}
-        </button>
+        <div className="flex justify-between gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }}
+            className="flex items-center gap-0.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-black/80 transition-colors"
+            title="Not for me: never suggest this film again"
+          >
+            <EyeOff className="h-3 w-3" /> Not for me
+          </button>
+          <button
+            onClick={handleWL}
+            className="flex items-center gap-0.5 rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-indigo-500 transition-colors"
+          >
+            {inList ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+            {inList ? "Added" : "+List"}
+          </button>
+        </div>
       </motion.div>
 
       {movie._reason && (
