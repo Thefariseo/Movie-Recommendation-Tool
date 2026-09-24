@@ -3,15 +3,19 @@
 // the group's own history, so whoever compromised lately counts a bit more.
 import { database, HttpError, uuid } from './http.js';
 import { recommendations, tmdb } from './recommendations.js';
-import { MOODS, TIMES, VOTES, compromise, fairnessWeights, tally, passesFilters, avoidedGenres } from '../shared/tonight.js';
+import { randomInt } from 'node:crypto';
+import { MOODS, TIMES, VOTES, DRAWS, compromise, fairnessWeights, tally, passesFilters, avoidedGenres, drawOdds, drawWinner } from '../shared/tonight.js';
 
 import { LOOKS } from '../shared/visual.js';
 import { filmLook } from './visual.js';
 
 const BALLOT = 5;
+// Films kept back, unseen, for a wild-card draw.
+const RESERVE = 3;
 const compact = m => ({
   id: Number(m.id), title: m.title, poster_path: m.poster_path || null, release_date: m.release_date || null,
-  genre_ids: m.genre_ids || [], runtime: m.runtime || null, _reason: m._reason || null, providers: m.providers || []
+  genre_ids: m.genre_ids || [], runtime: m.runtime || null, _reason: m._reason || null, providers: m.providers || [],
+  ...(m.reserve ? { reserve: true } : {})
 });
 
 /** Which of the member's services stream a film in their region, by provider id. */
@@ -60,18 +64,24 @@ export async function createNight(ctx, { members = [], mood = null, time = null,
     candidates = measured;
   }
   let ballot = [];
+  const reserve = [];
   for (const m of candidates) {
-    if (ballot.length >= BALLOT) break;
+    if (ballot.length >= BALLOT && reserve.length >= RESERVE) break;
     if (!passesFilters(m, filters)) continue;
-    if (!services.length) { ballot.push(m); continue; }
-    const on = await streamedOn(m.id, safeRegion, services, rent === true);
-    if (on.length) ballot.push({ ...m, providers: on });
+    let film = m;
+    if (services.length) {
+      const on = await streamedOn(m.id, safeRegion, services, rent === true);
+      if (!on.length) continue;
+      film = { ...m, providers: on };
+    }
+    if (ballot.length < BALLOT) ballot.push(film);
+    else reserve.push({ ...film, reserve: true });
   }
   if (!ballot.length) throw new HttpError(404, services.length ? 'None of tonight’s picks is on your services with these filters. Try more services, fewer filters or another mood.' : 'No picks matched these filters. Try fewer filters, another mood or more time.');
   const db = database(ctx.token);
   const everyone = [ctx.user.id, ...friends];
   const weights = fairnessWeights(compromise(await history(db, everyone), everyone));
-  const [night] = await db('tonight_sessions', { method: 'POST', prefer: 'return=representation', body: { host: ctx.user.id, members: everyone, films: ballot.map(compact), weights } });
+  const [night] = await db('tonight_sessions', { method: 'POST', prefer: 'return=representation', body: { host: ctx.user.id, members: everyone, films: [...ballot, ...reserve].map(compact), weights } });
   return { night };
 }
 
@@ -83,7 +93,9 @@ export async function readNight(ctx, id) {
     db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote`),
     db(`profiles?id=in.(${night.members.join(',')})&select=id,display_name,avatar_url`)
   ]);
-  return { night, votes, people, ranking: tally(night.films, votes, night.weights) };
+  // Wild cards stay hidden until one is drawn.
+  const shown = { ...night, films: night.films.filter(f => !f.reserve || Number(f.id) === Number(night.winner)), wildcards: night.films.filter(f => f.reserve).length };
+  return { night: shown, votes, people, ranking: tally(night.films, votes, night.weights), odds: Object.fromEntries(Object.keys(DRAWS).filter(mode => mode !== 'wildcard').map(mode => [mode, drawOdds(mode, night.films, votes, night.weights)])) };
 }
 
 export async function myNights(ctx) {
@@ -95,21 +107,33 @@ export async function vote(ctx, id, movieId, value) {
   const db = database(ctx.token);
   const { night } = await readNight(ctx, id);
   if (night.status !== 'open') throw new HttpError(409, 'This movie night has already been decided.');
-  if (!night.films.some(f => f.id === Number(movieId))) throw new HttpError(400, 'That film is not on tonight’s ballot.');
+  if (!night.films.some(f => f.id === Number(movieId) && !f.reserve)) throw new HttpError(400, 'That film is not on tonight’s ballot.');
   const key = `session_id=eq.${night.id}&user_id=eq.${ctx.user.id}&movie_id=eq.${Number(movieId)}`;
   if (value === 0) await db(`tonight_votes?${key}`, { method: 'DELETE' });
   else await db('tonight_votes?on_conflict=session_id,user_id,movie_id', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { session_id: night.id, user_id: ctx.user.id, movie_id: Number(movieId), vote: value, updated_at: new Date().toISOString() } });
   return readNight(ctx, id);
 }
 
-export async function decide(ctx, id) {
+export async function decide(ctx, id, mode = 'best') {
+  if (!Object.hasOwn(DRAWS, mode)) throw new HttpError(400, 'Choose how to decide.');
   const db = database(ctx.token);
-  const { night, votes } = await readNight(ctx, id);
+  // The full night, wild cards included: readNight hides them.
+  const [night] = await db(`tonight_sessions?id=eq.${uuid(id)}`);
+  if (!night) throw new HttpError(404, 'This movie night does not exist or you are not invited.');
   if (night.host !== ctx.user.id) throw new HttpError(403, 'Only the host decides.');
   if (night.status !== 'open') throw new HttpError(409, 'This movie night has already been decided.');
-  if (!votes.length) throw new HttpError(400, 'Wait for at least one vote.');
-  const [best] = tally(night.films, votes, night.weights);
-  const saved = await db(`tonight_sessions?id=eq.${night.id}&status=eq.open`, { method: 'PATCH', prefer: 'return=representation', body: { status: 'decided', winner: best.id, decided_at: new Date().toISOString() } });
+  const votes = await db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote`);
+  if (DRAWS[mode].needsVotes && !votes.length) throw new HttpError(400, 'Wait for at least one vote, or leave it to chance.');
+  const odds = drawOdds(mode, night.films, votes, night.weights);
+  if (!odds.length) throw new HttpError(400, 'There is nothing to draw from.');
+  // Drawn here, not in the browser, with a cryptographic random number.
+  const winner = drawWinner(odds, randomInt(0, 1_000_000_000) / 1_000_000_000);
+  const now = new Date().toISOString();
+  const decision = { status: 'decided', winner, decided_at: now };
+  const patch = body => db(`tonight_sessions?id=eq.${night.id}&status=eq.open`, { method: 'PATCH', prefer: 'return=representation', body });
+  // Until the draw column exists (a deploy ahead of its migration), the
+  // decision is saved without the odds.
+  const saved = await patch({ ...decision, draw: { mode, odds, at: now } }).catch(e => (e.status === 400 ? patch(decision) : Promise.reject(e)));
   if (!saved.length) throw new HttpError(409, 'This movie night has already been decided.');
   return readNight(ctx, id);
 }

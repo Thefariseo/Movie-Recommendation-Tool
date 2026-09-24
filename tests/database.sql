@@ -190,7 +190,8 @@ select public.test_assert((select status='open' from public.tonight_sessions),'o
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
 select public.test_assert((select count(*)=0 from public.tonight_sessions) and (select count(*)=0 from public.tonight_votes),'strangers see nothing');
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
-update public.tonight_sessions set status='decided',winner=2,decided_at=now();
+update public.tonight_sessions set status='decided',winner=2,decided_at=now(),draw='{"mode":"lottery","odds":[{"id":2,"p":1}]}';
+select public.test_assert((select draw->>'mode'='lottery' from public.tonight_sessions),'the host records how the night was drawn');
 select public.test_assert((select status='decided' and winner=2 from public.tonight_sessions),'the host decides');
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 do $$begin

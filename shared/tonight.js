@@ -103,7 +103,7 @@ export function fairnessWeights(debt) {
  * accept (no -1), then to the recommender's own order.
  */
 export function tally(films, votes, weights = {}) {
-  return films.map((f, order) => {
+  return films.filter(f => !f.reserve).map((f, order) => {
     const mine = votes.filter(v => Number(v.movie_id) === Number(f.id));
     const score = mine.reduce((s, v) => s + (weights[v.user_id] ?? 1) * v.vote, 0);
     const vetoes = mine.filter(v => v.vote < 0).length;
@@ -119,4 +119,48 @@ export function sameAgain(genreIds, recentGenres) {
   if (!genreIds?.length || !recentGenres?.length) return 0;
   const recent = new Set(recentGenres.flat());
   return genreIds.filter(g => recent.has(g)).length / genreIds.length;
+}
+
+/**
+ * How a movie night is decided. "best" takes the most wanted film; the draws
+ * leave it to chance, with odds everyone can see before the host draws:
+ * weighted by how much the group wants each film, even among the films nobody
+ * said no to, or a wild card nobody has seen on the ballot.
+ */
+export const DRAWS = {
+  best: { label: 'Most wanted', hint: 'The film the group wants most wins.', needsVotes: true },
+  lottery: { label: 'Weighted draw', hint: 'Every film nobody vetoed can win; the more it is wanted, the better its odds.', needsVotes: true },
+  chance: { label: 'Pure chance', hint: 'Equal odds for every film nobody said no to.', needsVotes: false },
+  wildcard: { label: 'Wild card', hint: 'A surprise: one of the hidden films picked for your group, not on the ballot.', needsVotes: false }
+};
+
+const onBallot = films => films.filter(f => !f.reserve);
+
+/** Each film's chance of winning under a mode, as [{ id, p }] summing to 1. */
+export function drawOdds(mode, films, votes = [], weights = {}) {
+  const ballot = onBallot(films);
+  if (mode === 'wildcard') {
+    const reserve = films.filter(f => f.reserve);
+    if (reserve.length) return reserve.map(f => ({ id: Number(f.id), p: 1 / reserve.length }));
+    mode = 'chance';
+  }
+  const ranking = tally(ballot, votes, weights);
+  if (!ranking.length) return [];
+  if (mode === 'best') return [{ id: ranking[0].id, p: 1 }];
+  // A film someone said no to only stays in the draw when every film was vetoed.
+  const open = ranking.filter(r => r.vetoes === 0);
+  const pool = open.length ? open : ranking;
+  const weight = r => (mode === 'lottery' ? Math.max(0, r.score) + 0.5 : 1);
+  const total = pool.reduce((s, r) => s + weight(r), 0);
+  return pool.map(r => ({ id: r.id, p: Number((weight(r) / total).toFixed(4)) }));
+}
+
+/** The film a draw lands on, given a uniform random number in [0, 1). */
+export function drawWinner(odds, random) {
+  let acc = 0;
+  for (const o of odds) {
+    acc += o.p;
+    if (random < acc) return o.id;
+  }
+  return odds.at(-1)?.id ?? null;
 }

@@ -14,7 +14,7 @@ export async function tonight(ctx) {
     return createNight(ctx, input);
   }
   if (input.action === 'vote') return vote(ctx, input.id, input.movie_id, Number(input.vote));
-  if (input.action === 'decide') return decide(ctx, input.id);
+  if (input.action === 'decide') return decide(ctx, input.id, input.mode || 'best');
   throw new HttpError(400, 'Unknown action.');
 }
 export default nodeHandler(tonight);
