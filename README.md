@@ -198,6 +198,13 @@ Tapping the map (or one of the "made for you" chips) opens a **region**: its bes
 
 Journeys **re-route** (`reroute`): when a step is rated 4/10 or less, the steps after the latest watched one are planned again from the last step the member liked (or the journey's start), keeping away from the disliked film and still ending in the same region. It happens once per dislike, so the path does not shift with every film watched.
 
+**Director journeys** (`directorJourney`, `bridgeJourney`). Under the map, the member picks a director they love (from their signed evidence), one to discover (the curated auteurs the taste space rates highest for them, a different set each day) or any director by name:
+
+- *Through {director}'s films*: the unseen films, starting with the one closest to the member's taste, then from the most celebrated to the deep cuts (up to 6).
+- *From {loved director} to {new director}*: a walk through the taste space that starts from the loved director's films the member loved and ends with two films by the new one.
+
+Both are followed, synced and shown like the other journeys; steps the map does not know are listed but not drawn.
+
 Followed journeys are kept on the account (`followed_journeys`, through `/api/signals?journeys=1` and the `save-journey` / `drop-journey` actions, at most 12), so every device shows the same ones; guests keep them in `localStorage`, and a guest's journeys move to the account on the first visit after signing in.
 
 ## The look of a film

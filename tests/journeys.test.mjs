@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseTasteSpace, placeMember, similarity } from '../shared/tasteSpace.js';
-import { parseTasteMap, planJourneys, planJourney, memberMap, territoryOverTime, regionLabel, regionName, regionAt, regionScores, journeyProgress, reroute } from '../shared/journeys.js';
+import { parseTasteMap, planJourneys, planJourney, memberMap, territoryOverTime, regionLabel, regionName, regionAt, regionScores, journeyProgress, reroute, directorJourney, bridgeJourney } from '../shared/journeys.js';
 
 const file = name => { const b = readFileSync(new URL(`../public/models/${name}`, import.meta.url)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 const space = parseTasteSpace(file('taste-space.bin'));
@@ -136,4 +136,54 @@ test('a journey saved to the account keeps only its own fields, within bounds', 
   assert.throws(() => cleanJourney({ ...journey, steps: journey.steps.slice(0, 1) }), /Invalid journey/);
   assert.throws(() => cleanJourney({ ...journey, steps: journey.steps.map(s => ({ ...s, id: 'drop table' })) }), /Invalid journey/);
   assert.throws(() => cleanJourney(null), /Invalid journey/);
+});
+
+// Kurosawa's films as TMDB lists them: most famous first in vote count.
+const kurosawa = [[346, 'Seven Samurai', 3900, 8.5], [548, 'Rashomon', 2000, 8.1], [11878, 'Yojimbo', 1300, 8.2], [11645, 'Ran', 1400, 8.1], [3782, 'Ikiru', 1000, 8.2], [12493, 'High and Low', 800, 8.2], [11953, 'Kagemusha', 600, 7.9], [20532, 'Red Beard', 300, 8.1], [99999, 'Unreleased', 0, 0]]
+  .map(([id, title, vote_count, vote_average]) => ({ id, title, vote_count, vote_average, poster_path: '/p.jpg', release_date: id === 99999 ? '2999-01-01' : '1960-01-01', job: 'Director' }));
+
+test('a director journey starts with the film closest to the member\'s taste, then goes from the celebrated films to the deep cuts', () => {
+  const member = placeMember(space, diary, []);
+  const fit = id => { const i = space.index.get(id); return i == null ? null : 1; };
+  const journey = directorJourney({ id: 5026, name: 'Akira Kurosawa' }, kurosawa, { space, map, fit: id => (id === 11645 ? 1 : fit(id) && 0.1), seen: new Set([346]), steps: 5 });
+  assert.equal(journey.kind, 'director');
+  assert.equal(journey.person.name, 'Akira Kurosawa');
+  assert.equal(journey.steps[0].id, 11645, 'the entry is the best match for the member');
+  assert.equal(journey.steps.length, 5);
+  assert.ok(!journey.steps.some(s => s.id === 346), 'a film already seen is not a step');
+  assert.ok(!journey.steps.some(s => s.id === 99999), 'nor an unreleased one');
+  const counts = journey.steps.slice(1).map(s => kurosawa.find(k => k.id === s.id).vote_count);
+  assert.deepEqual(counts, [...counts].sort((a, b) => b - a), 'from the best known to the least');
+  assert.match(journey.id, /^5026-0-11645$/);
+  assert.equal(directorJourney({ id: 1, name: 'X' }, kurosawa.slice(0, 2)), null, 'too few films for a journey');
+  assert.ok(member);
+});
+
+test('a bridge journey crosses from a loved director to a new one and ends with two of the new one\'s films', () => {
+  const member = placeMember(space, diary, []);
+  const miyazaki = [129, 128, 8392, 4935, 10515, 12429];
+  const journey = bridgeJourney(space, map, member, diary, {
+    from: { person: { id: 608, name: 'Hayao Miyazaki' }, films: miyazaki },
+    to: { person: { id: 5026, name: 'Akira Kurosawa' }, films: kurosawa.map(k => k.id) }
+  });
+  assert.equal(journey.kind, 'bridge');
+  assert.equal(journey.to.name, 'Akira Kurosawa');
+  assert.equal(journey.steps.length, 6);
+  const ks = new Set(kurosawa.map(k => k.id));
+  assert.ok(journey.steps.slice(-2).every(s => ks.has(s.id)), 'it arrives in the new director\'s films');
+  assert.ok(!journey.steps.some(s => diary.some(f => f.id === s.id)), 'no film already seen');
+  assert.ok(diary.some(f => f.id === journey.from.id && f.rated >= 7), 'it starts from a loved film by the loved director');
+  assert.equal(reroute(space, map, regions, member, journey, diary), journey, 'director journeys are not rerouted towards a region');
+  assert.equal(bridgeJourney(space, map, member, diary, { from: { person: { id: 1, name: 'A' }, films: [] }, to: { person: { id: 2, name: 'B' }, films: [346] } }), null);
+});
+
+test('director journeys can be saved, with their director and steps the map does not know', async () => {
+  const { cleanJourney } = await import('../server/journeys.js');
+  const journey = directorJourney({ id: 5026, name: 'Akira Kurosawa' }, [...kurosawa, { id: 777777777, title: 'Unmapped', vote_count: 60, vote_average: 9, poster_path: '/p.jpg', release_date: '1950-01-01' }], { space, map, steps: 8 });
+  const clean = cleanJourney(journey);
+  assert.equal(clean.kind, 'director');
+  assert.deepEqual(clean.person, { id: 5026, name: 'Akira Kurosawa' });
+  const unmapped = clean.steps.find(s => s.id === 777777777);
+  assert.deepEqual([unmapped.region, unmapped.x, unmapped.y], [-1, null, null]);
+  assert.throws(() => cleanJourney({ ...journey, kind: 'bridge' }), /Invalid journey/, 'a bridge needs its second director');
 });

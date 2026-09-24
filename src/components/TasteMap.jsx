@@ -42,7 +42,8 @@ export default function TasteMap({ map, landmarks = [], points = [], centre = nu
         ctx.fillText(text, box.x, box.y + 9);
         if (drawn.length >= 24) break;
       }
-      journeys.forEach((j, n) => {
+      // Steps the map does not know (films outside the taste space) are not drawn.
+      journeys.map((j) => ({ ...j, steps: j.steps.filter((s) => s.x != null && s.y != null) })).filter((j) => j.steps.length).forEach((j, n) => {
         const colour = ["#f59e0b", "#10b981", "#ec4899"][n % 3];
         ctx.strokeStyle = colour;
         ctx.setLineDash([3, 4]);

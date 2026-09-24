@@ -167,7 +167,8 @@ export function regionScores(space, map, regions, member, watched, { minRatings 
 // A path of `steps` films from `start` (a unit vector) towards the destination,
 // the last steps inside it. `avoid` are unit vectors of films the member
 // disliked on the way: the path keeps its distance from them.
-function walk(space, map, z, start, centre, region, steps, blocked, avoid = [], minRatings = 300) {
+// `arrives(i)` says whether film index i is inside the destination.
+function walk(space, map, z, start, centre, arrives, steps, blocked, avoid = [], minRatings = 300) {
   const path = [];
   for (let s = 1; s <= steps; s++) {
     const t = s / steps;
@@ -176,7 +177,7 @@ function walk(space, map, z, start, centre, region, steps, blocked, avoid = [], 
     for (let i = 0; i < space.n; i++) {
       const id = space.tmdb[i];
       if (space.counts[i] < minRatings || blocked.has(id)) continue;
-      if (s >= steps - 1 && map.region[i] !== region) continue;
+      if (s >= steps - 1 && !arrives(i)) continue;
       let value = cosAt(space, i, aim) + 0.25 * z[i];
       for (const a of avoid) value -= 0.6 * Math.max(0, cosAt(space, i, a));
       if (value > bestValue) { best = i; bestValue = value; }
@@ -215,7 +216,7 @@ export function planJourney(space, map, regions, member, watched, regionId, { st
     .map((u) => ({ ...u, v: vectorOf(space, u.i) }))
     .sort((a, b) => cos(b.v, target.centre) - cos(a.v, target.centre))[0];
   if (!home) return null;
-  const path = walk(space, map, z, home.v, target.centre, regionId, steps, new Set(seen), [], minRatings);
+  const path = walk(space, map, z, home.v, target.centre, (i) => map.region[i] === regionId, steps, new Set(seen), [], minRatings);
   if (path.length !== steps) return null;
   return {
     id: `${home.id}-${regionId}-${path[0].id}`,
@@ -271,7 +272,9 @@ export function journeyProgress(journey, watched) {
  * film that caused it.
  */
 export function reroute(space, map, regions, member, journey, watched, { minRatings = 300, exclude = new Set() } = {}) {
-  if (!member) return journey;
+  // Director journeys follow a filmography or a line between two directors:
+  // they are not rerouted towards a region.
+  if (!member || journey.kind) return journey;
   const progress = journeyProgress(journey, watched);
   const lastWatched = progress.steps.map((s) => s.watched).lastIndexOf(true);
   const disliked = progress.steps.filter((s) => s.watched && s.rated != null && s.rated <= 4);
@@ -287,12 +290,84 @@ export function reroute(space, map, regions, member, journey, watched, { minRati
   const startIndex = space.index.get(Number(liked?.id ?? journey.from.id));
   if (startIndex == null) return journey;
   const avoid = disliked.map((s) => space.index.get(s.id)).filter((i) => i != null).map((i) => vectorOf(space, i));
-  const path = walk(space, map, z, vectorOf(space, startIndex), target.centre, journey.region.id, pending, seen, avoid, minRatings);
+  const path = walk(space, map, z, vectorOf(space, startIndex), target.centre, (i) => map.region[i] === journey.region.id, pending, seen, avoid, minRatings);
   if (path.length !== pending) return journey;
   return {
     ...journey,
     steps: [...journey.steps.slice(0, lastWatched + 1), ...path],
     routedFor: key,
     rerouted: { after: disliked.at(-1).id }
+  };
+}
+
+// Where a film sits on the map, when the taste space knows it.
+const placed = (space, map, id) => {
+  const i = space?.index.get(Number(id));
+  return i == null || !map ? { region: -1, x: null, y: null } : { region: map.region[i], x: map.x[i], y: map.y[i] };
+};
+const NO_REGION = { id: -1, genres: [], decade: null };
+
+/**
+ * A journey through one director's films the member has not seen: it starts
+ * with the one closest to their taste (the taste space's match, or the best
+ * known when it has none) and goes on from their celebrated films to the
+ * deep cuts. `films` are the director's credits as TMDB lists them.
+ */
+export function directorJourney(person, films, { space = null, map = null, fit = () => null, seen = new Set(), steps = 6 } = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const pool = [...new Map(films
+    .filter((m) => m?.id && m.poster_path && m.release_date && m.release_date <= today && (m.vote_count || 0) >= 50 && !seen.has(Number(m.id)))
+    .map((m) => [Number(m.id), m])).values()];
+  if (pool.length < 3) return null;
+  const known = (m) => (m.vote_count || 0) * Math.max(0.1, (m.vote_average || 0) - 5);
+  const entry = [...pool].sort((a, b) => (fit(b.id) ?? -2) - (fit(a.id) ?? -2) || known(b) - known(a))[0];
+  // The films worth the journey, then from the most celebrated to the least known.
+  const rest = pool.filter((m) => m.id !== entry.id)
+    .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+    .slice(0, steps - 1)
+    .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+  const path = [entry, ...rest].map((m) => ({ id: Number(m.id), ...placed(space, map, m.id) }));
+  return {
+    id: `${Number(person.id)}-0-${path[0].id}`,
+    kind: 'director',
+    person: { id: Number(person.id), name: person.name },
+    region: NO_REGION,
+    from: { id: path[0].id, title: entry.title, rated: null },
+    steps: path
+  };
+}
+
+/**
+ * A journey from a director the member loves to one they have not tried: it
+ * starts from the loved director's films, crosses the taste space film by
+ * film, and ends with two films by the new director. `from.films` and
+ * `to.films` are TMDB ids of each director's films.
+ */
+export function bridgeJourney(space, map, member, watched, { from, to, steps = 6, minRatings = 200, exclude = new Set() }) {
+  if (!space || !member) return null;
+  const z = closenessTo(space, member);
+  const seen = new Set([...watched.map((f) => Number(f.id)), ...exclude]);
+  const index = (ids) => ids.map((id) => space.index.get(Number(id))).filter((i) => i != null);
+  const rated = new Map(watched.map((f) => [Number(f.id), Number(f.rated) || 0]));
+  // Home: the loved director's films the member loved, or all of theirs the space knows.
+  const home = index(from.films).filter((i) => rated.get(space.tmdb[i]) >= 7);
+  const start = home.length ? home : index(from.films);
+  const target = index(to.films).filter((i) => space.counts[i] >= minRatings && !seen.has(space.tmdb[i]));
+  if (!start.length || target.length < 2) return null;
+  const mean = (list) => unit(list.map((i) => vectorOf(space, i)).reduce((s, v) => s.map((x, j) => x + v[j])));
+  const centre = mean([...target].sort((a, b) => z[b] - z[a]).slice(0, 5));
+  const inTarget = new Set(target);
+  const path = walk(space, map, z, mean(start), centre, (i) => inTarget.has(i), steps, new Set(seen), [], minRatings);
+  if (path.length !== steps) return null;
+  const first = start.map((i) => space.tmdb[i]).find((id) => rated.has(id)) ?? space.tmdb[start[0]];
+  const firstFilm = watched.find((f) => Number(f.id) === first);
+  return {
+    id: `${Number(from.person.id)}-${Number(to.person.id)}-${path[0].id}`,
+    kind: 'bridge',
+    person: { id: Number(from.person.id), name: from.person.name },
+    to: { id: Number(to.person.id), name: to.person.name },
+    region: NO_REGION,
+    from: { id: first, title: firstFilm?.title || from.person.name, rated: firstFilm?.rated ?? null },
+    steps: path.map((p) => ({ ...p, region: map ? p.region : -1 }))
   };
 }
