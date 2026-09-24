@@ -190,7 +190,8 @@ select public.test_assert((select status='open' from public.tonight_sessions),'o
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
 select public.test_assert((select count(*)=0 from public.tonight_sessions) and (select count(*)=0 from public.tonight_votes),'strangers see nothing');
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
-update public.tonight_sessions set status='decided',winner=2,decided_at=now();
+update public.tonight_sessions set status='decided',winner=2,decided_at=now(),draw='{"mode":"lottery","odds":[{"id":2,"p":1}]}';
+select public.test_assert((select draw->>'mode'='lottery' from public.tonight_sessions),'the host records how the night was drawn');
 select public.test_assert((select status='decided' and winner=2 from public.tonight_sessions),'the host decides');
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 do $$begin
@@ -206,6 +207,19 @@ select public.test_assert(not has_column_privilege('authenticated','public.profi
 select public.test_assert(not has_schema_privilege('authenticated','private','USAGE'), 'photo triggers are private');
 update auth.users set raw_user_meta_data='{}' where id='11111111-1111-4111-8111-111111111111';
 select public.test_assert((select avatar_url is null from public.profiles where id='11111111-1111-4111-8111-111111111111'), 'removed photo cleared');
+reset role;
+-- Sign-in limits: only the server counts, and a window resets after it expires.
+set local role authenticated;
+do $$begin
+ begin perform public.consume_auth_limit('login-ip',repeat('a',64),1,60);raise exception 'Members can count sign-in attempts';exception when insufficient_privilege then null;end;
+ begin perform count(*) from public.auth_attempts;raise exception 'Members can read sign-in attempts';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+set local role service_role;
+select public.test_assert(public.consume_auth_limit('login-ip',repeat('b',64),2,60) and public.consume_auth_limit('login-ip',repeat('b',64),2,60),'attempts within the limit pass');
+select public.test_assert(not public.consume_auth_limit('login-ip',repeat('b',64),2,60),'the attempt past the limit is refused');
+update public.auth_attempts set window_start=now()-interval '2 minutes';
+select public.test_assert(public.consume_auth_limit('login-ip',repeat('b',64),2,60),'a new window starts after the old one expires');
 reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

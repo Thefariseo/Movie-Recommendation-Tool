@@ -102,3 +102,50 @@ test('the night\'s filters: era, language, rating, known or unknown, genres to a
   assert.ok(!passesFilters({ ...film, release_date: '' }, { era: '2000s' }), 'an unknown year never passes an era');
   assert.deepEqual(avoidedGenres({ avoid: [16, 27], gentle: true }).sort((a, b) => a - b), [16, 27, 53, 80, 10752]);
 });
+
+import { drawOdds, drawWinner, DRAWS } from '../shared/tonight.js';
+test('each way of deciding gives every film fair, visible odds', () => {
+  const films = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 9, reserve: true }, { id: 8, reserve: true }];
+  const votes = [v(A, 1, 2), v(B, 1, 2), v(A, 2, 1), v(B, 3, -1)];
+  const sum = odds => odds.reduce((s, o) => s + o.p, 0);
+  assert.deepEqual(drawOdds('best', films, votes), [{ id: 1, p: 1 }]);
+  const lottery = drawOdds('lottery', films, votes);
+  assert.deepEqual(lottery.map(o => o.id), [1, 2], 'a vetoed film is out of the draw, hidden wild cards too');
+  assert.ok(lottery[0].p > lottery[1].p, 'the more a film is wanted, the better its odds');
+  assert.ok(Math.abs(sum(lottery) - 1) < 1e-3);
+  assert.deepEqual(drawOdds('chance', films, votes).map(o => o.p), [0.5, 0.5]);
+  assert.deepEqual(drawOdds('wildcard', films, votes).map(o => o.id), [9, 8]);
+  assert.deepEqual(drawOdds('wildcard', films.filter(f => !f.reserve), []).map(o => o.id), [1, 2, 3], 'no wild cards: pure chance');
+  const allVetoed = [v(A, 1, -1), v(A, 2, -1), v(A, 3, -1)];
+  assert.equal(drawOdds('chance', films, allVetoed).length, 3, 'when every film was vetoed, all stay in');
+  assert.equal(drawWinner([{ id: 1, p: 0.25 }, { id: 2, p: 0.75 }], 0.1), 1);
+  assert.equal(drawWinner([{ id: 1, p: 0.25 }, { id: 2, p: 0.75 }], 0.3), 2);
+  assert.equal(drawWinner([{ id: 1, p: 0.5 }, { id: 2, p: 0.4999 }], 0.99999), 2, 'rounding never loses the last film');
+  assert.ok(!DRAWS.chance.needsVotes && DRAWS.best.needsVotes);
+});
+
+test('the host can leave it to chance before anyone votes; wild cards stay hidden and cannot be voted on', async () => {
+  const night = { ...ballot(), films: [...ballot().films, { id: 30, title: 'Wild', reserve: true }] };
+  db({ me: A, night });
+  const before = await (await execute(request({ action: 'vote', id: night.id, movie_id: 30, vote: 2 }), tonight));
+  assert.equal(before.status, 400, 'a hidden wild card is not on the ballot');
+  assert.equal((await execute(request({ action: 'decide', id: night.id, mode: 'best' }), tonight)).status, 400, 'the most wanted film needs votes');
+  assert.equal((await execute(request({ action: 'decide', id: night.id, mode: 'coin' }), tonight)).status, 400);
+  const writes = db({ me: A, night });
+  const res = await (await execute(request({ action: 'decide', id: night.id, mode: 'wildcard' }), tonight)).json();
+  const saved = writes.find(w => w[0] === 'decide')[1];
+  assert.equal(saved.winner, 30);
+  assert.equal(saved.draw.mode, 'wildcard');
+  assert.deepEqual(saved.draw.odds, [{ id: 30, p: 1 }]);
+  assert.ok(res.night.films.some(f => f.id === 30), 'the drawn wild card is revealed');
+});
+
+test('a night reads without its wild cards, and says how many there are', async () => {
+  const night = { ...ballot(), films: [...ballot().films, { id: 30, title: 'Wild', reserve: true }, { id: 31, title: 'Wilder', reserve: true }] };
+  db({ me: B, night });
+  const res = await (await execute(new Request(`https://umbrify.test/api/tonight?id=${night.id}`, { headers: { Cookie: 'umbrify_access=valid' } }), tonight)).json();
+  assert.deepEqual(res.night.films.map(f => f.id), [10, 20]);
+  assert.equal(res.night.wildcards, 2);
+  assert.equal(res.odds.wildcard, undefined, 'not even their ids are sent before the draw');
+  assert.deepEqual(res.odds.chance.map(o => o.id), [10, 20]);
+});

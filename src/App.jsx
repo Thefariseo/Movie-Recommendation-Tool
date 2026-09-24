@@ -1,25 +1,30 @@
 // =====================================================
 // Root component – providers + routes + cinematic intro
 // =====================================================
-import React, { useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
+import { lazyPage } from "./utils/lazyPage";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import Navbar from "./components/Navbar";
 import LibraryLayout from "./components/LibraryLayout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LibraryProvider } from "./contexts/LibraryContext";
-import ChatPage from "./pages/ChatPage";
-import CriticPage from "./pages/CriticPage";
-import TonightPage from "./pages/TonightPage";
-import NightPage from "./pages/NightPage";
-import AuthCallback from "./pages/AuthCallback";
 import Home from "./pages/Home";
-import WatchlistPage from "./pages/WatchlistPage";
-import FriendsPage from "./pages/FriendsPage";
-import Profile from "./pages/Profile";
-import WatchedPage from "./pages/WatchedPage";
-import StatsPage from "./pages/StatsPage";
-import JourneysPage from "./pages/JourneysPage";
+import Spinner from "./components/Spinner";
+
+// Discover ships with the app; every other page loads when it is first opened.
+const ChatPage = lazyPage(() => import("./pages/ChatPage"));
+const CriticPage = lazyPage(() => import("./pages/CriticPage"));
+const TonightPage = lazyPage(() => import("./pages/TonightPage"));
+const NightPage = lazyPage(() => import("./pages/NightPage"));
+const AuthCallback = lazyPage(() => import("./pages/AuthCallback"));
+const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
+const FriendsPage = lazyPage(() => import("./pages/FriendsPage"));
+const Profile = lazyPage(() => import("./pages/Profile"));
+const WatchedPage = lazyPage(() => import("./pages/WatchedPage"));
+const StatsPage = lazyPage(() => import("./pages/StatsPage"));
+const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
+
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
 import { ModalProvider } from "@/hooks/useModal";
@@ -43,7 +48,7 @@ function AppContent() {
   }, [pathname]);
 
   // Keep the email callback outside the account-keyed tree and analytics.
-  if (pathname === "/auth/callback") return <AuthCallback />;
+  if (pathname === "/auth/callback") return <Suspense fallback={null}><AuthCallback /></Suspense>;
 
   return (
     <ToastProvider>
@@ -55,6 +60,7 @@ function AppContent() {
                 <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
                   <Navbar />
                   <div id="page-content" tabIndex={-1}>
+                    <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}>
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/library" element={<LibraryLayout />}>
@@ -89,6 +95,7 @@ function AppContent() {
                       {/* 404 */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
+                    </Suspense>
                   </div>
                   {/* Plain anchors, not router Links: these pages are static HTML outside
                   the app, so the router must not claim them and redirect home. */}

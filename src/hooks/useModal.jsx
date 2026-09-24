@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, Suspense, useContext, useState } from "react";
+import { lazyPage } from "../utils/lazyPage";
 import { AnimatePresence, motion } from "framer-motion";
 
 const ModalCtx = createContext();
@@ -31,11 +32,14 @@ function ModalRoot({ movie, onClose }) {
     >
       {/* Centre vertically; scrollable on small screens */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <MovieModal movie={movie} onClose={onClose} />
+        <Suspense fallback={<div className="h-64 w-full max-w-2xl animate-pulse rounded-2xl bg-white/10" role="status" aria-label="Opening the film" />}>
+          <MovieModal movie={movie} onClose={onClose} />
+        </Suspense>
       </div>
     </motion.div>
   );
 }
 
-/* import dinamico per evitare circular-deps */
-import MovieModal from "../components/MovieModal";
+// The film page (trailer player, critic verdict, look, ratings) loads the
+// first time a film is opened, not with the app.
+const MovieModal = lazyPage(() => import("../components/MovieModal"));

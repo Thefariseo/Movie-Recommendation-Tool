@@ -177,6 +177,15 @@ The final ranking of the shortlist (48 films in the browser, 32 on the server) i
 
 **With friends** it becomes a movie night: the host picks up to three mutual friends who share their activity, Umbrify builds group picks (the taste space ranks each film by its weakest match among them) filtered to the host's services, and everyone votes *No / Fine / Yes please* from their own phone at `/tonight/:id`, which refreshes every three seconds. The host decides.
 
+**Deciding.** The host chooses how (`DRAWS`, `drawOdds` in `shared/tonight.js`), and sees every film's odds before deciding:
+
+- *Most wanted*: the top of the weighted tally.
+- *Weighted draw*: every film nobody vetoed can win, with odds in proportion to its weighted score (+0.5, so an unvoted film keeps a small chance).
+- *Pure chance*: equal odds among the films nobody said no to; it needs no votes.
+- *Wild card*: one of up to three extra films picked for the group but kept off the ballot (`reserve`), revealed only when drawn; nobody can vote on them, and their ids are not sent before the draw.
+
+The draw runs on the server with `crypto.randomInt`; the mode and the odds are stored with the night (`tonight_sessions.draw`) and shown to everyone, and each member's page plays the draw once as a reel of posters slowing down onto the winner.
+
 **Fairness.** Decided nights are the group's history. For each member, the gap between the best vote they gave and their vote on the film that won is their compromise, newest nights weighing most (`shared/tonight.js`). Whoever compromised lately gets up to ×1.5 weight on the next ballot, and the page says so. Sessions and votes live in `tonight_sessions` and `tonight_votes` under RLS: only invited members see or vote, votes close at the decision, and the ballot cannot change after creation.
 
 ## Journeys and the taste map
@@ -218,6 +227,13 @@ Conversations are private, stored per account, limited to the last 40 messages, 
 Without OpenAI configuration, guided Italian/English commands work (e.g. “una commedia sotto 100 minuti”, “troppo violento”, “altri film”, “ricomincia”). With configuration, the Responses API extracts validated structured preferences from the latest eight messages; it receives message text and preference state, not the community rating matrix. Provider storage is disabled with `store:false`. Provider errors fall back to guided mode, which is identified in the reply. “Less violent” relies on genre/description/keyword filtering and is not a certified content-safety rating.
 
 Database limits allow 10 chat turns/minute and 100/day per account. Candidate and history sizes are bounded. Configure provider project spending limits to match the intended public launch.
+
+## Security
+
+- **Headers** (`vercel.json`): a strict Content-Security-Policy (scripts only from the site and Vercel analytics, images from TMDB, YouTube, Google profile photos and Letterboxd's logo, frames only from YouTube, no objects, no framing), `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera, microphone, location and payments, `Cross-Origin-Opener-Policy: same-origin`, `X-Frame-Options: DENY` and `nosniff`; Vercel adds HSTS. `tests/headers.test.mjs` fails if the app starts loading from a host the policy does not allow.
+- **Sessions** live in HttpOnly, Secure, SameSite=Lax cookies; state-changing API calls need `X-Umbrify-Request` and a same-origin `Origin`/`Sec-Fetch-Site`/`Referer` (CSRF), and errors never leak internals.
+- **Sign-in limits** (`server/authLimits.js`, `auth_attempts`): Supabase sees every request from Vercel's servers, so Umbrify counts attempts itself: sign-in 20 per 15 minutes per IP and 10 per email, sign-up 5 an hour per IP, password reset 5 an hour per IP and 3 per email. IPs and emails are stored only as SHA-256 hashes, readable by the service role alone; without the service role key the limits are skipped and Supabase's own apply.
+- **Data**: every table is under RLS (`tests/database.sql`); paid endpoints have per-member rate limits; the only key in the browser is TMDB's public read key.
 
 ## Verification
 

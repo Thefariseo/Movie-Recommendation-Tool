@@ -218,7 +218,7 @@ export default function TonightPage() {
               to={`/tonight/${n.id}`}
               className="block text-sm font-medium text-indigo-600 hover:underline"
             >
-              {n.films.length} films to vote on ·{" "}
+              {n.films.filter((f) => !f.reserve).length} films to vote on ·{" "}
               {new Date(n.created_at).toLocaleString()}
             </Link>
           ))}

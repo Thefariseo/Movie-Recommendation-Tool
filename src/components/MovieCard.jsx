@@ -29,11 +29,15 @@ export default function MovieCard({ movie, showActions = true, dismissable = fal
         <span className="film-poster">
           <img
             loading="lazy"
+            decoding="async"
             src={
               movie.poster_path
                 ? `https://image.tmdb.org/t/p/w342${movie.poster_path}`
                 : "/placeholder_poster.svg"
             }
+            // A card is rarely wider than 200px: phones take the lighter file.
+            srcSet={movie.poster_path ? `https://image.tmdb.org/t/p/w185${movie.poster_path} 185w, https://image.tmdb.org/t/p/w342${movie.poster_path} 342w` : undefined}
+            sizes="(max-width: 640px) 45vw, 190px"
             alt=""
           />
           <FilmRatings movieId={movie.id} className="film-rating" />

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { setPicked } from "../utils/onScreen";
 import useRecommend from "../hooks/useRecommend";
 import DiscoveryFilters from "./DiscoveryFilters";
 import MovieCard from "./MovieCard";
@@ -26,6 +27,8 @@ export default function ForYouSection() {
     refresh,
   } = useRecommend({ prefs, top: 6 });
   const list = pick ? [pick, ...rest] : [];
+  const listKey = list.map((m) => m.id).join(",");
+  useEffect(() => setPicked(listKey ? listKey.split(",") : []), [listKey]);
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-between gap-4">

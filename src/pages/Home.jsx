@@ -6,7 +6,13 @@ import useWatched from "@/hooks/useWatched";
 import useWatchlist from "@/hooks/useWatchlist";
 import CommunityPicks from "../components/CommunityPicks";
 import ForYouSection from "../components/ForYouSection";
-import RecommendationList from "../components/RecommendationList";
+import RecommendationList, { worldCountry } from "../components/RecommendationList";
+import FilmThreads from "../components/FilmThreads";
+
+let regionNames = null;
+const countryName = (code) => {
+  try { regionNames ??= new Intl.DisplayNames(["en"], { type: "region" }); return regionNames.of(code); } catch { return code; }
+};
 export default function Home() {
   const { user } = useAuth(),
     { watched } = useWatched(),
@@ -47,7 +53,11 @@ export default function Home() {
       {view === "browse" ? (
         <div className="space-y-10 pt-7">
           <RecommendationList title="Trending this week" type="trending" />
+          <RecommendationList title="Now in cinemas" type="now_playing" />
+          <RecommendationList title="Hidden masterpieces" type="hidden" />
           <RecommendationList title="Highly rated" type="top_rated" />
+          <RecommendationList title={`World tour: ${countryName(worldCountry())}`} type="world" />
+          <RecommendationList title="Classics" type="classics" />
           <RecommendationList title="Coming soon" type="upcoming" />
         </div>
       ) : (
@@ -103,6 +113,7 @@ export default function Home() {
               </div>
             </section>
           )}
+          <FilmThreads />
           {!hasTaste && (
             <RecommendationList
               title="Start with something popular"
@@ -110,7 +121,7 @@ export default function Home() {
             />
           )}
           <Link to="/?view=browse" className="browse-more">
-            Explore trending, highly rated and upcoming films
+            Explore trending, hidden masterpieces, classics and cinema from around the world
             <ArrowRight size={18} aria-hidden="true" />
           </Link>
         </div>
