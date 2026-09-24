@@ -1,19 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import MovieCard from "./MovieCard";
-import { trendingMovies, topRatedMovies, upcomingMovies, nowPlayingMovies, discoverMovies } from "@/utils/api";
-// A different country each day for the world tour.
-const WORLD = ["KR", "JP", "FR", "IT", "IR", "MX", "DE", "ES", "TW", "BR", "DK", "IN", "SE", "AR", "PL", "TR"];
-export const worldCountry = (day = Math.floor(Date.now() / 86400000)) => WORLD[day % WORLD.length];
+import { trendingMovies, topRatedMovies, upcomingMovies } from "@/utils/api";
 const FETCHERS = {
   trending: () => trendingMovies("week"),
   top_rated: () => topRatedMovies(1),
   upcoming: () => upcomingMovies(1),
-  now_playing: () => nowPlayingMovies(1),
-  // Films rated as highly as the classics everyone knows, by far fewer people.
-  hidden: () => discoverMovies({ sort_by: "vote_average.desc", "vote_average.gte": 7.8, "vote_count.gte": 300, "vote_count.lte": 3000, without_genres: "99,10770", page: 1 + (Math.floor(Date.now() / 86400000) % 3) }),
-  classics: () => discoverMovies({ sort_by: "vote_average.desc", "primary_release_date.lte": "1979-12-31", "vote_count.gte": 1000 }),
-  world: () => discoverMovies({ sort_by: "vote_average.desc", with_origin_country: worldCountry(), "vote_count.gte": 200, without_genres: "99" }),
 };
 export default function RecommendationList({ title, type }) {
   const [movies, setMovies] = useState([]),

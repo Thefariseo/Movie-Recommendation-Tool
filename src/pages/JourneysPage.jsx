@@ -8,7 +8,7 @@ import { loadTasteSpace } from "../utils/tasteSpace";
 import { loadTasteMap } from "../utils/tasteMap";
 import { useFollowedJourneys } from "../utils/journeys";
 import { movieDetails, personMovieCredits, searchPeople } from "../utils/api";
-import { threadContext, directorsToDiscover, lovedDirectors } from "../utils/threads";
+import { directorContext, directorsToDiscover, lovedDirectors } from "../utils/directors";
 import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
 import { memberMap, planJourney, planJourneys, regionAt, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
 import TasteMap from "../components/TasteMap";
@@ -288,7 +288,7 @@ export default function JourneysPage() {
   const libraryKey = JSON.stringify(watched.map((m) => [m.id, m.rated]));
   useEffect(() => {
     let live = true;
-    threadContext(watched, watchlist).then((c) => live && setCtx(c)).catch(() => {});
+    directorContext(watched, watchlist).then((c) => live && setCtx(c)).catch(() => {});
     return () => { live = false; };
   }, [libraryKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [directorPlans, setDirectorPlans] = useState([]);

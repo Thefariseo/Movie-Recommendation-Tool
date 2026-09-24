@@ -7,7 +7,6 @@ import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
 import MovieCard from "./MovieCard";
 import { useSignals } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
-import { setPicked } from "../utils/onScreen";
 export default function CommunityPicks() {
   const { user } = useAuth();
   const { watched, watchlist, ready } = useLibrary();
@@ -54,11 +53,9 @@ export default function CommunityPicks() {
       });
     return () => controller.abort();
   }, [user?.id, ready, libraryKey, revision, filters, recent]);
+  if (!user) return null;
   // What is on screen: dismissed films leave at once.
   const shown = (result?.movies || []).filter((m) => !blocked(signals, m.id)).slice(0, 6);
-  const shownKey = shown.map((m) => m.id).join(",");
-  useEffect(() => setPicked(shownKey ? shownKey.split(",") : []), [shownKey]);
-  if (!user) return null;
   const refresh = () => {
     setRecent((prev) =>
       [

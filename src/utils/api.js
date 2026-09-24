@@ -65,10 +65,6 @@ export function topRatedMovies(page = 1) {
   return get("/movie/top_rated", { page });
 }
 
-export function nowPlayingMovies(page = 1) {
-  return get("/movie/now_playing", { page });
-}
-
 export function upcomingMovies(page = 1) {
   return get("/movie/upcoming", { page });
 }
