@@ -228,6 +228,13 @@ Without OpenAI configuration, guided Italian/English commands work (e.g. “una 
 
 Database limits allow 10 chat turns/minute and 100/day per account. Candidate and history sizes are bounded. Configure provider project spending limits to match the intended public launch.
 
+## Security
+
+- **Headers** (`vercel.json`): a strict Content-Security-Policy (scripts only from the site and Vercel analytics, images from TMDB, YouTube, Google profile photos and Letterboxd's logo, frames only from YouTube, no objects, no framing), `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera, microphone, location and payments, `Cross-Origin-Opener-Policy: same-origin`, `X-Frame-Options: DENY` and `nosniff`; Vercel adds HSTS. `tests/headers.test.mjs` fails if the app starts loading from a host the policy does not allow.
+- **Sessions** live in HttpOnly, Secure, SameSite=Lax cookies; state-changing API calls need `X-Umbrify-Request` and a same-origin `Origin`/`Sec-Fetch-Site`/`Referer` (CSRF), and errors never leak internals.
+- **Sign-in limits** (`server/authLimits.js`, `auth_attempts`): Supabase sees every request from Vercel's servers, so Umbrify counts attempts itself: sign-in 20 per 15 minutes per IP and 10 per email, sign-up 5 an hour per IP, password reset 5 an hour per IP and 3 per email. IPs and emails are stored only as SHA-256 hashes, readable by the service role alone; without the service role key the limits are skipped and Supabase's own apply.
+- **Data**: every table is under RLS (`tests/database.sql`); paid endpoints have per-member rate limits; the only key in the browser is TMDB's public read key.
+
 ## Verification
 
 ```bash

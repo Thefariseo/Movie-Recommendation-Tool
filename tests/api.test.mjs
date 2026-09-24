@@ -381,3 +381,34 @@ test('the sign-in callback distinguishes why it failed and records only the reas
     console.error = error;
   }
 });
+test('sign-in attempts are limited per IP and per email, hashed, before Supabase is asked', async () => {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+  const counted = [];
+  let allow = true;
+  globalThis.fetch = async (url, options) => {
+    if (String(url).includes('/rpc/consume_auth_limit')) {
+      const b = JSON.parse(options.body);
+      counted.push(b);
+      assert.equal(options.headers.Authorization, 'Bearer service-role');
+      return json(allow);
+    }
+    if (String(url).includes('/token?grant_type=password')) return json({ access_token: 'a', refresh_token: 'r', expires_in: 3600 });
+    throw new Error(`unexpected ${url}`);
+  };
+  const login = () => execute(request('auth?action=login', { email: 'Me@Example.com', password: 'long-password' }, { 'x-real-ip': '203.0.113.9' }), auth);
+  assert.equal((await login()).status, 200);
+  assert.deepEqual(counted.map(c => c.bucket_name), ['login-ip', 'login-email']);
+  assert.ok(counted.every(c => /^[0-9a-f]{64}$/.test(c.hashed)), 'only hashes leave the server');
+  assert.ok(!JSON.stringify(counted).includes('203.0.113.9') && !JSON.stringify(counted).toLowerCase().includes('me@example.com'));
+  allow = false;
+  const blocked = await login();
+  assert.equal(blocked.status, 429);
+  assert.match((await blocked.json()).error, /Too many attempts/);
+});
+
+test('without the service role, or when the counter fails, sign-in still works', async () => {
+  globalThis.fetch = async url => (String(url).includes('grant_type=password') ? json({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }) : Promise.reject(new Error('down')));
+  assert.equal((await execute(request('auth?action=login', { email: 'me@example.com', password: 'long-password' }), auth)).status, 200);
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+  assert.equal((await execute(request('auth?action=login', { email: 'me@example.com', password: 'long-password' }), auth)).status, 200);
+});

@@ -1,4 +1,5 @@
 import { nodeHandler, settings, authRequest, identify, body, saveSession, clearSession, cookies, setCookie, HttpError, database, remote } from '../server/http.js';
+import { authLimit } from '../server/authLimits.js';
 import { publicUser } from '../server/user-profile.js';
 import { randomSecret, hash } from '../server/crypto.js';
 export async function auth(ctx) {
@@ -83,6 +84,7 @@ export async function auth(ctx) {
   if (action === 'login' || action === 'signup' || action === 'recover') {
     if (typeof input.email !== 'string' || input.email.length > 254 || !input.email.includes('@')) throw new HttpError(400, 'Enter a valid email address.');
     if (action !== 'recover' && (typeof input.password !== 'string' || input.password.length < 8 || input.password.length > 128)) throw new HttpError(400, 'Use a password between 8 and 128 characters.');
+    await authLimit(ctx, action, input.email);
     if (action === 'recover') {
       await authRequest(`recover?redirect_to=${encodeURIComponent(`${origin}/auth/callback`)}`, {
         email: input.email
