@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Compass, Flag, ListPlus, MapPin, RefreshCw, Route, Shuffle, X } from "lucide-react";
+import { Check, Clapperboard, Compass, Flag, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
 import useWatchlist from "../hooks/useWatchlist";
@@ -7,9 +7,10 @@ import { useModal } from "../hooks/useModal";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { loadTasteMap } from "../utils/tasteMap";
 import { useFollowedJourneys } from "../utils/journeys";
-import { movieDetails } from "../utils/api";
+import { movieDetails, personMovieCredits, searchPeople } from "../utils/api";
+import { threadContext, directorsToDiscover, lovedDirectors } from "../utils/threads";
 import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
-import { memberMap, planJourney, planJourneys, regionAt, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime } from "../../shared/journeys.js";
+import { memberMap, planJourney, planJourneys, regionAt, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
 import TasteMap from "../components/TasteMap";
 
 const LENGTHS = [
@@ -37,14 +38,32 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
   const progress = journeyProgress(journey, watched);
   const last = details[journey.steps.at(-1).id];
   const disliked = journey.rerouted && (details[journey.rerouted.after]?.title || "a film you disliked");
+  // What the card says, by kind of journey.
+  const n = journey.steps.length;
+  const text = journey.kind === "director" ? {
+    eyebrow: `Director journey · ${journey.person.name}`,
+    title: `Through ${journey.person.name}'s films`,
+    about: `${n} films, from the one closest to your taste to the deep cuts.`,
+    arrived: `You have been through ${journey.person.name}'s films. Pick another director to keep going.`,
+  } : journey.kind === "bridge" ? {
+    eyebrow: "From one director to another",
+    title: `From ${journey.person.name} to ${journey.to.name}`,
+    about: `${n} films, from ${journey.person.name}'s world to ${journey.to.name}'s, each a step closer.`,
+    arrived: `You made it to ${journey.to.name}. Their films are yours to explore now.`,
+  } : {
+    eyebrow: `${regionLabel(journey.region)}${homeOf(region).length ? ` · home of ${homeOf(region).slice(0, 2).join(", ")}` : ""}`,
+    title: `From “${journey.from.title}” to ${last ? `“${last.title}”` : "somewhere new"}`,
+    about: `${n} films, each a step further from what you know.`,
+    arrived: `You made it: ${regionLabel(journey.region)} is part of your map now. Pick another region to keep exploring.`,
+  };
   return (
     <article className="account-panel space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="eyebrow">{regionLabel(journey.region)}{homeOf(region).length ? ` · home of ${homeOf(region).slice(0, 2).join(", ")}` : ""}</p>
-          <h3 className="text-lg font-semibold leading-snug">From “{journey.from.title}” to {last ? `“${last.title}”` : "somewhere new"}</h3>
+          <p className="eyebrow">{text.eyebrow}</p>
+          <h3 className="text-lg font-semibold leading-snug">{text.title}</h3>
           <p className="text-xs text-slate-500">
-            {journey.steps.length} films, each a step further from what you know.
+            {text.about}
             {progress.done > 0 && ` ${progress.done} of ${journey.steps.length} watched.`}
           </p>
         </div>
@@ -57,7 +76,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${(100 * progress.done) / journey.steps.length}%` }} /></div>
       {progress.arrived && (
-        <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Flag className="h-4 w-4 shrink-0" /> You made it: {regionLabel(journey.region)} is part of your map now. Pick another region to keep exploring.</p>
+        <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Flag className="h-4 w-4 shrink-0" /> {text.arrived}</p>
       )}
       {disliked && !progress.arrived && (
         <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><RefreshCw className="h-3.5 w-3.5 shrink-0" /> Re-routed after “{disliked}”: the films ahead keep away from it and still reach the same place.</p>
@@ -73,7 +92,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
                 details={details}
                 dim={s.watched}
                 ring={next}
-                caption={next ? "Up next" : s.watched ? (s.rated != null ? `You gave ${s.rated}/10` : "Watched") : why.get(s.id)}
+                caption={next ? "Up next" : s.watched ? (s.rated != null ? `You gave ${s.rated}/10` : "Watched") : journey.kind === "director" ? (i === 0 ? "Start here" : i === progress.steps.length - 1 ? "A deep cut" : details[s.id]?.release_date?.slice(0, 4)) : why.get(s.id)}
                 badge={<span className={`absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${next ? "bg-indigo-600" : "bg-slate-900/80"}`}>{s.watched ? <Check className="h-3 w-3" /> : i + 1}</span>}
               />
             </li>
@@ -125,11 +144,110 @@ function RegionPanel({ row, total, details, member, onPlan, onClose }) {
   );
 }
 
+// Directors' films of their own, or a line from one director to another: the
+// member picks a director they love, one to discover, or any they search for.
+function DirectorJourneys({ ctx, model, member, watched, exclude, onPlanned }) {
+  const [discover, setDiscover] = useState([]);
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState([]);
+  const [chosen, setChosen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const loved = useMemo(() => (ctx ? lovedDirectors(ctx) : []), [ctx]);
+
+  useEffect(() => {
+    if (!ctx) return;
+    let live = true;
+    directorsToDiscover(ctx, new Set(watched.map((m) => Number(m.id))), { limit: 6 }).then((d) => live && setDiscover(d)).catch(() => {});
+    return () => { live = false; };
+  }, [ctx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Directors by name, as the member types.
+  useEffect(() => {
+    if (query.trim().length < 2) { setFound([]); return undefined; }
+    const timer = setTimeout(() => {
+      searchPeople(query.trim()).then((r) => setFound((r.results || []).filter((p) => p.known_for_department === "Directing").slice(0, 6))).catch(() => setFound([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const directed = async (id) => ((await personMovieCredits(id)).crew || []).filter((m) => m.job === "Director");
+
+  const choose = async (person) => {
+    setChosen(person.id);
+    setBusy(true);
+    setMessage("");
+    try {
+      const seen = new Set([...watched.map((m) => Number(m.id)), ...exclude]);
+      const films = await directed(person.id);
+      const plans = [];
+      const own = directorJourney(person, films, { space: model.space, map: model.map, fit: ctx.fit, seen });
+      if (own) plans.push(own);
+      const isLoved = loved.some((d) => d.id === person.id);
+      // From a director they love to this one; or, for a loved director, on to one they have not tried.
+      const pairs = isLoved ? discover.slice(0, 3).map((d) => [person, d]) : loved.slice(0, 3).map((d) => [d, person]);
+      for (const [from, to] of pairs) {
+        const bridge = bridgeJourney(model.space, model.map, member, watched, {
+          from: { person: from, films: (from.id === person.id ? films : await directed(from.id)).map((m) => m.id) },
+          to: { person: to, films: (to.id === person.id ? films : await directed(to.id)).map((m) => m.id) },
+          // The two journeys may share films: each stands on its own.
+          exclude,
+        });
+        if (bridge) { plans.push(bridge); break; }
+      }
+      if (!plans.length) setMessage(`There are not enough of ${person.name}'s films left for a journey — you may have seen most of them.`);
+      onPlanned(plans);
+    } catch {
+      setMessage("This director's films could not be loaded. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chip = (p, hint) => (
+    <button key={p.id} type="button" onClick={() => choose(p)} disabled={busy} title={hint}
+      className={`rounded-full border px-2.5 py-0.5 text-xs ${chosen === p.id ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-200 text-slate-600 hover:border-indigo-400 dark:border-slate-700 dark:text-slate-300"}`}>
+      {p.name}
+    </button>
+  );
+  return (
+    <section className="account-panel space-y-3">
+      <div>
+        <p className="eyebrow flex items-center gap-1.5"><Clapperboard className="h-3.5 w-3.5" /> DIRECTOR JOURNEYS</p>
+        <p className="text-sm text-slate-500">Go through a director's films, from the one closest to your taste to the deep cuts — or follow a line from a director you love to one you have never tried.</p>
+      </div>
+      {!ctx ? <p className="text-xs text-slate-500">Reading your directors…</p> : (
+        <>
+          {loved.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-slate-500">Directors you love:</span>
+              {loved.map((d) => chip(d, `You gave ${d.examples.map((f) => `“${f.title}” ${f.rated}/10`).join(", ")}`))}
+            </div>
+          )}
+          {discover.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-slate-500">To discover:</span>
+              {discover.map((d) => chip(d, `People with your taste love “${d.best.title}”`))}
+            </div>
+          )}
+          <label className="flex max-w-sm items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm dark:border-slate-700">
+            <Search className="h-4 w-4 text-slate-400" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Any director…" aria-label="Search a director" className="w-full bg-transparent outline-none" />
+          </label>
+          {found.length > 0 && <div className="flex flex-wrap gap-1.5">{found.map((p) => chip(p))}</div>}
+          {busy && <p className="text-xs text-slate-500" role="status">Planning the journey…</p>}
+          {message && <p className="text-xs text-rose-600">{message}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
 // Journeys out of the member's comfort zone, and the map they are drawn on.
 export default function JourneysPage() {
   const { user } = useAuth();
   const { watched } = useWatched();
-  const { isInWatchlist, addToWatchlist } = useWatchlist();
+  const { watchlist, isInWatchlist, addToWatchlist } = useWatchlist();
   const [model, setModel] = useState(null);
   const [failed, setFailed] = useState(false);
   const [details, setDetails] = useState({});
@@ -165,7 +283,16 @@ export default function JourneysPage() {
     }
   }, [model, member, followed, watched]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const suggestions = useMemo(() => (planned ? [planned] : []).concat(view?.suggestions || []), [planned, view]);
+  // The member's signed evidence and taste-space fit, for director journeys.
+  const [ctx, setCtx] = useState(null);
+  const libraryKey = JSON.stringify(watched.map((m) => [m.id, m.rated]));
+  useEffect(() => {
+    let live = true;
+    threadContext(watched, watchlist).then((c) => live && setCtx(c)).catch(() => {});
+    return () => { live = false; };
+  }, [libraryKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [directorPlans, setDirectorPlans] = useState([]);
+  const suggestions = useMemo(() => [...directorPlans.filter((j) => !followed.some((f) => f.id === j.id)), ...(planned ? [planned] : []), ...(view?.suggestions || [])], [directorPlans, followed, planned, view]);
   const shown = useMemo(() => [...followed, ...suggestions], [followed, suggestions]);
   const selectedRow = selected == null ? null : scores.find((r) => r.id === selected);
 
@@ -268,6 +395,8 @@ export default function JourneysPage() {
               ))}
             </>
           )}
+          <DirectorJourneys ctx={ctx} model={model} member={member} watched={watched}
+            exclude={new Set(followed.flatMap((j) => j.steps.map((s) => s.id)))} onPlanned={setDirectorPlans} />
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> JOURNEYS TO GROW YOUR TASTE</p>

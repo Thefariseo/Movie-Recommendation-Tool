@@ -3,7 +3,10 @@ import { database, HttpError } from './http.js';
 
 export const MAX_FOLLOWED = 12;
 const int = (v) => (Number.isSafeInteger(Number(v)) ? Number(v) : null);
-const unitNumber = (v) => (Number.isFinite(Number(v)) ? Math.min(1, Math.max(0, Number(v))) : 0);
+// A step's place on the taste map, or null when the map does not know the film.
+const coordinate = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Math.min(1, Math.max(0, Number(v))));
+const KINDS = ['director', 'bridge'];
+const person = (p) => (int(p?.id) > 0 ? { id: int(p.id), name: text(p.name, 120) } : null);
 const text = (v, max) => String(v ?? '').slice(0, max);
 
 /** Keeps only the fields a journey has, with bounded sizes; throws on anything malformed. */
@@ -18,12 +21,15 @@ export function cleanJourney(j) {
       decade: int(region.decade)
     },
     from: { id: int(j?.from?.id), title: text(j?.from?.title, 200), rated: int(j?.from?.rated) },
-    steps: steps.slice(0, 10).map((s) => ({ id: int(s?.id), region: int(s?.region), x: unitNumber(s?.x), y: unitNumber(s?.y) })),
+    steps: steps.slice(0, 10).map((s) => ({ id: int(s?.id), region: int(s?.region), x: coordinate(s?.x), y: coordinate(s?.y) })),
+    // Director journeys: through one director's films, or from one to another.
+    ...(KINDS.includes(j?.kind) ? { kind: j.kind, person: person(j.person), ...(j.kind === 'bridge' ? { to: person(j.to) } : {}) } : {}),
     ...(j?.routedFor ? { routedFor: text(j.routedFor, 200) } : {}),
     ...(int(j?.rerouted?.after) ? { rerouted: { after: int(j.rerouted.after) } } : {})
   };
   if (!/^[0-9]+-[0-9]+-[0-9]+$/.test(clean.id) || clean.region.id == null || !clean.from.id || steps.length < 2 || steps.length > 10
-    || clean.steps.some((s) => !s.id || s.id <= 0 || s.region == null)) throw new HttpError(400, 'Invalid journey.');
+    || clean.steps.some((s) => !s.id || s.id <= 0 || s.region == null)
+    || (clean.kind && !clean.person) || (clean.kind === 'bridge' && !clean.to)) throw new HttpError(400, 'Invalid journey.');
   return clean;
 }
 
