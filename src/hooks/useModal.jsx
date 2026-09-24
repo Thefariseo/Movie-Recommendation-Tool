@@ -1,4 +1,5 @@
-import { createContext, lazy, Suspense, useContext, useState } from "react";
+import { createContext, Suspense, useContext, useState } from "react";
+import { lazyPage } from "../utils/lazyPage";
 import { AnimatePresence, motion } from "framer-motion";
 
 const ModalCtx = createContext();
@@ -41,4 +42,4 @@ function ModalRoot({ movie, onClose }) {
 
 // The film page (trailer player, critic verdict, look, ratings) loads the
 // first time a film is opened, not with the app.
-const MovieModal = lazy(() => import("../components/MovieModal"));
+const MovieModal = lazyPage(() => import("../components/MovieModal"));

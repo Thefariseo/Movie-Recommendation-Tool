@@ -1,7 +1,8 @@
 // =====================================================
 // Root component – providers + routes + cinematic intro
 // =====================================================
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
+import { lazyPage } from "./utils/lazyPage";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import Navbar from "./components/Navbar";
@@ -12,17 +13,17 @@ import Home from "./pages/Home";
 import Spinner from "./components/Spinner";
 
 // Discover ships with the app; every other page loads when it is first opened.
-const ChatPage = lazy(() => import("./pages/ChatPage"));
-const CriticPage = lazy(() => import("./pages/CriticPage"));
-const TonightPage = lazy(() => import("./pages/TonightPage"));
-const NightPage = lazy(() => import("./pages/NightPage"));
-const AuthCallback = lazy(() => import("./pages/AuthCallback"));
-const WatchlistPage = lazy(() => import("./pages/WatchlistPage"));
-const FriendsPage = lazy(() => import("./pages/FriendsPage"));
-const Profile = lazy(() => import("./pages/Profile"));
-const WatchedPage = lazy(() => import("./pages/WatchedPage"));
-const StatsPage = lazy(() => import("./pages/StatsPage"));
-const JourneysPage = lazy(() => import("./pages/JourneysPage"));
+const ChatPage = lazyPage(() => import("./pages/ChatPage"));
+const CriticPage = lazyPage(() => import("./pages/CriticPage"));
+const TonightPage = lazyPage(() => import("./pages/TonightPage"));
+const NightPage = lazyPage(() => import("./pages/NightPage"));
+const AuthCallback = lazyPage(() => import("./pages/AuthCallback"));
+const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
+const FriendsPage = lazyPage(() => import("./pages/FriendsPage"));
+const Profile = lazyPage(() => import("./pages/Profile"));
+const WatchedPage = lazyPage(() => import("./pages/WatchedPage"));
+const StatsPage = lazyPage(() => import("./pages/StatsPage"));
+const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
 
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
