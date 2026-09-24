@@ -37,7 +37,18 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       emptyOutDir: true,
       minify: "esbuild",
-      sourcemap: mode !== "production"
+      sourcemap: mode !== "production",
+      rollupOptions: {
+        output: {
+          // Libraries change less often than the app: in their own files they
+          // stay in the browser's cache across releases.
+          manualChunks: {
+            react: ["react", "react-dom", "react-router-dom"],
+            motion: ["framer-motion"],
+            icons: ["lucide-react"]
+          }
+        }
+      }
     },
     preview: {
       port: 4173,
