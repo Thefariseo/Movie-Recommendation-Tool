@@ -24,6 +24,12 @@ export function cleanJourney(j) {
     steps: steps.slice(0, 10).map((s) => ({ id: int(s?.id), region: int(s?.region), x: coordinate(s?.x), y: coordinate(s?.y) })),
     // Director journeys: through one director's films, or from one to another.
     ...(KINDS.includes(j?.kind) ? { kind: j.kind, person: person(j.person), ...(j.kind === 'bridge' ? { to: person(j.to) } : {}) } : {}),
+    // Why the journey starts where it does, why it suits the member, and a note per step.
+    ...(j?.explain && typeof j.explain === 'object' ? { explain: {
+      start: text(j.explain.start, 400),
+      why: (Array.isArray(j.explain.why) ? j.explain.why : []).slice(0, 5).map((w) => text(w, 300)),
+      steps: Object.fromEntries(Object.entries(j.explain.steps || {}).slice(0, 10).filter(([id]) => int(id) > 0).map(([id, note]) => [String(int(id)), text(note, 120)]))
+    } } : {}),
     ...(j?.routedFor ? { routedFor: text(j.routedFor, 200) } : {}),
     ...(int(j?.rerouted?.after) ? { rerouted: { after: int(j.rerouted.after) } } : {})
   };

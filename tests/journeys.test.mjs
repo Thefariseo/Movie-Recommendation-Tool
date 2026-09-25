@@ -187,3 +187,29 @@ test('director journeys can be saved, with their director and steps the map does
   assert.deepEqual([unmapped.region, unmapped.x, unmapped.y], [-1, null, null]);
   assert.throws(() => cleanJourney({ ...journey, kind: 'bridge' }), /Invalid journey/, 'a bridge needs its second director');
 });
+
+test('every journey says why it starts where it does, why it suits the member, and what each step does', async () => {
+  const member = placeMember(space, diary, []);
+  const [journey] = planJourneys(space, map, regions, member, diary, { count: 1 });
+  const { explain } = journey;
+  assert.match(explain.start, new RegExp(`You gave “${journey.from.title}” \\d(\\.5)?★`));
+  assert.match(explain.start, /closest|close/);
+  assert.ok(explain.why.some(w => /never been here/.test(w)), 'a new region is said to be new');
+  assert.ok(explain.why.some(w => /ranks \d+ of 48/.test(w)), 'with its rank for the member');
+  assert.deepEqual(Object.keys(explain.steps).map(Number).sort(), journey.steps.map(s => s.id).sort(), 'a note per step');
+  assert.ok(journey.steps.slice(-2).every(s => /^Inside /.test(explain.steps[s.id])), 'the last steps are inside');
+  const director = directorJourney({ id: 5026, name: 'Akira Kurosawa' }, kurosawa, { fit: id => (id === 11645 ? 0.8 : null), why: ['You rate Akira Kurosawa highly.'] });
+  assert.match(director.explain.start, /people with your taste love most/);
+  assert.equal(director.explain.why[0], 'You rate Akira Kurosawa highly.');
+  assert.match(director.explain.steps[11645], /^Start here/);
+  const bridge = bridgeJourney(space, map, member, diary, {
+    from: { person: { id: 608, name: 'Hayao Miyazaki' }, films: [129, 128, 8392, 4935] },
+    to: { person: { id: 5026, name: 'Akira Kurosawa' }, films: kurosawa.map(k => k.id) }
+  });
+  assert.match(bridge.explain.start, /“Spirited Away” 5★, your highest rating for Hayao Miyazaki/);
+  assert.ok(bridge.steps.slice(-2).every(s => bridge.explain.steps[s.id] === 'By Akira Kurosawa'));
+  const { cleanJourney } = await import('../server/journeys.js');
+  const saved = cleanJourney({ ...journey, explain: { ...explain, why: [...explain.why, 'x'.repeat(900)] } });
+  assert.ok(saved.explain.why.every(w => w.length <= 300));
+  assert.equal(Object.keys(saved.explain.steps).length, journey.steps.length);
+});

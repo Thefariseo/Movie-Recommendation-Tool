@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Clapperboard, Compass, Flag, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
+import { Check, Clapperboard, Compass, Flag, Info, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
 import useWatchlist from "../hooks/useWatchlist";
@@ -21,7 +21,7 @@ const LENGTHS = [
 const poster = (d) => (d?.poster_path ? `https://image.tmdb.org/t/p/w185${d.poster_path}` : "/placeholder_poster.svg");
 const homeOf = (region) => (region?.landmarks || []).slice(0, 3).map((l) => l.title);
 
-function Poster({ id, details, badge, dim, ring, caption }) {
+function Poster({ id, details, badge, dim, ring, caption, note }) {
   const { open } = useModal();
   const d = details[id];
   return (
@@ -30,6 +30,7 @@ function Poster({ id, details, badge, dim, ring, caption }) {
       {badge}
       <span className="mt-1 block truncate text-[11px] font-medium leading-tight">{d?.title || "…"}</span>
       {caption && <span className="block truncate text-[10px] leading-tight text-slate-500">{caption}</span>}
+      {note && <span className="block text-[10px] leading-tight text-indigo-600 dark:text-indigo-300 line-clamp-2">{note}</span>}
     </button>
   );
 }
@@ -74,6 +75,25 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
             : <button className="account-button" onClick={onFollow}>Follow this journey</button>}
         </div>
       </div>
+      {journey.explain && (
+        <details className="group rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50" open={!followed}>
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <Info className="h-3.5 w-3.5" /> Why this journey
+          </summary>
+          <div className="mt-2 space-y-2">
+            {journey.explain.start && (
+              <p className="text-slate-700 dark:text-slate-200"><span className="font-medium">{journey.kind === "director" ? `Why start with “${details[journey.steps[0].id]?.title || journey.from.title}”` : `Why set off from “${journey.from.title}”`}: </span>{journey.explain.start}</p>
+            )}
+            {journey.explain.why?.length > 0 && (
+              <ul className="space-y-1 text-slate-600 dark:text-slate-300">
+                {journey.explain.why.map((w, n) => (
+                  <li key={n} className="flex gap-2"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
+      )}
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${(100 * progress.done) / journey.steps.length}%` }} /></div>
       {progress.arrived && (
         <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Flag className="h-4 w-4 shrink-0" /> {text.arrived}</p>
@@ -92,7 +112,8 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
                 details={details}
                 dim={s.watched}
                 ring={next}
-                caption={next ? "Up next" : s.watched ? (s.rated != null ? `You gave ${s.rated}/10` : "Watched") : journey.kind === "director" ? (i === 0 ? "Start here" : i === progress.steps.length - 1 ? "A deep cut" : details[s.id]?.release_date?.slice(0, 4)) : why.get(s.id)}
+                caption={next ? "Up next" : s.watched ? (s.rated != null ? `You gave ${s.rated}/10` : "Watched") : journey.kind === "director" ? details[s.id]?.release_date?.slice(0, 4) : why.get(s.id)}
+                note={journey.explain?.steps?.[s.id] || (journey.kind === "director" ? (i === 0 ? "Start here" : i === progress.steps.length - 1 ? "A deep cut" : null) : null)}
                 badge={<span className={`absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${next ? "bg-indigo-600" : "bg-slate-900/80"}`}>{s.watched ? <Check className="h-3 w-3" /> : i + 1}</span>}
               />
             </li>
@@ -181,7 +202,15 @@ function DirectorJourneys({ ctx, model, member, watched, exclude, onPlanned }) {
       const seen = new Set([...watched.map((m) => Number(m.id)), ...exclude]);
       const films = await directed(person.id);
       const plans = [];
-      const own = directorJourney(person, films, { space: model.space, map: model.map, fit: ctx.fit, seen });
+      const lovedEntry = loved.find((d) => d.id === person.id);
+      const discovered = discover.find((d) => d.id === person.id);
+      const seenOfTheirs = films.filter((m) => watched.some((w) => Number(w.id) === Number(m.id))).length;
+      const why = [
+        lovedEntry ? `You rate ${person.name} highly: you gave ${lovedEntry.examples.slice(0, 2).map((f) => `“${f.title}” ${f.rated / 2}★`).join(" and ")}.` : null,
+        discovered ? `People with your taste love ${person.name}'s “${discovered.best.title}”, and you have not seen any of their films yet.` : null,
+        !lovedEntry && !discovered && seenOfTheirs ? `You have seen ${seenOfTheirs} of ${person.name}'s films.` : null,
+      ];
+      const own = directorJourney(person, films, { space: model.space, map: model.map, fit: ctx.fit, seen, why });
       if (own) plans.push(own);
       const isLoved = loved.some((d) => d.id === person.id);
       // From a director they love to this one; or, for a loved director, on to one they have not tried.
@@ -192,6 +221,10 @@ function DirectorJourneys({ ctx, model, member, watched, exclude, onPlanned }) {
           to: { person: to, films: (to.id === person.id ? films : await directed(to.id)).map((m) => m.id) },
           // The two journeys may share films: each stands on its own.
           exclude,
+          why: [
+            from.examples ? `You rate ${from.name} highly: you gave ${from.examples.slice(0, 2).map((f) => `“${f.title}” ${f.rated / 2}★`).join(" and ")}.` : null,
+            to.best ? `${to.name} is new to you; people with your taste love their “${to.best.title}”.` : null,
+          ],
         });
         if (bridge) { plans.push(bridge); break; }
       }
@@ -325,7 +358,7 @@ export default function JourneysPage() {
 
   const plan = (regionId, steps) => {
     const exclude = new Set(followed.flatMap((j) => j.steps.map((s) => s.id)));
-    const journey = planJourney(model.space, model.map, model.regions, member, watched, regionId, { steps, exclude });
+    const journey = planJourney(model.space, model.map, model.regions, member, watched, regionId, { steps, exclude, rank: scores.find((r) => r.id === regionId)?.rank });
     setPlanError(journey ? "" : "There are not enough films left in this region for a journey that long. Try a shorter one.");
     if (journey) setPlanned(journey);
   };

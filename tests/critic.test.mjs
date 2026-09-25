@@ -157,11 +157,11 @@ test('OpenAI reasoning models run at low effort, with room left for the answer',
   const seen = backend({ reply: { verdict: 'like', headline: 'h', analysis: 'a' } });
   await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
   assert.deepEqual(seen.openai[0].reasoning, { effort: 'low' });
-  assert.equal(seen.openai[0].max_output_tokens, 700 + 2000);
+  assert.equal(seen.openai[0].max_output_tokens, 800 + 2000);
   process.env.OPENAI_CRITIC_REASONING = 'off';
   await execute(request('critic', { action: 'explain', movie_id: 4935, refresh: true }), critic);
   assert.equal(seen.openai[1].reasoning, undefined);
-  assert.equal(seen.openai[1].max_output_tokens, 700);
+  assert.equal(seen.openai[1].max_output_tokens, 800);
 });
 
 test('a spending cap reads as the critic resting, not as the provider\'s error', async () => {
@@ -257,4 +257,18 @@ test('what the critic learns becomes taste rules the recommender follows', async
   assert.deepEqual(saved.map(r => [r.kind, r.id ?? r.code]), [['person', 608], ['theme', 9748], ['genre', 27], ['language', 'ja']]);
   assert.equal(seen.people || 0, 0, 'a person already resolved costs no search');
   assert.equal(res.rules.length, 4);
+});
+
+test('a verdict rests on the member\'s closest films and what they predict, not on their extremes', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test'; process.env.OPENAI_CHAT_MODEL = 'test-model';
+  const seen = backend({ reply: { verdict: 'love', headline: 'h', analysis: 'a' } });
+  await execute(request('critic', { action: 'explain', movie_id: 4935 }), critic);
+  const sent = JSON.parse(seen.openai[0].input);
+  const closest = sent.film.closest_in_your_diary;
+  assert.deepEqual(closest.slice(0, 3).map(f => f.title).sort(), ['My Neighbor Totoro', 'Princess Mononoke', 'Spirited Away']);
+  assert.ok(closest.every((f, i) => i === 0 || f.likeness <= closest[i - 1].likeness), 'closest first');
+  assert.ok(sent.film.expected_rating >= 8.5, `Ghibli films predict a Ghibli film: ${sent.film.expected_rating}`);
+  assert.equal(sent.dossier.loved, undefined, 'the all-time favourites are left out');
+  assert.equal(sent.dossier.disliked, undefined);
+  assert.match(seen.openai[0].instructions, /middling rating/);
 });
