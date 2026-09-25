@@ -7,7 +7,8 @@ import { structured } from './llm.js';
 import { watchedMovies, memberEvidence, recommendations, tmdb } from './recommendations.js';
 import { loadTasteSpace } from './tasteSpace.js';
 import { placeMember, affinities, peerStrength } from '../shared/tasteSpace.js';
-import { stars } from '../shared/evidence.js';
+import { stars, evidenceMatch, directorsOf, castOf, keywordsOf } from '../shared/evidence.js';
+import { closestInDiary } from '../shared/comparables.js';
 import { writeSignals } from './signals.js';
 import { VERDICT_SIGNAL } from '../shared/signals.js';
 import { RULE_KINDS, STANCES, MAX_RULES, parseRule, validRule } from '../shared/rules.js';
@@ -38,6 +39,7 @@ export async function dossier(ctx, { withPicks = false } = {}) {
   return {
     watched,
     rows,
+    evidence,
     summary: {
       films_watched: watched.length,
       films_rated: rated.length,
@@ -157,7 +159,14 @@ const EXPLAIN_SCHEMA = {
 };
 
 const EXPLAIN = `${GROUNDING}
-The member is looking at one film. Say, as their critic, whether it is for them: verdict (love, like, mixed or skip), a one-line headline, and an analysis of about 80 words comparing it with films from their diary, including what might not work for them. taste_space_fit says how strongly people with the member's taste love this film (above 0.4 strong, below 0 weak, null unknown); use it as a hint, not as the argument. Write in the language given as "language".`;
+The member is looking at one film. Say, as their critic, whether it is for them: verdict (love, like, mixed or skip), a one-line headline, and an analysis of about 90 words.
+Judge it from the member's nearest experience, not from their extremes:
+- closest_in_your_diary lists the films they rated that are most like this one (likeness 0–1: whether the same people love them, then genre and era), with their stars. They matter in proportion to their likeness, and a middling rating (2.5–3.5★) is as telling as a 5★ or a 1★. Name two or three of them, the closest ones, with their stars.
+- expected_rating is what those close films predict (out of 10) and spread how much they disagree. Let it anchor the verdict: about 8 or more love, 6.5–8 like, 5–6.5 mixed, below 5 skip; depart from it only for a specific reason you state (a director, a theme or a note that clearly points the other way). With a large spread, say what divides them.
+- your_record_with lists the director, actors and themes of this film the member has rated before, and how those ratings leaned (positive or negative): use them when they exist.
+- Do not bring in their all-time favourites or most disliked films unless they are among the closest; a film is not like Seven Samurai just because the member loves Seven Samurai.
+- taste_space_fit says how strongly people with the member's taste love this film (above 0.4 strong, below 0 weak, null unknown): a hint, not the argument.
+Say what might not work for them. Write in the language given as "language".`;
 
 async function memory(ctx) {
   const [row] = await database(ctx.token)(`critic_memory?user_id=eq.${ctx.user.id}`);
@@ -352,11 +361,21 @@ export async function criticExplain(ctx, movieId, { language = 'en' } = {}) {
   const id = Number(movieId);
   if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, 'Choose a film.');
   const row = await memory(ctx);
-  const { watched, summary } = await dossier(ctx);
+  const { watched, summary, evidence } = await dossier(ctx);
   if (summary.films_rated < 3) throw new HttpError(400, 'Rate a few films first, so your critic has something to compare with.');
   const d = await tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
   const { space, member } = await placed(watched);
   const i = space?.index.get(id);
+  // The member's own films most like this one, and what their ratings predict.
+  const near = closestInDiary(space, { ...d, id }, watched, { limit: 10 });
+  // How the member's ratings leaned on this film's director, actors and themes.
+  const record = [];
+  if (evidence?.films) {
+    const lean = (e) => (e.value >= 0.2 ? 'positive' : e.value <= -0.2 ? 'negative' : 'mixed');
+    for (const p of directorsOf(d)) { const e = evidence.directors.get(p.id); if (e) record.push({ director: p.name, films_rated: e.count, leaning: lean(e) }); }
+    for (const p of castOf(d).slice(0, 4)) { const e = evidence.cast.get(p.id); if (e && e.count >= 2) record.push({ actor: p.name, films_rated: e.count, leaning: lean(e) }); }
+    for (const k of keywordsOf(d)) { const e = evidence.keywords.get(k.id); if (e && e.count >= 2) record.push({ theme: k.name, films_rated: e.count, leaning: lean(e) }); }
+  }
   const target = {
     title: d.title, year: year(d), overview: String(d.overview || '').slice(0, 800), runtime: d.runtime || null,
     genres: (d.genres || []).map(g => g.name), original_language: d.original_language,
@@ -364,9 +383,16 @@ export async function criticExplain(ctx, movieId, { language = 'en' } = {}) {
     cast: (d.credits?.cast || []).slice(0, 5).map(p => p.name),
     themes: (d.keywords?.keywords || []).slice(0, 15).map(k => k.name),
     taste_space_fit: i != null && member ? Number(peerStrength(member.z[i]).toFixed(2)) : null,
-    already_rated: watched.find(m => Number(m.id) === id)?.rated ?? null
+    already_rated: watched.find(m => Number(m.id) === id)?.rated ?? null,
+    closest_in_your_diary: near.closest.map(m => ({ title: m.title, year: m.year, rating: stars(m.rated), likeness: Number(m.likeness.toFixed(2)) })),
+    expected_rating: near.expected,
+    spread: near.spread,
+    your_record_with: record.slice(0, 10)
   };
-  const verdict = await structured({ name: 'critic_verdict', schema: EXPLAIN_SCHEMA, instructions: EXPLAIN, input: { language, dossier: summary, your_notes: row.notes, film: target }, maxTokens: 700 });
+  // The extremes of the diary stay out of this verdict: only the closest films,
+  // the evidence about this film's people and themes, and the notes count.
+  const { loved, disliked, engine_picks, ...context } = summary;
+  const verdict = await structured({ name: 'critic_verdict', schema: EXPLAIN_SCHEMA, instructions: EXPLAIN, input: { language, dossier: context, your_notes: row.notes, film: target }, maxTokens: 800 });
   const saved = { ...verdict, language, written_at: new Date().toISOString() };
   // Kept, so it shows again whenever the film is opened, and felt by the recommender.
   const db = database(ctx.token);
