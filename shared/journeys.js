@@ -4,6 +4,7 @@
 // have never visited but the space expects them to like, in small steps: each
 // film a little further from home and a little closer to the destination.
 import { confidence } from './tasteSpace.js';
+import { stars } from './evidence.js';
 
 /** Parse taste-map.bin: coordinates in [0, 1] and a region per film, in taste-space order. */
 export function parseTasteMap(buffer) {
@@ -198,12 +199,24 @@ function destination(space, map, z, regionId, seen, minRatings) {
   return { films, centre: unit(top.map((i) => vectorOf(space, i)).reduce((s, v) => s.map((x, j) => x + v[j]))) };
 }
 
+const landmarksOf = (meta, n = 2) => (meta?.landmarks || []).slice(0, n).map((l) => `“${l.title}”`).join(' and ');
+
+// What each step of a region journey is doing: still near home, passing
+// through another region, or arrived.
+function regionNotes(path, regions, homeRegion, target, homeTitle) {
+  const byId = new Map(regions.map((r) => [r.id, r]));
+  return Object.fromEntries(path.map((s) => [s.id,
+    s.region === target ? `Inside ${regionLabel(byId.get(target) || { genres: [] })}`
+      : s.region === homeRegion ? `Still close to “${homeTitle}”`
+        : `Through ${regionLabel(byId.get(s.region) || { genres: [] })}`]));
+}
+
 /**
  * One journey to a chosen region, `steps` films long, from the loved film
  * closest to it. Null when the member has no loved film to start from or the
  * region has too few films left.
  */
-export function planJourney(space, map, regions, member, watched, regionId, { steps = 6, minRatings = 300, exclude = new Set() } = {}) {
+export function planJourney(space, map, regions, member, watched, regionId, { steps = 6, minRatings = 300, exclude = new Set(), rank = null } = {}) {
   if (!member) return null;
   const z = closenessTo(space, member);
   const meta = regions.find((g) => g.id === regionId);
@@ -211,18 +224,33 @@ export function planJourney(space, map, regions, member, watched, regionId, { st
   const target = meta && destination(space, map, z, regionId, seen, minRatings);
   if (!target || target.films.length < steps) return null;
   // Home is the loved film closest to the destination, so the first step is familiar.
-  const home = member.used
+  const homes = member.used
     .filter((u) => u.rated >= 7 && u.title)
-    .map((u) => ({ ...u, v: vectorOf(space, u.i) }))
-    .sort((a, b) => cos(b.v, target.centre) - cos(a.v, target.centre))[0];
+    .map((u) => ({ ...u, v: vectorOf(space, u.i), c: 0 }))
+    .map((u) => ({ ...u, c: cos(u.v, target.centre) }))
+    .sort((a, b) => b.c - a.c);
+  const [home, runnerUp] = homes;
   if (!home) return null;
   const path = walk(space, map, z, home.v, target.centre, (i) => map.region[i] === regionId, steps, new Set(seen), [], minRatings);
   if (path.length !== steps) return null;
+  const visitedHere = watched.filter((f) => { const i = space.index.get(Number(f.id)); return i != null && map.region[i] === regionId; }).length;
+  const name = regionLabel(meta);
+  const homeRegion = map.region[home.i];
   return {
     id: `${home.id}-${regionId}-${path[0].id}`,
     region: { id: meta.id, genres: meta.genres, decade: meta.decade },
     from: { id: home.id, title: home.title, rated: home.rated },
-    steps: path
+    steps: path,
+    explain: {
+      start: `You gave “${home.title}” ${stars(home.rated)}. Of the films you loved, it is the closest to ${name}${runnerUp ? `, ahead of “${runnerUp.title}”` : ''}, so the first step is on familiar ground.`,
+      why: [
+        visitedHere ? `You have seen ${visitedHere} film${visitedHere === 1 ? '' : 's'} from here: this goes deeper.` : 'You have never been here: none of your films sit in this region.',
+        rank ? `For your taste it ranks ${rank} of ${regions.length} regions${rank <= 5 ? ', one of the most promising' : ''}: people who love what you love rate its films highly.` : 'People who love what you love rate its films highly.',
+        landmarksOf(meta) ? `It is the home of ${landmarksOf(meta)}.` : null,
+        `The first steps stay near “${home.title}”; each one moves a little further, and it ends well inside the region.`
+      ].filter(Boolean),
+      steps: regionNotes(path, regions, homeRegion, regionId, home.title)
+    }
   };
 }
 
@@ -244,7 +272,7 @@ export function planJourneys(space, map, regions, member, watched, { count = 3, 
     const meta = target.region;
     // Keep the destinations different from one another.
     if (journeys.some((j) => j.region.genres[0] === meta.genres[0] && j.region.decade === meta.decade)) continue;
-    const journey = planJourney(space, map, regions, member, watched, target.id, { steps, minRatings, exclude: taken });
+    const journey = planJourney(space, map, regions, member, watched, target.id, { steps, minRatings, exclude: taken, rank: target.rank });
     if (!journey) continue;
     journey.steps.forEach((s) => taken.add(s.id));
     journeys.push({ ...journey, promise: Number(target.score.toFixed(2)) });
@@ -313,7 +341,7 @@ const NO_REGION = { id: -1, genres: [], decade: null };
  * known when it has none) and goes on from their celebrated films to the
  * deep cuts. `films` are the director's credits as TMDB lists them.
  */
-export function directorJourney(person, films, { space = null, map = null, fit = () => null, seen = new Set(), steps = 6 } = {}) {
+export function directorJourney(person, films, { space = null, map = null, fit = () => null, seen = new Set(), steps = 6, why = [] } = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const pool = [...new Map(films
     .filter((m) => m?.id && m.poster_path && m.release_date && m.release_date <= today && (m.vote_count || 0) >= 50 && !seen.has(Number(m.id)))
@@ -327,7 +355,19 @@ export function directorJourney(person, films, { space = null, map = null, fit =
     .slice(0, steps - 1)
     .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
   const path = [entry, ...rest].map((m) => ({ id: Number(m.id), ...placed(space, map, m.id) }));
+  const entryFit = fit(entry.id);
+  const fame = (m) => ((m.vote_count || 0) >= 3000 ? 'One of their best known' : (m.vote_count || 0) < 400 ? 'A deep cut' : 'Well regarded');
   return {
+    explain: {
+      start: entryFit != null && entryFit > 0
+        ? `Of ${person.name}'s films you have not seen, “${entry.title}” is the one people with your taste love most: the easiest way in.`
+        : `“${entry.title}” is ${person.name}'s best-known film you have not seen: the usual way in.`,
+      why: [
+        ...why,
+        `${path.length} films: the celebrated ones first, then the deep cuts that fewer people have seen.`
+      ].filter(Boolean).slice(0, 5),
+      steps: Object.fromEntries([entry, ...rest].map((m, i) => [Number(m.id), i === 0 ? 'Start here' : fame(m)]))
+    },
     id: `${Number(person.id)}-0-${path[0].id}`,
     kind: 'director',
     person: { id: Number(person.id), name: person.name },
@@ -343,7 +383,7 @@ export function directorJourney(person, films, { space = null, map = null, fit =
  * film, and ends with two films by the new director. `from.films` and
  * `to.films` are TMDB ids of each director's films.
  */
-export function bridgeJourney(space, map, member, watched, { from, to, steps = 6, minRatings = 200, exclude = new Set() }) {
+export function bridgeJourney(space, map, member, watched, { from, to, steps = 6, minRatings = 200, exclude = new Set(), why = [] }) {
   if (!space || !member) return null;
   const z = closenessTo(space, member);
   const seen = new Set([...watched.map((f) => Number(f.id)), ...exclude]);
@@ -359,9 +399,24 @@ export function bridgeJourney(space, map, member, watched, { from, to, steps = 6
   const inTarget = new Set(target);
   const path = walk(space, map, z, mean(start), centre, (i) => inTarget.has(i), steps, new Set(seen), [], minRatings);
   if (path.length !== steps) return null;
-  const first = start.map((i) => space.tmdb[i]).find((id) => rated.has(id)) ?? space.tmdb[start[0]];
+  // The member's highest-rated film by the loved director is where it starts.
+  const first = start.map((i) => space.tmdb[i]).filter((id) => rated.has(id)).sort((a, b) => rated.get(b) - rated.get(a))[0] ?? space.tmdb[start[0]];
   const firstFilm = watched.find((f) => Number(f.id) === first);
+  const kinship = cos(mean(start), centre);
+  const byTo = new Set(target.map((i) => space.tmdb[i]));
+  const byFrom = new Set(index(from.films).map((i) => space.tmdb[i]));
   return {
+    explain: {
+      start: firstFilm
+        ? `You gave “${firstFilm.title}” ${stars(firstFilm.rated)}, your highest rating for ${from.person.name}: the journey sets off from there.`
+        : `It sets off from ${from.person.name}'s films.`,
+      why: [
+        ...why,
+        `The people who love ${from.person.name}'s films find ${to.person.name}'s ${kinship >= 0.6 ? 'very close' : kinship >= 0.35 ? 'close' : 'a real change'}: ${kinship >= 0.35 ? 'a natural next director for you' : 'a stretch, but one people with your taste make'}.`,
+        `The films in between share something of both, each a step closer to ${to.person.name}; the last two are theirs.`
+      ].filter(Boolean).slice(0, 5),
+      steps: Object.fromEntries(path.map((p, n) => [p.id, byTo.has(p.id) ? `By ${to.person.name}` : byFrom.has(p.id) ? `By ${from.person.name}` : n < steps / 2 ? `Near ${from.person.name}'s world` : `Closer to ${to.person.name}`]))
+    },
     id: `${Number(from.person.id)}-${Number(to.person.id)}-${path[0].id}`,
     kind: 'bridge',
     person: { id: Number(from.person.id), name: from.person.name },
