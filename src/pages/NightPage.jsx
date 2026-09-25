@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Check, Copy, Dices, Moon, Scale, Sparkles, Trophy, Shuffle } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, Check, Copy, Dices, Heart, LayoutGrid, Moon, Scale, Sparkles, ThumbsDown, ThumbsUp, Trophy, Shuffle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useModal } from "../hooks/useModal";
 import { backend } from "../utils/backend";
 import { DRAWS } from "../../shared/tonight.js";
 
 const CHOICES = [
-  { vote: -1, label: "No" },
-  { vote: 1, label: "Fine" },
-  { vote: 2, label: "Yes please" }
+  { vote: -1, label: "No", icon: ThumbsDown, tone: "hover:border-rose-400 hover:text-rose-600", on: "border-rose-500 bg-rose-500 text-white" },
+  { vote: 1, label: "Fine", icon: ThumbsUp, tone: "hover:border-sky-400 hover:text-sky-600", on: "border-sky-500 bg-sky-500 text-white" },
+  { vote: 2, label: "Yes please", icon: Heart, tone: "hover:border-indigo-400 hover:text-indigo-600", on: "border-indigo-600 bg-indigo-600 text-white" }
 ];
 const POLL_MS = 3000;
 const DRAW_ICONS = { best: Trophy, lottery: Dices, chance: Shuffle, wildcard: Sparkles };
@@ -46,6 +47,73 @@ function Reel({ films, winner, onDone }) {
   );
 }
 
+// The ballot, one film at a time: a big poster, three answers, and on to the
+// next film as soon as one is picked. Back revisits the previous film.
+function Ballot({ films, mine, onVote, busy, onOpen, onAll }) {
+  const firstOpen = films.findIndex((f) => !mine(f.id));
+  const [index, setIndex] = useState(firstOpen < 0 ? 0 : firstOpen);
+  const [direction, setDirection] = useState(1);
+  const film = films[index];
+  const go = (to) => { setDirection(to > index ? 1 : -1); setIndex(to); };
+  const vote = async (value) => {
+    const next = mine(film.id) === value ? 0 : value;
+    if (!(await onVote(film.id, next)) || !next) return;
+    // On to the next film still without a vote, after this one first; or
+    // to the summary once every film has one.
+    const open = (f, i) => i !== index && !mine(f.id);
+    const after = films.findIndex((f, i) => i > index && open(f, i));
+    const later = after >= 0 ? after : films.findIndex(open);
+    setTimeout(() => (later >= 0 ? go(later) : onAll()), 250);
+  };
+  const choice = mine(film.id);
+  return (
+    <section className="account-panel space-y-4 overflow-hidden" aria-label="Your ballot">
+      <div className="space-y-2">
+        <div className="flex gap-1.5">
+          {films.map((f, i) => (
+            <button key={f.id} type="button" onClick={() => go(i)} aria-label={`Film ${i + 1}: ${f.title}`}
+              className={`h-1.5 flex-1 rounded-full transition ${i === index ? "bg-indigo-500" : mine(f.id) ? "bg-indigo-300 dark:bg-indigo-700" : "bg-slate-200 dark:bg-slate-700"}`} />
+          ))}
+        </div>
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>Film {index + 1} of {films.length}</span>
+          <button type="button" onClick={onAll} className="inline-flex items-center gap-1 hover:text-indigo-600"><LayoutGrid className="h-3.5 w-3.5" /> See all films</button>
+        </div>
+      </div>
+      <AnimatePresence mode="wait" initial={false} custom={direction}>
+        <motion.div key={film.id} initial={{ opacity: 0, x: 40 * direction }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 * direction }}
+          transition={{ duration: 0.2 }} className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
+          <button type="button" onClick={() => onOpen(film)} className="w-40 shrink-0 sm:w-48" aria-label={`Details of ${film.title}`}>
+            <img className="w-full rounded-xl shadow-lg" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(film, "w342")} />
+          </button>
+          <div className="min-w-0 flex-1 space-y-2">
+            <h2 className="text-2xl font-semibold leading-tight">{film.title} <span className="text-base font-normal text-slate-500">{film.release_date?.slice(0, 4)}</span></h2>
+            {film._reason && <p className="text-sm text-slate-600 dark:text-slate-300">{film._reason}</p>}
+            {film.providers?.length > 0 && <p className="text-xs text-slate-500">On {film.providers.map((p) => p.name).join(", ")}</p>}
+            <button type="button" onClick={() => onOpen(film)} className="text-xs font-medium text-indigo-600 hover:underline">Plot, trailer and ratings</button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label={`Your vote on ${film.title}`}>
+        {CHOICES.map((c) => {
+          const Icon = c.icon;
+          const on = choice === c.vote;
+          return (
+            <button key={c.vote} type="button" disabled={busy} aria-pressed={on} onClick={() => vote(c.vote)}
+              className={`flex flex-col items-center gap-1 rounded-2xl border-2 py-3 text-sm font-semibold transition active:scale-95 disabled:opacity-60 ${on ? c.on : `border-slate-200 dark:border-slate-700 ${c.tone}`}`}>
+              <Icon className="h-5 w-5" /> {c.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-sm text-slate-500">
+        <button type="button" onClick={() => go(index - 1)} disabled={index === 0} className="inline-flex items-center gap-1 hover:text-slate-800 disabled:invisible dark:hover:text-slate-200"><ArrowLeft className="h-4 w-4" /> Previous</button>
+        {index < films.length - 1 && <button type="button" onClick={() => go(index + 1)} className="hover:text-slate-800 dark:hover:text-slate-200">Skip for now</button>}
+      </div>
+    </section>
+  );
+}
+
 // A movie night ballot. Everyone opens the same link on their own phone; the
 // page refreshes itself so votes appear live, and the host decides.
 export default function NightPage() {
@@ -57,6 +125,8 @@ export default function NightPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState("best");
+  // One film at a time until every film has a vote, then the whole ballot.
+  const [showAll, setShowAll] = useState(null);
   // The reel plays once per night on each device.
   const revealKey = `umbrify_revealed:${id}`;
   const [revealed, setRevealed] = useState(() => { try { return sessionStorage.getItem(revealKey) === "1"; } catch { return false; } });
@@ -75,8 +145,10 @@ export default function NightPage() {
     setError("");
     try {
       setState(await backend("tonight", { id, ...data }));
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -100,6 +172,8 @@ export default function NightPage() {
   // Films on the reel: the ballot's contenders, or face-down cards for a wild card.
   const reelFilms = draw?.mode === "wildcard" ? (draw.odds || []).map(() => null) : (draw?.odds || []).map((o) => night.films.find((f) => Number(f.id) === Number(o.id))).filter(Boolean);
   const preview = odds[mode] || [];
+  const allVoted = night.films.every((f) => mine(f.id));
+  const summary = decided || (showAll ?? allVoted);
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 px-4 pb-24 pt-6">
@@ -138,7 +212,17 @@ export default function NightPage() {
         <p className="text-xs text-slate-500">The odds were: {draw.odds.map((o) => `${title(o.id)} ${percent(o.p)}`).join(" · ")}.</p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {!summary && <Ballot films={night.films} mine={mine} busy={busy} onOpen={open} onAll={() => setShowAll(true)}
+        onVote={(movieId, vote) => act({ action: "vote", movie_id: movieId, vote })} />}
+
+      {summary && !decided && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-500">{allVoted ? "You have voted on every film. Tap to change a vote." : `${night.films.filter((f) => mine(f.id)).length} of ${night.films.length} films voted.`}</p>
+          <button type="button" className="account-secondary inline-flex items-center gap-1.5" onClick={() => setShowAll(false)}>{allVoted ? "Go through them again" : "Vote one at a time"}</button>
+        </div>
+      )}
+
+      {summary && <div className="grid gap-4 sm:grid-cols-2">
         {night.films.map((f) => (
           <article key={f.id} className={`account-panel flex gap-3 ${decided && f.id !== Number(night.winner) ? "opacity-50" : ""}`}>
             <button type="button" onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
@@ -148,20 +232,23 @@ export default function NightPage() {
               {f.providers?.length > 0 && <p className="text-xs text-slate-500">On {f.providers.map((p) => p.name).join(", ")}</p>}
               {!decided ? (
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Your vote on ${f.title}`}>
-                  {CHOICES.map((c) => (
-                    <button key={c.vote} type="button" disabled={busy} aria-pressed={mine(f.id) === c.vote}
-                      onClick={() => act({ action: "vote", movie_id: f.id, vote: mine(f.id) === c.vote ? 0 : c.vote })}
-                      className={`rounded-full border px-2.5 py-1 text-xs ${mine(f.id) === c.vote ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-200 dark:border-slate-700"}`}>{c.label}</button>
-                  ))}
+                  {CHOICES.map((c) => {
+                    const Icon = c.icon;
+                    return (
+                      <button key={c.vote} type="button" disabled={busy} aria-pressed={mine(f.id) === c.vote}
+                        onClick={() => act({ action: "vote", movie_id: f.id, vote: mine(f.id) === c.vote ? 0 : c.vote })}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition ${mine(f.id) === c.vote ? c.on : `border-slate-200 dark:border-slate-700 ${c.tone}`}`}><Icon className="h-3 w-3" /> {c.label}</button>
+                    );
+                  })}
                 </div>
               ) : null}
               <p className="text-[11px] text-slate-400">{score[f.id]?.voters || 0} votes · score {score[f.id]?.score ?? 0}</p>
             </div>
           </article>
         ))}
-      </div>
+      </div>}
 
-      {!decided && night.host === user.id && (
+      {summary && !decided && night.host === user.id && (
         <section className="account-panel space-y-3">
           <p className="text-sm font-semibold">How do you want to decide?</p>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="How to decide">
@@ -194,7 +281,7 @@ export default function NightPage() {
           {DRAWS[mode].needsVotes && !votes.length && <p className="text-xs text-slate-500">Wait for a vote, or leave it to chance.</p>}
         </section>
       )}
-      {!decided && night.host !== user.id && <p className="text-sm text-slate-500">{name(night.host)} decides when everyone has voted.</p>}
+      {summary && !decided && night.host !== user.id && <p className="text-sm text-slate-500">{name(night.host)} decides when everyone has voted.</p>}
       {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
     </main>
   );
