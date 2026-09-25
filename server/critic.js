@@ -9,6 +9,7 @@ import { loadTasteSpace } from './tasteSpace.js';
 import { placeMember, affinities, peerStrength } from '../shared/tasteSpace.js';
 import { stars, evidenceMatch, directorsOf, castOf, keywordsOf } from '../shared/evidence.js';
 import { closestInDiary } from '../shared/comparables.js';
+import { connect } from '../shared/connections.js';
 import { writeSignals } from './signals.js';
 import { VERDICT_SIGNAL } from '../shared/signals.js';
 import { RULE_KINDS, STANCES, MAX_RULES, parseRule, validRule } from '../shared/rules.js';
@@ -162,6 +163,7 @@ const EXPLAIN = `${GROUNDING}
 The member is looking at one film. Say, as their critic, whether it is for them: verdict (love, like, mixed or skip), a one-line headline, and an analysis of about 90 words.
 Judge it from the member's nearest experience, not from their extremes:
 - closest_in_your_diary lists the films they rated that are most like this one (likeness 0–1: whether the same people love them, then genre and era), with their stars. They matter in proportion to their likeness, and a middling rating (2.5–3.5★) is as telling as a 5★ or a 1★. Name two or three of them, the closest ones, with their stars.
+- ties_to_your_films says concretely what links this film to the member's closest films: the same saga, director, writer, cinematographer, composer or actors, shared themes, the same audience. Build the analysis on these: name the people and the films, and say why the tie matters (a shared director or writer says more than a shared audience, and a shared audience more than a shared genre). Never write a bare "it is like X": always say in what way.
 - expected_rating is what those close films predict (out of 10) and spread how much they disagree. Let it anchor the verdict: about 8 or more love, 6.5–8 like, 5–6.5 mixed, below 5 skip; depart from it only for a specific reason you state (a director, a theme or a note that clearly points the other way). With a large spread, say what divides them.
 - your_record_with lists the director, actors and themes of this film the member has rated before, and how those ratings leaned (positive or negative): use them when they exist.
 - Do not bring in their all-time favourites or most disliked films unless they are among the closest; a film is not like Seven Samurai just because the member loves Seven Samurai.
@@ -368,6 +370,12 @@ export async function criticExplain(ctx, movieId, { language = 'en' } = {}) {
   const i = space?.index.get(id);
   // The member's own films most like this one, and what their ratings predict.
   const near = closestInDiary(space, { ...d, id }, watched, { limit: 10 });
+  // What concretely ties this film to the closest of them: saga, director,
+  // writers, cast, themes, audience. Fetched in full for the closest six.
+  const nearest = near.closest.slice(0, 6).map(m => m.id);
+  const fetched = await Promise.allSettled(nearest.map(mid => tmdb(`movie/${mid}`, { append_to_response: 'credits,keywords' })));
+  const full = new Map([[id, d], ...nearest.flatMap((mid, k) => (fetched[k].status === 'fulfilled' ? [[mid, fetched[k].value]] : []))]);
+  const tied = connect({ target: { ...d, id }, details: full, watched, space, limit: 5, seen: watched.find(m => Number(m.id) === id)?.rated });
   // How the member's ratings leaned on this film's director, actors and themes.
   const record = [];
   if (evidence?.films) {
@@ -385,8 +393,9 @@ export async function criticExplain(ctx, movieId, { language = 'en' } = {}) {
     taste_space_fit: i != null && member ? Number(peerStrength(member.z[i]).toFixed(2)) : null,
     already_rated: watched.find(m => Number(m.id) === id)?.rated ?? null,
     closest_in_your_diary: near.closest.map(m => ({ title: m.title, year: m.year, rating: stars(m.rated), likeness: Number(m.likeness.toFixed(2)) })),
-    expected_rating: near.expected,
-    spread: near.spread,
+    ties_to_your_films: (tied?.links || []).map(l => ({ title: l.film.title, rating: stars(l.film.rated), ties: l.ties.slice(0, 5).map(t => t.text) })),
+    expected_rating: tied?.expected ?? near.expected,
+    spread: tied?.spread ?? near.spread,
     your_record_with: record.slice(0, 10)
   };
   // The extremes of the diary stay out of this verdict: only the closest films,

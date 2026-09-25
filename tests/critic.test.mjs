@@ -271,4 +271,7 @@ test('a verdict rests on the member\'s closest films and what they predict, not 
   assert.equal(sent.dossier.loved, undefined, 'the all-time favourites are left out');
   assert.equal(sent.dossier.disliked, undefined);
   assert.match(seen.openai[0].instructions, /middling rating/);
+  const ties = sent.film.ties_to_your_films;
+  assert.ok(ties.length >= 3 && ties.every(t => t.ties.includes('both directed by Hayao Miyazaki')), 'each close film says what ties it to this one');
+  assert.match(seen.openai[0].instructions, /Never write a bare "it is like X"/);
 });

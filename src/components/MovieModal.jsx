@@ -23,6 +23,7 @@ import { externalIds, movieDetails, movieWatchProviders } from "@/utils/api";
 import FilmRatings from "./FilmRatings";
 import CriticVerdict from "./CriticVerdict";
 import FilmLook from "./FilmLook";
+import FilmConnections from "./FilmConnections";
 import TrailerPlayer from "./TrailerPlayer";
 import { dismissFilm, undismissFilm, useSignals } from "../utils/signals";
 import { rankTrailers, viewerLanguage } from "../utils/trailers";
@@ -336,6 +337,7 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         )}
 
+        <FilmConnections movie={movie} details={details} />
         {user && <CriticVerdict movieId={movie.id} />}
         <FilmLook movie={movie} />
 
