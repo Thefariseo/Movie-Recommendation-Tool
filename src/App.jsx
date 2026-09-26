@@ -24,6 +24,7 @@ const Profile = lazyPage(() => import("./pages/Profile"));
 const WatchedPage = lazyPage(() => import("./pages/WatchedPage"));
 const StatsPage = lazyPage(() => import("./pages/StatsPage"));
 const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
+const MapPage = lazyPage(() => import("./pages/MapPage"));
 
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
@@ -71,6 +72,7 @@ function AppContent() {
                         <Route path="watchlist" element={<WatchlistPage />} />
                         <Route path="watched" element={<WatchedPage />} />
                         <Route path="stats" element={<StatsPage />} />
+                        <Route path="map" element={<MapPage />} />
                         <Route path="journeys" element={<JourneysPage />} />
                       </Route>
                       <Route

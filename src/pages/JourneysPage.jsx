@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Check, Clapperboard, Compass, Flag, Info, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
@@ -10,8 +11,9 @@ import { useFollowedJourneys } from "../utils/journeys";
 import { movieDetails, personMovieCredits, searchPeople } from "../utils/api";
 import { directorContext, directorsToDiscover, lovedDirectors } from "../utils/directors";
 import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
-import { memberMap, planJourney, planJourneys, regionAt, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
-import TasteMap from "../components/TasteMap";
+import { memberMap, planJourney, planJourneys, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
+import TasteAtlas from "../components/TasteAtlas";
+import { territoryGrid, territories } from "../../shared/atlas.js";
 
 const LENGTHS = [
   { steps: 4, label: "Short", hint: "4 films" },
@@ -46,6 +48,11 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
     title: `Through ${journey.person.name}'s films`,
     about: `${n} films, from the one closest to your taste to the deep cuts.`,
     arrived: `You have been through ${journey.person.name}'s films. Pick another director to keep going.`,
+  } : journey.kind === "friend" ? {
+    eyebrow: `Guided by ${journey.person.name} · ${regionLabel(journey.region)}`,
+    title: `${journey.person.name}'s way into ${regionLabel(journey.region)}`,
+    about: `${n} films ${journey.person.name} loved, from the one closest to your taste to their favourite.`,
+    arrived: `You have seen ${journey.person.name}'s favourites here. Time to compare notes.`,
   } : journey.kind === "bridge" ? {
     eyebrow: "From one director to another",
     title: `From ${journey.person.name} to ${journey.to.name}`,
@@ -82,7 +89,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
           </summary>
           <div className="mt-2 space-y-2">
             {journey.explain.start && (
-              <p className="text-slate-700 dark:text-slate-200"><span className="font-medium">{journey.kind === "director" ? `Why start with “${details[journey.steps[0].id]?.title || journey.from.title}”` : `Why set off from “${journey.from.title}”`}: </span>{journey.explain.start}</p>
+              <p className="text-slate-700 dark:text-slate-200"><span className="font-medium">{journey.kind === "director" || journey.kind === "friend" ? `Why start with “${details[journey.steps[0].id]?.title || journey.from.title}”` : `Why set off from “${journey.from.title}”`}: </span>{journey.explain.start}</p>
             )}
             {journey.explain.why?.length > 0 && (
               <ul className="space-y-1 text-slate-600 dark:text-slate-300">
@@ -296,6 +303,8 @@ export default function JourneysPage() {
   }, []);
 
   const member = useMemo(() => (model ? placeMember(model.space, watched, []) : null), [model, watched]);
+  const grid = useMemo(() => (model ? territoryGrid(model.map) : null), [model]);
+  const lands = useMemo(() => (model ? territories(model.space, model.map, model.regions, watched, grid) : null), [model, grid, watched]);
   const scores = useMemo(() => (model ? regionScores(model.space, model.map, model.regions, member, watched) : []), [model, member, watched]);
   const view = useMemo(() => {
     if (!model) return null;
@@ -383,22 +392,25 @@ export default function JourneysPage() {
           <div>
             <p className="eyebrow flex items-center gap-1.5"><Compass className="h-3.5 w-3.5" /> YOUR TASTE MAP</p>
             <h2 className="text-xl font-semibold">You have explored {view.visited.size} of {total} regions of cinema.</h2>
-            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Yours are in <span className="text-indigo-500">indigo</span> (loved) and <span className="text-rose-500">rose</span> (disliked). Tap anywhere on the map to explore that region.</p>
+            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded indigo, your frontier amber. Tap a territory to explore it.</p>
           </div>
           {growth.length > 1 && (
             <p className="text-xs text-slate-500">Regions over time: {growth.slice(-6).map((g) => `${g.month.slice(2)} · ${g.regions}`).join("  →  ")}</p>
           )}
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-amber-500" style={{ width: `${(100 * view.visited.size) / total}%` }} /></div>
-        <TasteMap
-          map={model.map}
-          landmarks={model.landmarks}
+        <TasteAtlas
+          model={model}
+          grid={grid}
+          lands={lands}
           points={view.points}
           centre={view.centre}
           journeys={shown}
           selected={selected}
-          onPick={({ x, y }) => { setSelected(regionAt(model.map, x, y)); setPlanError(""); }}
+          compact
+          onPick={(r) => { setSelected(r); setPlanError(""); }}
         />
+        <p className="text-xs text-slate-500">The full atlas, with your territories, frontier, friends and milestones, is on the <Link className="font-medium text-indigo-600 hover:underline" to="/library/map">Map</Link>.</p>
         {member && explorable.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-slate-500">Unexplored, and made for you:</span>
