@@ -66,7 +66,8 @@ async function circleOf(db, me, space, placedMe, excluded) {
     if (!r.user_id || r.user_id === me) continue;
     byFriend.set(r.user_id, [...(byFriend.get(r.user_id) || []), { ...r.movie, id: Number(r.movie_id), rated: r.rating }]);
   }
-  const ids = [...byFriend.keys()].filter(id => byFriend.get(id).length >= 3).slice(0, 12);
+  // Up to eight friends, the most active first, to stay inside the request's time.
+  const ids = [...byFriend.keys()].filter(id => byFriend.get(id).length >= 3).slice(0, 8);
   if (!ids.length) return new Map();
   const people = await db(`profiles?id=in.(${ids.join(',')})&select=id,display_name`);
   const friends = ids.map(id => {
