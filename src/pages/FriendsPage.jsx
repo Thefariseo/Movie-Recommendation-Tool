@@ -5,6 +5,10 @@ import { useLibrary } from '../contexts/LibraryContext';
 import { backend } from '../utils/backend';
 import UserAvatar from '../components/UserAvatar';
 import MovieCard from '../components/MovieCard';
+import TasteCircle from '../components/TasteCircle';
+import useWatched from '../hooks/useWatched';
+import { useCircle } from '../utils/circle';
+import { useFollowedJourneys } from '../utils/journeys';
 const empty = {
   people: [],
   following: [],
@@ -29,6 +33,13 @@ export default function FriendsPage() {
   const [error, setError] = useState('');
   const [picks, setPicks] = useState(null);
   const [friendLibrary, setFriendLibrary] = useState(null);
+  const {
+    watched
+  } = useWatched();
+  const circle = useCircle(user?.id || null, watched);
+  const [followed, {
+    follow
+  }] = useFollowedJourneys(user?.id || null);
   const refresh = useCallback(async () => {
     if (user) setData(await backend('social'));
   }, [user?.id]);
@@ -54,6 +65,7 @@ export default function FriendsPage() {
   return <main className="mx-auto max-w-6xl space-y-6 px-4 pb-24 pt-6">
     <div><p className="eyebrow">YOUR CIRCLE</p><h1 className="text-3xl font-semibold">Cinema is better together.</h1><p className="mt-2 text-sm text-slate-500">Activity and movie nights are shared between mutual followers who enable sharing in their profile.</p></div>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+    <TasteCircle circle={circle} watched={watched} followed={followed} onFollow={follow} />
     <div className="grid gap-6 lg:grid-cols-2"><section className="account-panel space-y-4"><h2 className="text-xl font-semibold">Find your people</h2>
       <form className="flex items-end gap-2" onSubmit={e => {
           e.preventDefault();

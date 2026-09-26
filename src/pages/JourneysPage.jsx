@@ -46,6 +46,11 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
     title: `Through ${journey.person.name}'s films`,
     about: `${n} films, from the one closest to your taste to the deep cuts.`,
     arrived: `You have been through ${journey.person.name}'s films. Pick another director to keep going.`,
+  } : journey.kind === "friend" ? {
+    eyebrow: `Guided by ${journey.person.name} · ${regionLabel(journey.region)}`,
+    title: `${journey.person.name}'s way into ${regionLabel(journey.region)}`,
+    about: `${n} films ${journey.person.name} loved, from the one closest to your taste to their favourite.`,
+    arrived: `You have seen ${journey.person.name}'s favourites here. Time to compare notes.`,
   } : journey.kind === "bridge" ? {
     eyebrow: "From one director to another",
     title: `From ${journey.person.name} to ${journey.to.name}`,
@@ -82,7 +87,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
           </summary>
           <div className="mt-2 space-y-2">
             {journey.explain.start && (
-              <p className="text-slate-700 dark:text-slate-200"><span className="font-medium">{journey.kind === "director" ? `Why start with “${details[journey.steps[0].id]?.title || journey.from.title}”` : `Why set off from “${journey.from.title}”`}: </span>{journey.explain.start}</p>
+              <p className="text-slate-700 dark:text-slate-200"><span className="font-medium">{journey.kind === "director" || journey.kind === "friend" ? `Why start with “${details[journey.steps[0].id]?.title || journey.from.title}”` : `Why set off from “${journey.from.title}”`}: </span>{journey.explain.start}</p>
             )}
             {journey.explain.why?.length > 0 && (
               <ul className="space-y-1 text-slate-600 dark:text-slate-300">
