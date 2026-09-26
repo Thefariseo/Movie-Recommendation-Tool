@@ -4,7 +4,7 @@ import { useLibrary } from "../contexts/LibraryContext";
 import { backend } from "../utils/backend";
 import DiscoveryFilters from "./DiscoveryFilters";
 import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
-import MovieCard from "./MovieCard";
+import PicksShowcase from "./PicksShowcase";
 import { useSignals } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
 export default function CommunityPicks() {
@@ -105,14 +105,7 @@ export default function CommunityPicks() {
               choices.
             </p>
           )}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {shown.map((m) => (
-              <div key={m.id}>
-                <MovieCard movie={m} dismissable />
-                <p className="mt-2 text-xs text-slate-500">{m._reason}</p>
-              </div>
-            ))}
-          </div>
+          <PicksShowcase movies={shown} />
         </>
       )}
     </section>
