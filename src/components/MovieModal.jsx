@@ -50,6 +50,8 @@ const SIGN_LABELS = {
   critic: "Your critic",
   similar: "A film you loved",
   watchlist: "Your watchlist",
+  diary: "Your closest films",
+  circle: "Your circle",
 };
 
 export default function MovieModal({ movie, onClose }) {

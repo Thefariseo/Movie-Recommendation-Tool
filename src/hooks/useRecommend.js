@@ -115,7 +115,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
 
       // Build enhanced objects with film-specific narratives
       const scored = details.map((d) => {
-        const { score, reason, reasonDetail, isCriterion, signs = [], against = [], agree = 0 } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
+        const { score, reason, reasonDetail, isCriterion, signs = [], against = [], agree = 0, predicted = null, _role = null } = ranked.find((r) => r.id === d.id) || { score: 0, reason: null };
         const director = d.credits?.crew?.find((p) => p.job === "Director");
         const keywords = d.keywords?.keywords || [];
         const year     = d.release_date ? d.release_date.slice(0, 4) : null;
@@ -145,6 +145,9 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
           _director:    director?.name || null,
           _keywords:    keywords,
           _isCriterion: isCriterion || CRITERION_RADIANCE_IDS.has(d.id),
+          // The rating the member's diary predicts, and the job it does among the first picks.
+          ...(predicted ? { _predicted: predicted } : {}),
+          ...(_role ? { _role } : {}),
         };
       });
 

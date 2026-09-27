@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import useRecommend from "../hooks/useRecommend";
 import DiscoveryFilters from "./DiscoveryFilters";
-import MovieCard from "./MovieCard";
+import PicksShowcase from "./PicksShowcase";
 import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
 // Guests use the same controls and layout, with their on-device library.
 export default function ForYouSection() {
@@ -52,14 +52,7 @@ export default function ForYouSection() {
           choices.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {list.map((movie) => (
-            <div key={movie.id}>
-              <MovieCard movie={movie} dismissable />
-              <p className="mt-2 text-xs text-slate-500">{movie._reason}</p>
-            </div>
-          ))}
-        </div>
+        <PicksShowcase movies={list} />
       )}
     </section>
   );

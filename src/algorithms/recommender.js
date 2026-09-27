@@ -9,7 +9,11 @@ import {
 } from "../utils/api";
 import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticAverage, ratingReach, externalRatings } from "../../shared/taste.js";
 import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
-import { placeMember, affinities, strongest, becauseOf, peerStrength } from "../../shared/tasteSpace.js";
+import { placeMember, affinities, strongest, becauseOf, peerStrength, similarity } from "../../shared/tasteSpace.js";
+import { ratingPredictor } from "../../shared/predict.js";
+import { slate } from "../../shared/slate.js";
+import { territoryName } from "../../shared/atlas.js";
+import { loadTasteMap } from "../utils/tasteMap";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { blocked, signalOf, jitter, withoutRecent } from "../../shared/signals.js";
@@ -281,6 +285,11 @@ const SHORTLIST = 48;
 // the reason (in standard deviations over the whole catalogue).
 const SPACE_PICKS = 30;
 const SPACE_REASON_Z = 1.5;
+// The rating the member's diary predicts, per point above their mean (the
+// server's weight on this scale), and how far below the top pick a film may
+// score and still take a place in the composed slate.
+const PREDICTED_WEIGHT = 0.175;
+const SLATE_MARGIN = 1;
 
 // Random page from range 2–15 (much broader than v9's 2–8)
 function randPage() {
@@ -901,9 +910,43 @@ export async function getRecommendations({
     results.sort((a, b) => b.score - a.score);
   }
 
+  // What the member's own ratings of the films most like each one predict,
+  // including the films they disliked, which the taste space cannot see.
+  const predictor = member ? ratingPredictor(space, watched) : null;
+  if (predictor) {
+    for (const r of results.slice(0, SHORTLIST * 2)) {
+      const p = predictor.predict(r.id);
+      if (!p) continue;
+      if (p.support >= 0.15) r.score += PREDICTED_WEIGHT * (p.rating - predictor.mean);
+      if (p.support >= 0.4) r.predicted = Math.round(p.rating * 2) / 2;
+    }
+    results.sort((a, b) => b.score - a.score);
+  }
+
   // On "other picks", films just shown are left out while enough others
   // remain, and close candidates trade places from round to round.
   if (explore) results = withoutRecent(results, recentlyShown, top);
   const round = jitter(results.map(m => ({...m, genre_ids: m.genreIds, _score: m.score})), { seed: explore, spread: 0.06 });
-  return diversePicks(round, top, {recent: new Set([...recentlyShown].map(Number)), strength: hasPersonFilter ? .06 : .12});
+  const recent = new Set([...recentlyShown].map(Number));
+  if (!predictor || hasPersonFilter) return diversePicks(round, top, {recent, strength: hasPersonFilter ? .06 : .12});
+  // The first picks are composed, as on the server: the top match, then the
+  // other sides of the member's taste, new territory and a hidden gem.
+  const atlas = await loadTasteMap();
+  const visited = new Set(atlas ? watched.map((f) => space.index.get(Number(f.id))).filter((i) => i != null).map((i) => atlas.map.region[i]) : []);
+  const at = (m) => space.index.get(Number(m.id));
+  const anchors = new Map();
+  const alike = (a, b) => similarity(space, a.id, b.id) ?? 0;
+  const composed = slate(round.sort((a, b) => b._score - a._score), {
+    limit: top, recent, margin: SLATE_MARGIN, similar: alike,
+    sameSide: (a, b) => a.id === b.id || alike(a, b) >= 0.8,
+    anchor: (m) => {
+      if (at(m) == null) return null;
+      if (!anchors.has(m.id)) anchors.set(m.id, becauseOf(space, member, at(m), { limit: 3 }).find((f) => f.rated >= 8) || null);
+      return anchors.get(m.id);
+    },
+    territory: (m) => (atlas && at(m) != null && !visited.has(atlas.map.region[at(m)]) ? territoryName(atlas.regions.find((r) => r.id === atlas.map.region[at(m)])) : null),
+    gem: (m) => (space.counts[at(m)] ?? Infinity) < 1500,
+  });
+  for (const m of composed) if (m._role?.kind === "territory") m.reasonDetail = `It comes from a part of the map of cinema you have never visited, the territory of ${m._role.place}. ${m.reasonDetail || m.reason || ""}`.trim();
+  return composed;
 }

@@ -5,8 +5,11 @@ export const MAX_FOLLOWED = 12;
 const int = (v) => (Number.isSafeInteger(Number(v)) ? Number(v) : null);
 // A step's place on the taste map, or null when the map does not know the film.
 const coordinate = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Math.min(1, Math.max(0, Number(v))));
-const KINDS = ['director', 'bridge'];
+const KINDS = ['director', 'bridge', 'friend'];
 const person = (p) => (int(p?.id) > 0 ? { id: int(p.id), name: text(p.name, 120) } : null);
+// A friend who guides a journey is a member, known by their account id.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const friend = (p) => (UUID.test(String(p?.id || '')) ? { id: String(p.id).toLowerCase(), name: text(p.name, 120) } : null);
 const text = (v, max) => String(v ?? '').slice(0, max);
 
 /** Keeps only the fields a journey has, with bounded sizes; throws on anything malformed. */
@@ -22,8 +25,9 @@ export function cleanJourney(j) {
     },
     from: { id: int(j?.from?.id), title: text(j?.from?.title, 200), rated: int(j?.from?.rated) },
     steps: steps.slice(0, 10).map((s) => ({ id: int(s?.id), region: int(s?.region), x: coordinate(s?.x), y: coordinate(s?.y) })),
-    // Director journeys: through one director's films, or from one to another.
-    ...(KINDS.includes(j?.kind) ? { kind: j.kind, person: person(j.person), ...(j.kind === 'bridge' ? { to: person(j.to) } : {}) } : {}),
+    // Director journeys: through one director's films, or from one to another;
+    // friend journeys: through the films a friend loved in a region.
+    ...(KINDS.includes(j?.kind) ? { kind: j.kind, person: j.kind === 'friend' ? friend(j.person) : person(j.person), ...(j.kind === 'bridge' ? { to: person(j.to) } : {}) } : {}),
     // Why the journey starts where it does, why it suits the member, and a note per step.
     ...(j?.explain && typeof j.explain === 'object' ? { explain: {
       start: text(j.explain.start, 400),

@@ -17,6 +17,7 @@ export default function LibraryLayout() {
           ["watchlist", "Watchlist", watchlist.length],
           ["watched", "Watched", watched.length],
           ["stats", "Stats", null],
+          ["map", "Map", null],
           ["journeys", "Journeys", null],
         ].map(([path, label, count]) => (
           <NavLink

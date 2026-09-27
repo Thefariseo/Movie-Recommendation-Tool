@@ -4,10 +4,15 @@ import { tasteProfile, tasteScore, genreIds, seedMovies, diversePicks, hybridSco
 import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
 import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
-import { placeMember, affinities, becauseOf, peerStrength } from '../shared/tasteSpace.js';
+import { placeMember, affinities, becauseOf, peerStrength, similarity } from '../shared/tasteSpace.js';
 import { matchesDiscovery } from '../shared/discovery.js';
 import { passesFilters } from '../shared/tonight.js';
-import { loadTasteSpace } from './tasteSpace.js';
+import { loadTasteSpace, loadTasteMap } from './tasteSpace.js';
+import { ratingPredictor, spaceCandidates } from '../shared/predict.js';
+import { slate } from '../shared/slate.js';
+import { tasteOf, closeness, circlePicks, circleReason } from '../shared/social.js';
+import { territoryName } from '../shared/atlas.js';
+import { stars } from '../shared/evidence.js';
 import { readSignals, readRules } from './signals.js';
 import { ruleMatch, STANCES } from '../shared/rules.js';
 import { judge } from '../shared/judge.js';
@@ -44,6 +49,33 @@ const peerPoints = z => PEER_WEIGHT * peerStrength(z);
 // What the member's critic said, or "Not for me", on tasteScore's scale. A -2
 // never reaches scoring: those films are excluded outright.
 const SIGNAL_POINTS = { '-1': -2, '1': 1.2, '2': 2 };
+// The rating the member's own diary predicts, per point above their mean.
+const PREDICTED_POINTS = .7;
+// Enough of the member's experience behind a prediction to show it.
+const PREDICTION_SHOWN = .4;
+// A film close friends loved, per unit of circle score (about 0.5–1.5).
+const CIRCLE_POINTS = 1;
+
+// The member's circle, from the films of friends they may read (mutual
+// followers who share their activity): each placed in the taste space, and
+// what they loved weighted by how close their taste is. id -> pick.
+async function circleOf(db, me, space, placedMe, excluded) {
+  const rows = await db(`user_movies?user_id=neq.${me}&kind=eq.watched&deleted=eq.false&rating=not.is.null&select=user_id,movie_id,rating,movie&order=updated_at.desc&limit=4000`);
+  const byFriend = new Map();
+  for (const r of rows) {
+    if (!r.user_id || r.user_id === me) continue;
+    byFriend.set(r.user_id, [...(byFriend.get(r.user_id) || []), { ...r.movie, id: Number(r.movie_id), rated: r.rating }]);
+  }
+  // Up to eight friends, the most active first, to stay inside the request's time.
+  const ids = [...byFriend.keys()].filter(id => byFriend.get(id).length >= 3).slice(0, 8);
+  if (!ids.length) return new Map();
+  const people = await db(`profiles?id=in.(${ids.join(',')})&select=id,display_name`);
+  const friends = ids.map(id => {
+    const taste = tasteOf(space, byFriend.get(id));
+    return taste && { id, name: people.find(p => p.id === id)?.display_name || 'A friend', films: byFriend.get(id), match: closeness(space, placedMe, taste) };
+  }).filter(Boolean);
+  return new Map(circlePicks(space, placedMe, friends, excluded, { limit: 24 }).filter(p => p.by[0].match >= 55).map(p => [p.id, p]));
+}
 export const contentScore = tasteScore;
 export async function recommendations(ctx, members = [], constraints = {}, recentIds = [], { limit = 12, nightFilters = null } = {}) {
   if (!Array.isArray(members) || members.length > 3) throw new HttpError(400, 'Choose up to three friends.');
@@ -119,7 +151,17 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // The films the whole group would love most: each film is only as strong as
   // its weakest match among the members the space could place.
   const spaceIds = [];
-  if (placed.some(Boolean)) {
+  const solo = ids.length === 1;
+  const mine = solo ? watchedMovies(libraries[0]) : [];
+  // One member's own ratings predict a rating for any film the space knows,
+  // including what the films they disliked say about it.
+  const predictor = solo && placed[0] ? ratingPredictor(space, mine) : null;
+  const gems = new Set();
+  if (predictor) {
+    const { best, hidden } = spaceCandidates(space, placed[0].z, predictor, excluded);
+    spaceIds.push(...best.slice(0, 32), ...hidden.slice(0, 8));
+    hidden.forEach(id => gems.add(id));
+  } else if (placed.some(Boolean)) {
     const ranked = [];
     for (let i = 0; i < space.n; i++) {
       if (space.counts[i] < 200 || excluded.has(space.tmdb[i])) continue;
@@ -141,8 +183,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     ]);
     for (const r of found) if (r.status === 'fulfilled' && r.value) add(r.value.results);
   }
+  // What close friends loved, weighted by how close their taste is.
+  const circle = predictor && !constraints.watchlist_only ? await circleOf(db, ctx.user.id, space, placed[0], excluded).catch(() => new Map()) : new Map();
   const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has('critic_pick') && !excluded.has(id)).slice(0, 8).map(([id]) => id);
-  const detailIds = constraints.watchlist_only ? [] : [...new Set([...criticPicks, ...spaceIds, ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 56);
+  const detailIds = constraints.watchlist_only ? [] : [...new Set([...criticPicks, ...spaceIds, ...[...circle.keys()].slice(0, 8), ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 64);
   for (let i = 0; i < detailIds.length; i += 5) {
     const results = await Promise.allSettled(detailIds.slice(i, i + 5).map(id => tmdb(`movie/${id}`)));
     for (const r of results) if (r.status === 'fulfilled') add([{
@@ -197,9 +241,21 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // films are filled per request, so coverage grows as Umbrify is used.
   for (const m of await attachRatings([...candidateMap.values()], { fill: 4 })) candidateMap.set(Number(m.id), m);
   const neighborMap = new Map(collaborative.map(x => [Number(x.movie_id), x]));
+  const predicted = new Map();
+  const predictionOf = id => {
+    if (!predictor) return null;
+    if (!predicted.has(id)) predicted.set(id, predictor.predict(id));
+    return predicted.get(id);
+  };
+  // The member's own diary and circle, on tasteScore's scale.
+  const personal = id => {
+    const p = predictionOf(id);
+    const fromDiary = p && p.support >= .15 ? PREDICTED_POINTS * (p.rating - predictor.mean) : 0;
+    return fromDiary + CIRCLE_POINTS * (circle.get(Number(id))?.score || 0);
+  };
   let movies = [...candidateMap.values()].filter(m => !m.adult && (!m.release_date || m.release_date <= new Date().toISOString().slice(0, 10))).map(m => {
     const scores = ids.map((id, index) => hybridScore(
-      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)) + (index === 0 ? (SIGNAL_POINTS[signalOf(signals, m.id)] || 0) + RULE_POINTS * ruleMatch(m, rules).score : 0),
+      contentScore(m, profiles[index]) + (evidence ? EVIDENCE_WEIGHT.language * languageAffinity(m, evidence) : 0) + peerPoints(peerZ(index, m.id)) + (index === 0 ? (SIGNAL_POINTS[signalOf(signals, m.id)] || 0) + RULE_POINTS * ruleMatch(m, rules).score + personal(m.id) : 0),
       predict(model || {users: {}, items: {}}, id, m.id),
       index === 0 ? neighborMap.get(m.id) : null
     ));
@@ -218,7 +274,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       _engine: learned ? 'matrix-factorization' : neighbor ? 'collaborative' : peer || peerAll ? 'taste-space' : 'content',
       ...(peer ? { _reasonDetail: peer.full, _peer: true } : {}),
       _reason: ids.length === 1 && !peer && signals.get(Number(m.id))?.sources.has('critic_pick') ? 'Your critic recommended it' : peerAll ? 'People with each of your tastes love it' : ids.length > 1 ? 'Balances the group’s film tastes' : peer ? peer.short : learned ? 'Learned from community ratings' : neighbor ? 'Loved by people with similar ratings' : profiles[0].count ? 'Matches patterns in your likes and dislikes' : 'A well-rated starting point — rate films to personalise your picks',
-      _support: neighbor ? Number(neighbor.support) : undefined
+      _support: neighbor ? Number(neighbor.support) : undefined,
+      ...(predictionOf(m.id)?.support >= PREDICTION_SHOWN ? { _predicted: Math.round(predictionOf(m.id).rating * 2) / 2 } : {})
     };
   }).sort((a, b) => b._score - a._score);
   if (constraints.decade) movies = movies.filter(m => matchesDiscovery(m, {decade: constraints.decade}));
@@ -257,6 +314,21 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     });
     movies.sort((a, b) => b._score - a._score);
   }
+  // Two more signs of the member's own: the films of theirs most like this
+  // one and what they predict, and the close friends who loved it.
+  if (predictor) for (const m of movies.slice(0, SHORTLIST)) {
+    const extra = [];
+    const p = predictionOf(m.id);
+    if (p?.support >= PREDICTION_SHOWN && p.neighbours.length >= 2) {
+      const films = p.neighbours.slice(0, 2).map(f => `"${f.title}" (${stars(f.rated)})`).join(' and ');
+      extra.push({ kind: 'diary', short: `Like ${films.split(' and ')[0]} — about ${stars(p.rating)} for you`, full: `The films of yours most like it are ${films}: on their strength you would give it about ${stars(p.rating)}.` });
+    }
+    const pick = circle.get(Number(m.id));
+    if (pick) extra.push({ kind: 'circle', short: `${pick.by[0].name} (${pick.by[0].match}% match) loved it`, full: circleReason(pick) });
+    if (!extra.length) continue;
+    m._signs = [...(m._signs || []), ...extra];
+    if (!m._reason || /^(Matches patterns|Learned from|Loved by people|A well-rated)/.test(m._reason)) { m._reason = extra[0].short; m._reasonDetail = extra[0].full; }
+  }
   if (constraints.max_runtime || constraints.avoid_violence || constraints.theme || constraints.country || constraints.director_id || constraints.actor_id || constraints.decade || nightFilters) {
     const enriched = [];
     // Bound provider calls; never backfill with films that violate an explicit constraint.
@@ -287,11 +359,39 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // "Other picks": films just shown are left out while enough others remain,
   // and each round draws with a little variety among close candidates.
   movies = jitter(withoutRecent(movies, recentIds, limit), { seed: recentIds.length, spread: 0.35 });
-  movies = diversePicks(movies, limit, { recent: new Set(recentIds.map(Number)) });
+  if (predictor) {
+    // One member's first picks are composed: the top match, then films that
+    // each do a different job, as long as each is still a strong match.
+    const atlas = await loadTasteMap();
+    const visited = new Set(atlas ? mine.map(f => space.index.get(Number(f.id))).filter(i => i != null).map(i => atlas.map.region[i]) : []);
+    const anchors = new Map();
+    const anchor = m => {
+      const i = space.index.get(Number(m.id));
+      if (i == null) return null;
+      if (!anchors.has(m.id)) anchors.set(m.id, becauseOf(space, placed[0].member, i, { limit: 3 }).find(f => f.rated >= 8) || null);
+      return anchors.get(m.id);
+    };
+    const territory = m => {
+      const i = space.index.get(Number(m.id));
+      if (!atlas || i == null || visited.has(atlas.map.region[i])) return null;
+      return territoryName(atlas.regions.find(r => r.id === atlas.map.region[i]));
+    };
+    const gem = m => gems.has(Number(m.id)) || (space.counts[space.index.get(Number(m.id))] ?? Infinity) < 1500;
+    const friendOf = m => (circle.get(Number(m.id)) ? { name: circle.get(Number(m.id)).by[0].name } : null);
+    const alike = (a, b) => similarity(space, a.id, b.id) ?? 0;
+    movies = slate([...movies].sort((a, b) => b._score - a._score), {
+      limit, anchor, circle: friendOf, territory, gem, recent: new Set(recentIds.map(Number)),
+      similar: alike,
+      // Two loved films are one side of the member's taste when the same people love both.
+      sameSide: (a, b) => a.id === b.id || alike(a, b) >= 0.8
+    });
+    // A pick from a territory never visited says where it comes from.
+    for (const m of movies) if (m._role?.kind === 'territory') m._reasonDetail = `It comes from a part of the map of cinema you have never visited, the territory of ${m._role.place}. ${m._reasonDetail || m._reason || ''}`.trim();
+  } else movies = diversePicks(movies, limit, { recent: new Set(recentIds.map(Number)) });
   const engine = movies.some(m => m._engine === 'matrix-factorization') ? 'matrix-factorization' : movies.some(m => m._engine === 'collaborative') ? 'collaborative' : movies.some(m => m._engine === 'taste-space') ? 'taste-space' : 'content';
   return {
     movies: movies.slice(0, limit),
     engine,
-    message: ids.length > 1 ? 'Picks balance everyone’s taste; films already watched by anyone are excluded.' : engine === 'content' ? 'Not enough shared rating history yet. These picks use your film tastes.' : engine === 'collaborative' ? 'These picks use ratings from people with similar tastes.' : engine === 'taste-space' ? 'These picks draw on what people with your taste love.' : 'These picks include predictions from the trained community model.'
+    message: ids.length > 1 ? 'Picks balance everyone’s taste; films already watched by anyone are excluded.' : predictor ? 'Composed for you: your top match, then the other sides of your taste, your circle, new territory and hidden gems, each checked against how you rated the films most like it.' : engine === 'content' ? 'Not enough shared rating history yet. These picks use your film tastes.' : engine === 'collaborative' ? 'These picks use ratings from people with similar tastes.' : engine === 'taste-space' ? 'These picks draw on what people with your taste love.' : 'These picks include predictions from the trained community model.'
   };
 }
