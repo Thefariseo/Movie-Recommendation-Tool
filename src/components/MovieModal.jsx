@@ -3,7 +3,7 @@
 // Trailer: lazy-embed on user click (autoplay permitted by browser)
 // =====================================================
 import React, { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m as motion, AnimatePresence } from "framer-motion";
 import {
   Check,
   Plus,
@@ -170,7 +170,6 @@ export default function MovieModal({ movie, onClose }) {
       onClick={(e) => e.stopPropagation()}
       className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
     >
-      <p className="px-4 py-2 text-[10px] text-slate-500">Streaming availability for {country} · <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="underline">JustWatch</a> via TMDB</p>
       {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>
         {showingTrailer && (
@@ -261,7 +260,7 @@ export default function MovieModal({ movie, onClose }) {
                 : "/placeholder_poster.svg"
             }
             alt={movie.title}
-            className="-mt-16 w-28 shrink-0 rounded-xl shadow-xl ring-2 ring-white dark:ring-slate-800 sm:w-32"
+            className="w-24 shrink-0 self-start rounded-xl shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 sm:w-28"
           />
           <div className="min-w-0 flex-1 pt-1">
             <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
@@ -412,8 +411,8 @@ export default function MovieModal({ movie, onClose }) {
             onClick={toggleWatched}
             className="btn-primary flex items-center gap-1.5 text-sm"
           >
-            {alreadyWatched ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            {alreadyWatched ? "Watched ✓" : "Mark as Watched"}
+            {alreadyWatched ? <Check className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {alreadyWatched ? "Watched" : "Mark as watched"}
           </button>
 
           <button
@@ -421,7 +420,7 @@ export default function MovieModal({ movie, onClose }) {
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >
             {inWatchlist ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {inWatchlist ? "In Watchlist" : "+ Watchlist"}
+            {inWatchlist ? "On your watchlist" : "Watchlist"}
           </button>
 
           {trailerKey && trailerState !== "player" && (
@@ -476,6 +475,7 @@ export default function MovieModal({ movie, onClose }) {
                 Also available to rent on {providers.rent.map((p) => p.provider_name).slice(0, 3).join(", ")}.
               </p>
             )}
+            <p className="mt-1.5 text-[10px] text-slate-400">Availability in {country} from <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer" className="underline">JustWatch</a> via TMDB.</p>
           </div>
         )}
 

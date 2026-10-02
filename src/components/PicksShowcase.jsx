@@ -71,6 +71,32 @@ function Hero({ movie }) {
   );
 }
 
+/** The shape of the picks while they are found: the page does not jump when they arrive. */
+export function PicksSkeleton() {
+  return (
+    <div className="space-y-5" role="status" aria-label="Finding your next film">
+      <div className="flex animate-pulse gap-5 rounded-2xl bg-slate-200/70 p-5 dark:bg-slate-800/70 sm:p-7">
+        <div className="w-24 shrink-0 rounded-xl bg-slate-300/80 dark:bg-slate-700 sm:w-40" style={{ aspectRatio: "2 / 3" }} />
+        <div className="flex-1 space-y-3 pt-1">
+          <div className="h-4 w-28 rounded-full bg-slate-300/80 dark:bg-slate-700" />
+          <div className="h-7 w-2/3 rounded bg-slate-300/80 dark:bg-slate-700" />
+          <div className="h-3 w-full max-w-xl rounded bg-slate-300/60 dark:bg-slate-700/70" />
+          <div className="h-3 w-5/6 max-w-lg rounded bg-slate-300/60 dark:bg-slate-700/70" />
+        </div>
+      </div>
+      <div className="grid animate-pulse grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="space-y-2">
+            <div className="rounded-xl bg-slate-200/80 dark:bg-slate-800" style={{ aspectRatio: "2 / 3" }} />
+            <div className="h-3 w-3/4 rounded bg-slate-200/80 dark:bg-slate-800" />
+            <div className="h-3 w-1/2 rounded bg-slate-200/60 dark:bg-slate-800/70" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The first picks: the top match large, then the others, each with the job
  * it does in the slate (another side of your taste, your circle, a new

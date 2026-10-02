@@ -2,22 +2,29 @@
 // File: src/utils/api.js
 // Centralised TMDB API client with lightweight in-memory cache.
 // =====================================================
-import axios from "axios";
 import { viewerLanguage } from "./trailers";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 
-const client = axios.create({
-  baseURL: BASE_URL,
-  params: {
-    api_key: API_KEY,
-    language: "en-US",
-  },
-});
+/** One TMDB GET with the key and language every request carries. */
+export async function tmdbGet(url, params = {}, { signal } = {}) {
+  const query = new URLSearchParams({ api_key: API_KEY, language: "en-US" });
+  for (const [k, v] of Object.entries(params)) if (v != null) query.set(k, String(v));
+  const response = await fetch(`${BASE_URL}${url}?${query}`, { signal });
+  if (!response.ok) throw new Error(`TMDB ${response.status}`);
+  return response.json();
+}
 
-// Simple in-memory cache
+// In-memory cache of answers, the least recently used dropped past a bound so
+// a long visit does not keep every film it ever opened.
+const CACHE_MAX = 800;
 const cache = new Map();
+const remember = (key, data) => {
+  cache.delete(key);
+  cache.set(key, data);
+  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+};
 const inflight = new Map();
 const queue  = [];
 // Well under TMDB's rate limit; recommendations fetch a shortlist in batches of 6.
@@ -25,7 +32,7 @@ const MAX_CONCURRENT = 6;
 
 async function get(url, params = {}) {
   const key = url + JSON.stringify(params);
-  if (cache.has(key)) return cache.get(key);
+  if (cache.has(key)) { const hit = cache.get(key); remember(key, hit); return hit; }
   // Two callers asking for the same film at once share one request.
   if (inflight.has(key)) return inflight.get(key);
 
@@ -33,11 +40,11 @@ async function get(url, params = {}) {
     // Waiting for a free slot must not inherit someone else's failure: a 404
     // for one film used to reject every request queued behind it.
     while (queue.length >= MAX_CONCURRENT) await Promise.race(queue.map((p) => p.catch(() => {})));
-    const pending = client.get(url, { params }).then(r => r.data);
+    const pending = tmdbGet(url, params);
     queue.push(pending);
     try {
       const data = await pending;
-      cache.set(key, data);
+      remember(key, data);
       return data;
     } finally {
       queue.splice(queue.indexOf(pending), 1);
@@ -74,11 +81,23 @@ export function upcomingMovies(page = 1) {
  * Keywords are used for nanogenre/mood matching (Nanocrowd-style approach).
  */
 export function movieDetails(id) {
-  return get(`/movie/${id}`, {
-    append_to_response: "videos,credits,keywords,recommendations",
-    // Otherwise TMDB returns only English videos, and many films have none.
-    include_video_language: `${viewerLanguage()},en,null`,
-  });
+  return get(`/movie/${id}`, detailParams());
+}
+
+const detailParams = () => ({
+  append_to_response: "videos,credits,keywords,recommendations",
+  // Otherwise TMDB returns only English videos, and many films have none.
+  include_video_language: `${viewerLanguage()},en,null`,
+});
+
+/**
+ * A film with its credits and keywords, without the videos and the
+ * recommendations: about a third of the full details, for comparing films.
+ * Full details already fetched for the film are used instead.
+ */
+export function movieCore(id) {
+  const full = cache.get(`/movie/${id}` + JSON.stringify(detailParams()));
+  return full ? Promise.resolve(full) : get(`/movie/${id}`, { append_to_response: "credits,keywords" });
 }
 
 /** Fetch TMDB keywords only (lighter call for bulk keyword profiling) */

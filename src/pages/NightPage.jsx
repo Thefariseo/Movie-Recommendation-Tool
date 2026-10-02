@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m as motion } from "framer-motion";
 import { ArrowLeft, Check, Copy, Dices, Heart, LayoutGrid, Moon, Scale, Sparkles, ThumbsDown, ThumbsUp, Trophy, Shuffle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useModal } from "../hooks/useModal";

@@ -8,7 +8,7 @@
 // • Cross-browser: unique SVG filter ID per mount
 // =====================================================
 import React, { useEffect, useId, useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m as motion, AnimatePresence } from "framer-motion";
 import { trendingMovies, topRatedMovies } from "../utils/api";
 
 /* ---- Phrase animation variants ---- */

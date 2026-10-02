@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Search, X } from "lucide-react";
-import axios from "axios";
+import { tmdbGet } from "../utils/api";
 import { useModal } from "@/hooks/useModal";
 export default function SearchBar() {
   const [query, setQuery] = useState(""),
@@ -37,19 +37,9 @@ export default function SearchBar() {
     setBusy(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await axios.get(
-          "https://api.themoviedb.org/3/search/movie",
-          {
-            signal: controller.signal,
-            params: {
-              api_key: import.meta.env.VITE_TMDB_KEY,
-              query: query.trim(),
-              include_adult: false,
-            },
-          },
-        );
+        const data = await tmdbGet("/search/movie", { query: query.trim(), include_adult: false }, { signal: controller.signal });
         if (!controller.signal.aborted)
-          setResults(res.data.results.slice(0, 7));
+          setResults(data.results.slice(0, 7));
       } catch (e) {
         if (!controller.signal.aborted)
           setError("Search is unavailable. Please try again.");

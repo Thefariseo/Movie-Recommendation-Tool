@@ -164,8 +164,7 @@ export default function StatsPage() {
   const persona = derivePersona(stats?.topGenreName);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 px-4 pb-20 pt-6">
-      <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">My Stats</h1>
+    <main className="space-y-6 pb-20 pt-6">
 
       {/* ── Cinema Profile card ── */}
       <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-xl">
@@ -292,13 +291,14 @@ export default function StatsPage() {
         <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">
           Recently Added
         </h2>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          {[...watched].reverse().slice(0, 5).map((m) => (
+        <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
+          {[...watched].reverse().slice(0, 6).map((m) => (
             <div key={m.id} className="text-center">
               <img
                 src={m.poster ? `https://image.tmdb.org/t/p/w185${m.poster}` : "/placeholder_poster.svg"}
                 alt={m.title}
-                className="mx-auto h-24 w-16 rounded-lg object-cover shadow"
+                className="w-full rounded-lg object-cover shadow"
+                style={{ aspectRatio: "2 / 3" }}
                 loading="lazy"
               />
               <p className="mt-1 line-clamp-2 text-xs leading-tight text-slate-500 dark:text-slate-400">

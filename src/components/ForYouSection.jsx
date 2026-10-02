@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import useRecommend from "../hooks/useRecommend";
 import DiscoveryFilters from "./DiscoveryFilters";
-import PicksShowcase from "./PicksShowcase";
+import PicksShowcase, { PicksSkeleton } from "./PicksShowcase";
 import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
 // Guests use the same controls and layout, with their on-device library.
 export default function ForYouSection() {
@@ -43,7 +43,7 @@ export default function ForYouSection() {
         Based on your film tastes on this device.
       </p>
       {loading ? (
-        <p role="status">Finding your next film…</p>
+        <PicksSkeleton />
       ) : error ? (
         <p role="alert">Picks could not be loaded. Try again.</p>
       ) : !list.length ? (

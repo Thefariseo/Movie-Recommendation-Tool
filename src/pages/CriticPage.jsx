@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { m as motion } from "framer-motion";
 import { Feather, MessageSquarePlus, RotateCcw, Send, Sparkles, Star, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { backend } from "../utils/backend";
