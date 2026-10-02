@@ -4,7 +4,7 @@ import { useLibrary } from "../contexts/LibraryContext";
 import { backend } from "../utils/backend";
 import DiscoveryFilters from "./DiscoveryFilters";
 import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
-import PicksShowcase from "./PicksShowcase";
+import PicksShowcase, { PicksSkeleton } from "./PicksShowcase";
 import { useSignals } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
 export default function CommunityPicks() {
@@ -93,9 +93,7 @@ export default function CommunityPicks() {
           {error}
         </p>
       ) : !result ? (
-        <p role="status" className="text-sm text-slate-500">
-          Finding your next film…
-        </p>
+        <PicksSkeleton />
       ) : (
         <>
           <p className="text-sm text-slate-500">{result.message}</p>

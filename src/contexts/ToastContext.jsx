@@ -2,7 +2,7 @@
 // Toast notification system – context + animated UI
 // =====================================================
 import React, { createContext, useCallback, useContext, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m as motion } from "framer-motion";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 const ToastCtx = createContext(null);

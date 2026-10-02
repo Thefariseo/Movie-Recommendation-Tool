@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m as motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, BookOpen, Brain, Check, Clock, Ghost, Heart, Infinity as NoLimit,
   Moon, Mountain, Pencil, Smile, Sparkles, Timer, Tv, Users, Zap,

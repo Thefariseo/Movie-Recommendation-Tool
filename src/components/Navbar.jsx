@@ -12,7 +12,7 @@ const destinations = [
   { path: "/friends", label: "Friends", icon: Users },
 ];
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { pathname } = useLocation();
   const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
@@ -87,13 +87,13 @@ export default function Navbar() {
               {user ? (
                 <UserAvatar
                   user={user}
-                  name={user.full_name}
+                  name={profile?.display_name || user.full_name}
                   className="nav-avatar"
                 />
               ) : (
                 <UserRound size={18} aria-hidden="true" />
               )}
-              <span>{user ? "Account" : "Sign in"}</span>
+              <span className="account-link-label">{user ? "Account" : "Sign in"}</span>
             </NavLink>
           </div>
         </div>

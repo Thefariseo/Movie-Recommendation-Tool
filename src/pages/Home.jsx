@@ -1,12 +1,17 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Bookmark, Star } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "@/hooks/useWatched";
 import useWatchlist from "@/hooks/useWatchlist";
 import CommunityPicks from "../components/CommunityPicks";
-import ForYouSection from "../components/ForYouSection";
+import { lazyPage } from "../utils/lazyPage";
+import { PicksSkeleton } from "../components/PicksShowcase";
 import RecommendationList from "../components/RecommendationList";
+// Guests' picks are computed in the browser; members' come from the server,
+// so the in-browser recommender is only downloaded when a guest needs it.
+const ForYouSection = lazyPage(() => import("../components/ForYouSection"));
+
 export default function Home() {
   const { user } = useAuth(),
     { watched } = useWatched(),
@@ -55,7 +60,9 @@ export default function Home() {
           {user ? (
             <CommunityPicks />
           ) : hasTaste ? (
-            <ForYouSection />
+            <Suspense fallback={<PicksSkeleton />}>
+              <ForYouSection />
+            </Suspense>
           ) : (
             <section className="welcome-panel">
               <div>

@@ -549,6 +549,17 @@ summary {
   gap: 28px;
   border-bottom: 1px solid rgb(var(--color-border));
   overflow-x: auto;
+  scrollbar-width: none;
+}
+.section-navigation::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 640px) {
+  /* Every section fits on a phone; past the edge, a fade says there is more. */
+  .section-navigation {
+    gap: 18px;
+    mask-image: linear-gradient(to right, #000 88%, transparent);
+  }
 }
 .section-navigation a {
   display: flex;
@@ -845,7 +856,7 @@ summary {
   .nav-destination {
     padding: 10px;
   }
-  .account-link span {
+  .account-link .account-link-label {
     display: none;
   }
 }
@@ -864,7 +875,7 @@ summary {
     flex-basis: 100%;
     max-width: none;
   }
-  .account-link span {
+  .account-link .account-link-label {
     display: inline;
   }
   .mobile-navigation {

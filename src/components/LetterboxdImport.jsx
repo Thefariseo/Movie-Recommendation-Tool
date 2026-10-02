@@ -10,7 +10,7 @@
 //   – Supported in Chrome 80+, Firefox 113+, Safari 16.4+ (our target)
 // =====================================================
 import React, { useCallback, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m as motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Star, Eye, CheckCircle, X, Loader2, FileText,
   ExternalLink, Archive, ChevronRight, ArrowRight,

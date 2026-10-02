@@ -10,8 +10,6 @@ const FAKES = {
 };
 const fromSrc = (context) => context.parentURL?.includes('/src/');
 export async function resolve(specifier, context, next) {
-  // A test that imports src/utils/api.js itself gets it real, over a fake axios.
-  if (specifier === 'axios' && context.parentURL?.endsWith('/src/utils/api.js')) return { url: fake('./fake-axios.mjs'), shortCircuit: true };
   if (FAKES[specifier] && fromSrc(context)) return { url: FAKES[specifier], shortCircuit: true };
   if (specifier.startsWith('.') && !/\.[cm]?jsx?$/.test(specifier) && fromSrc(context)) return next(`${specifier}.js`, context);
   return next(specifier, context);

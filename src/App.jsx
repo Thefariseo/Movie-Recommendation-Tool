@@ -4,7 +4,7 @@
 import React, { Suspense, useEffect } from "react";
 import { lazyPage } from "./utils/lazyPage";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { MotionConfig } from "framer-motion";
+import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
 import Navbar from "./components/Navbar";
 import LibraryLayout from "./components/LibraryLayout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -51,14 +51,16 @@ function AppContent() {
   // Keep the email callback outside the account-keyed tree and analytics.
   if (pathname === "/auth/callback") return <Suspense fallback={null}><AuthCallback /></Suspense>;
 
+  // Animations load their light core only; the modal and toasts, which sit
+  // outside the page, honour the member's reduced-motion setting too.
   return (
+    <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user">
     <ToastProvider>
       <LibraryProvider key={loading ? "loading" : user?.id || "guest"}>
         <WatchedProvider>
           <WatchlistProvider>
             <ModalProvider>
-              <MotionConfig reducedMotion="user">
-                <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
+                              <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
                   <Navbar />
                   <div id="page-content" tabIndex={-1}>
                     <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}>
@@ -101,7 +103,7 @@ function AppContent() {
                   </div>
                   {/* Plain anchors, not router Links: these pages are static HTML outside
                   the app, so the router must not claim them and redirect home. */}
-                  <footer className="mx-auto max-w-5xl px-4 pb-28 pt-8 md:pb-10 text-sm text-[rgb(var(--color-fg-muted))]">
+                  <footer className="mx-auto max-w-[var(--app-width)] px-4 pb-28 pt-8 text-sm text-[rgb(var(--color-fg-muted))] sm:px-8 md:pb-10">
                     <a className="hover:underline" href="/privacy">
                       Privacy
                     </a>
@@ -113,11 +115,11 @@ function AppContent() {
                   <Analytics />
                   <SpeedInsights />
                 </div>
-              </MotionConfig>
-            </ModalProvider>
+                          </ModalProvider>
           </WatchlistProvider>
         </WatchedProvider>
       </LibraryProvider>
     </ToastProvider>
+    </MotionConfig></LazyMotion>
   );
 }

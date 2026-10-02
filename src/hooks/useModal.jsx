@@ -1,6 +1,6 @@
 import { createContext, Suspense, useContext, useState } from "react";
 import { lazyPage } from "../utils/lazyPage";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m as motion } from "framer-motion";
 
 const ModalCtx = createContext();
 export const useModal = () => useContext(ModalCtx);

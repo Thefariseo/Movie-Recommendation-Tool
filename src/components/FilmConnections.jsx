@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link2 } from "lucide-react";
 import useWatched from "../hooks/useWatched";
-import { movieDetails } from "../utils/api";
+import { movieCore } from "../utils/api";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { cachedLook } from "../utils/visualStyle";
 import { connect } from "../../shared/connections.js";
@@ -27,7 +27,7 @@ export default function FilmConnections({ movie, details }) {
       // Films TMDB pairs with this one are worth a look too, when the member rated them.
       const paired = (details.recommendations?.results || []).map((r) => r.id).filter((id) => rated.some((m) => Number(m.id) === id));
       const ids = [...new Set([...near, ...paired])].slice(0, 16);
-      const fetched = await Promise.allSettled(ids.map((id) => movieDetails(id)));
+      const fetched = await Promise.allSettled(ids.map((id) => movieCore(id)));
       const byId = new Map([[Number(movie.id), details]]);
       fetched.forEach((r, i) => r.status === "fulfilled" && byId.set(ids[i], r.value));
       const looks = new Map([movie.id, ...ids].map((id) => [Number(id), cachedLook(id)]).filter(([, l]) => l));

@@ -20,11 +20,23 @@ import { signalMap, blocked, signalOf, jitter, withoutRecent } from '../shared/s
 export { tmdb };
 export const watchedMovies = rows => rows.filter(r => r.kind === 'watched').map(r => ({...r.movie, id: Number(r.movie_id), rated: r.rating}));
 const filmDetails = id => tmdb(`movie/${id}`, { append_to_response: 'credits,keywords' });
-async function inBatches(items, work, size = 6) {
-  const settled = [];
-  for (let i = 0; i < items.length; i += size) settled.push(...await Promise.allSettled(items.slice(i, i + size).map(work)));
+// Runs `work` over every item with at most `size` in flight at once, a new
+// one starting as soon as any finishes; settles like Promise.allSettled.
+async function inBatches(items, work, size = 8) {
+  const settled = new Array(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const i = next++;
+      try { settled[i] = { status: 'fulfilled', value: await work(items[i]) }; } catch (reason) { settled[i] = { status: 'rejected', reason }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, lane));
   return settled;
 }
+// A film's details as a list result: what scoring reads, without the credits
+// and keywords that only the judge needs (they stay in the TMDB cache).
+const listed = ({ credits, keywords, ...film }) => ({ ...film, genre_ids: film.genres?.map(g => g.id) });
 // Signed evidence from the member's most telling films: who made them, who is
 // in them, what they are about, where they come from. Smaller than the
 // browser's sample, since it runs inside a request's time budget.
@@ -187,28 +199,24 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   const circle = predictor && !constraints.watchlist_only ? await circleOf(db, ctx.user.id, space, placed[0], excluded).catch(() => new Map()) : new Map();
   const criticPicks = [...signals].filter(([id, e]) => e.net > 0 && e.sources.has('critic_pick') && !excluded.has(id)).slice(0, 8).map(([id]) => id);
   const detailIds = constraints.watchlist_only ? [] : [...new Set([...criticPicks, ...spaceIds, ...[...circle.keys()].slice(0, 8), ...collaborative.slice(0, 24).map(x => Number(x.movie_id)), ...modelIds])].slice(0, 64);
-  for (let i = 0; i < detailIds.length; i += 5) {
-    const results = await Promise.allSettled(detailIds.slice(i, i + 5).map(id => tmdb(`movie/${id}`)));
-    for (const r of results) if (r.status === 'fulfilled') add([{
-      ...r.value,
-      genre_ids: r.value.genres?.map(g => g.id)
-    }]);
-  }
-  for (const rows of libraries) {
-    const liked = constraints.watchlist_only ? [] : seedMovies(watchedMovies(rows), 4);
-    const results = await Promise.allSettled(liked.map(r => tmdb(`movie/${r.id}/recommendations`)));
-    for (const r of results) if (r.status === 'fulfilled') add(r.value.results);
-    const saved = rows.filter(r => r.kind === 'watchlist' && !excluded.has(Number(r.movie_id))).slice(0, constraints.watchlist_only ? 100 : 12);
-    for (let i = 0; i < saved.length; i += 6) {
-      const details = await Promise.allSettled(saved.slice(i, i + 6).map(r => tmdb(`movie/${r.movie_id}`)));
-      for (const r of details) if (r.status === 'fulfilled') add([r.value]);
-    }
-  }
+  // The candidates' details (fetched with credits and keywords, which the
+  // judge reads later from the cache), the films like each member's loved
+  // ones, their watchlists and their evidence are all fetched at once.
+  const seeds = libraries.flatMap(rows => (constraints.watchlist_only ? [] : seedMovies(watchedMovies(rows), 4)).map(r => r.id));
+  const saved = libraries.flatMap(rows => rows.filter(r => r.kind === 'watchlist' && !excluded.has(Number(r.movie_id))).slice(0, constraints.watchlist_only ? 100 : 12).map(r => Number(r.movie_id)));
+  const [details, similar, savedDetails, evidence] = await Promise.all([
+    inBatches(detailIds, id => filmDetails(id), 10),
+    inBatches(seeds, id => tmdb(`movie/${id}/recommendations`), 6),
+    inBatches([...new Set(saved)], id => filmDetails(id), 8),
+    // A single member's picks also weigh who made a film and what it is about,
+    // in both directions. Group picks stay on the shared content and community
+    // signals, since every extra member would multiply the provider calls.
+    ids.length === 1 ? memberEvidence(watchedMovies(libraries[0])) : null
+  ]);
+  for (const r of details) if (r.status === 'fulfilled') add([listed(r.value)]);
+  for (const r of similar) if (r.status === 'fulfilled') add(r.value.results);
+  for (const r of savedDetails) if (r.status === 'fulfilled') add([listed(r.value)]);
   const profiles = libraries.map(rows => tasteProfile(watchedMovies(rows)));
-  // A single member's picks also weigh who made a film and what it is about,
-  // in both directions. Group picks stay on the shared content and community
-  // signals, since every extra member would multiply the provider calls.
-  const evidence = ids.length === 1 ? await memberEvidence(watchedMovies(libraries[0])) : null;
   const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...new Set(profiles.flatMap(p => [...p.genres].filter(([,score]) => score > 0).sort((a,b) => b[1] - a[1]).slice(0, 2).map(([id]) => id)))].slice(0, 6);
   const discoveryParams = {
     ...(constraints.decade ? {'primary_release_date.gte': `${constraints.decade}-01-01`, 'primary_release_date.lte': `${constraints.decade + 9}-12-31`} : {}),
@@ -330,18 +338,11 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     if (!m._reason || /^(Matches patterns|Learned from|Loved by people|A well-rated)/.test(m._reason)) { m._reason = extra[0].short; m._reasonDetail = extra[0].full; }
   }
   if (constraints.max_runtime || constraints.avoid_violence || constraints.theme || constraints.country || constraints.director_id || constraints.actor_id || constraints.decade || nightFilters) {
-    const enriched = [];
-    // Bound provider calls; never backfill with films that violate an explicit constraint.
-    for (let i = 0; i < Math.min(movies.length, 36); i += 6) {
-      const part = await Promise.allSettled(movies.slice(i, i + 6).map(async m => ({
-        ...m,
-        ...(await tmdb(`movie/${m.id}`, {
-          append_to_response: 'keywords,credits'
-        }))
-      })));
-      for (const r of part) if (r.status === 'fulfilled') enriched.push(r.value);
-      // Check the whole bounded shortlist: early non-matches must not hide later matches.
-    }
+    // Bound provider calls; never backfill with films that violate an explicit
+    // constraint. The whole bounded shortlist is checked, so early non-matches
+    // cannot hide later matches; most details are already in the cache.
+    const enriched = (await inBatches(movies.slice(0, 36), async m => ({ ...m, ...(await filmDetails(m.id)) }), 10))
+      .filter(r => r.status === 'fulfilled').map(r => r.value);
     movies = enriched.filter(m => {
       if (!matchesDiscovery(m, constraints) || (nightFilters && !passesFilters(m, nightFilters))) return false;
       if (m.adult || (m.release_date && m.release_date > new Date().toISOString().slice(0, 10))) return false;
@@ -354,7 +355,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       if (constraints.avoid_violence && (!(m.genres || []).length || ![16, 35, 10751, 10749, 10402].some(g => (m.genre_ids || m.genres.map(x => x.id)).includes(g)) || /\b(violence|violent|gore|murder|torture|killer|blood|war|gun|assault|rape|abuse)\b/i.test(text))) return false;
       if (constraints.theme && !text.includes(constraints.theme.toLowerCase())) return false;
       return true;
-    });
+    }).map(({ credits, keywords, ...m }) => m);
   }
   // "Other picks": films just shown are left out while enough others remain,
   // and each round draws with a little variety among close candidates.
