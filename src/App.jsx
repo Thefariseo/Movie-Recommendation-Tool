@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useState } from "react";
 import { lazyPage, preloadPagesWhenIdle } from "./utils/lazyPage";
 import LanguagePicker from "./components/LanguagePicker";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
+import { LazyMotion, MotionConfig } from "framer-motion";
 import Navbar from "./components/Navbar";
 import LibraryLayout from "./components/LibraryLayout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -41,6 +41,8 @@ import { ToastProvider } from "@/contexts/ToastContext";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
+const loadMotionFeatures = () => import("./utils/motionFeatures").then((m) => m.default);
+
 export default function App() {
   return (
     <AuthProvider>
@@ -72,7 +74,7 @@ function AppContent() {
   // Animations load their light core only; the modal and toasts, which sit
   // outside the page, honour the member's reduced-motion setting too.
   return (
-    <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user">
+    <LazyMotion features={loadMotionFeatures} strict><MotionConfig reducedMotion="user">
     <ToastProvider>
       <LibraryProvider key={user?.id || "guest"}>
         <WatchedProvider>

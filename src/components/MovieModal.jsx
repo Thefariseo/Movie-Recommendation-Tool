@@ -250,6 +250,7 @@ export default function MovieModal({ movie, onClose }) {
         {/* Close button */}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute right-4 top-3 z-20 rounded-full bg-white/85 p-1.5 text-slate-500 shadow backdrop-blur transition-colors hover:text-slate-900 dark:bg-slate-800/85 dark:text-slate-400 dark:hover:text-slate-100"
         >
           <X className="h-4 w-4" />

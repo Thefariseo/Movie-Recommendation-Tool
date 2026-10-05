@@ -23,3 +23,21 @@ export const useBusy = () => useSyncExternalStore(subscribe, () => pending > 0, 
 export function useActivity() {
   useEffect(() => { start(); return stop; }, []);
 }
+
+/**
+ * Resolves once nothing has been pending for `quiet` ms (the page has its
+ * films), or after `max` ms whatever happens.
+ */
+export function whenQuiet(quiet = 1000, max = 15000) {
+  return new Promise((resolve) => {
+    let timer = null;
+    const done = () => { clearTimeout(timer); clearTimeout(cap); listeners.delete(check); resolve(); };
+    const check = () => {
+      clearTimeout(timer);
+      if (pending === 0) timer = setTimeout(done, quiet);
+    };
+    const cap = setTimeout(done, max);
+    listeners.add(check);
+    check();
+  });
+}

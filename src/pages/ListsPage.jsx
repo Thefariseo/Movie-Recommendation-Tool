@@ -38,9 +38,9 @@ export default function ListsPage() {
           <h2 className="section-title">Your lists</h2>
           <p className="mt-1 text-sm text-slate-500">Group films however you like and send the link to anyone, even without an account. Add films from any film sheet.</p>
         </div>
-        <form onSubmit={create} className="flex gap-2">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} required placeholder="Seventies horror, For Ozu lovers…" aria-label="New list title" className="account-input !mt-0 w-64" />
-          <button className="account-button inline-flex items-center gap-1.5" disabled={busy || !title.trim()}><Plus className="h-4 w-4" /> New list</button>
+        <form onSubmit={create} className="flex w-full gap-2 sm:w-auto">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} required placeholder="Seventies horror, For Ozu lovers…" aria-label="New list title" className="account-input !mt-0 min-w-0 flex-1 sm:w-64 sm:flex-none" />
+          <button className="account-button inline-flex shrink-0 items-center gap-1.5" disabled={busy || !title.trim()}><Plus className="h-4 w-4" /> New list</button>
         </form>
       </div>
       {lists == null && <PosterGridSkeleton count={3} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" />}

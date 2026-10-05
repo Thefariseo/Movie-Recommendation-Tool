@@ -100,7 +100,7 @@ export default function CommunityPicks() {
       ) : (
         <>
           <p className="text-sm text-slate-500">{result.message}</p>
-          {!result.movies.length && (
+          {!result.movies?.length && (
             <p role="status">
               No matches for these preferences. Expand Filters to adjust your
               choices.

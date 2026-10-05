@@ -19,13 +19,13 @@ const eligible = (ids) => [...new Set(ids.map(Number).filter((n) => Number.isSaf
 async function request(ids) {
   ids.forEach((id) => inflight.add(id));
   const found = {};
-  for (let i = 0; i < ids.length; i += 100) {
-    try {
-      Object.assign(found, (await backend(`ratings?ids=${ids.slice(i, i + 100).join(",")}`)).ratings);
-    } catch {
-      /* Ratings enrich the page; without them scoring falls back to TMDB. */
-    }
-  }
+  // Batches of 100 films go out together, not one after another: the
+  // recommendations wait on them.
+  const batches = [];
+  for (let i = 0; i < ids.length; i += 100) batches.push(ids.slice(i, i + 100));
+  await Promise.all(batches.map((batch) => backend(`ratings?ids=${batch.join(",")}`)
+    .then((r) => Object.assign(found, r.ratings))
+    .catch(() => { /* Ratings enrich the page; without them scoring falls back to TMDB. */ })));
   const now = Date.now();
   for (const id of ids) {
     inflight.delete(id);

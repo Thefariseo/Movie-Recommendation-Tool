@@ -1,4 +1,4 @@
-import { createContext, Suspense, useContext, useEffect, useState } from "react";
+import { createContext, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { lazyPage } from "../utils/lazyPage";
 import { reducedMotion } from "../utils/motion";
@@ -10,6 +10,7 @@ export const useModal = () => useContext(ModalCtx);
 /* ---------- Root that lives once, usually inside <App> ---------- */
 export function ModalProvider({ children }) {
   const [movie, setMovie] = useState(null);
+  const close = useCallback(() => setMovie(null), []);
   useEffect(() => rememberPosters(), []);
 
   // The poster just tapped grows into the film sheet's poster.
@@ -31,10 +32,10 @@ export function ModalProvider({ children }) {
   };
 
   return (
-    <ModalCtx.Provider value={{ open, close: () => setMovie(null) }}>
+    <ModalCtx.Provider value={{ open, close }}>
       {children}
       <AnimatePresence>
-        {movie && <ModalRoot movie={movie} onClose={() => setMovie(null)} />}
+        {movie && <ModalRoot movie={movie} onClose={close} />}
       </AnimatePresence>
     </ModalCtx.Provider>
   );
@@ -42,13 +43,35 @@ export function ModalProvider({ children }) {
 
 /* ---------- backdrop ---------- */
 function ModalRoot({ movie, onClose }) {
+  const root = useRef(null);
+  // A dialog: Escape closes it, the page behind stays still, and focus moves
+  // into it and back to where it was when it closes.
+  useEffect(() => {
+    const before = document.activeElement;
+    const html = document.documentElement;
+    const overflow = html.style.overflow;
+    html.style.overflow = "hidden";
+    root.current?.focus({ preventScroll: true });
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      html.style.overflow = overflow;
+      before?.focus?.({ preventScroll: true });
+    };
+  }, [onClose]);
   return (
     <motion.div
       key="backdrop"
+      ref={root}
+      role="dialog"
+      aria-modal="true"
+      aria-label={movie.title}
+      tabIndex={-1}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] overflow-y-auto bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-black/75 backdrop-blur-sm focus:outline-none"
       onClick={onClose}
     >
       {/* Centre vertically; scrollable on small screens */}
