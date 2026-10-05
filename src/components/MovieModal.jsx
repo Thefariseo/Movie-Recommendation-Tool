@@ -30,6 +30,7 @@ import { rankTrailers, viewerLanguage } from "../utils/trailers";
 import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
+import RecommendToFriend from "./friends/RecommendToFriend";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -431,6 +432,8 @@ export default function MovieModal({ movie, onClose }) {
               <Play className="h-4 w-4" /> Trailer
             </button>
           )}
+
+          <RecommendToFriend movie={movie} />
 
           {!alreadyWatched && (
             <button

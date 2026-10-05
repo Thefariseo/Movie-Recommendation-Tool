@@ -1,5 +1,6 @@
 import { nodeHandler, identify, database, allRows, body, HttpError, uuid } from '../server/http.js';
 import { normalizeMovie } from '../shared/library.js';
+import { personView, recommendFilm, inbox, markRecommendationsSeen, dismissRecommendation, react, reactionsFor } from '../server/friends.js';
 import { readNotifications, subscribePush, unsubscribePush, notify, senderName } from '../server/notifications.js';
 export async function social(ctx) {
   await identify(ctx);
@@ -7,6 +8,8 @@ export async function social(ctx) {
     me = ctx.user.id;
   if (ctx.request.method === 'GET') {
     if (ctx.url.searchParams.has('notifications')) return readNotifications(ctx);
+    if (ctx.url.searchParams.get('person')) return personView(ctx, ctx.url.searchParams.get('person'));
+    if (ctx.url.searchParams.has('inbox')) return inbox(ctx);
     const q = (ctx.url.searchParams.get('q') || '').trim();
     if (q) {
       if (q.length < 2 || q.length > 60) throw new HttpError(400, 'Search with 2–60 characters.');
@@ -18,12 +21,19 @@ export async function social(ctx) {
     const [following, followers, lists] = await Promise.all([db(`follows?follower_id=eq.${me}&select=followed_id&limit=500`), db(`follows?followed_id=eq.${me}&select=follower_id&limit=500`), db('shared_lists?select=*,list_members(user_id),list_movies(*)&order=created_at.desc&limit=100')]);
     const ids = [...new Set([...following.map(f => f.followed_id), ...followers.map(f => f.follower_id)])];
     const people = ids.length ? await db(`profiles?id=in.(${ids.join(',')})&select=id,display_name,avatar_url,share_activity&limit=1000`) : [];
-    const activity = await db(`user_movies?user_id=neq.${me}&deleted=eq.false&select=user_id,movie_id,movie,kind,rating,updated_at&order=updated_at.desc&limit=40`);
+    const activity = await db(`user_movies?user_id=neq.${me}&deleted=eq.false&select=user_id,movie_id,movie,kind,rating,updated_at&order=updated_at.desc&limit=80`);
+    // Reactions to friends' films, and how many films friends sent that are still unseen.
+    const [reactions, unseen] = await Promise.all([
+      reactionsFor(ctx, activity.filter(a => a.kind === 'watched')),
+      db(`film_recommendations?recipient=eq.${me}&seen_at=is.null&select=id&limit=100`).catch(() => [])
+    ]);
     return {
       following: following.map(f => f.followed_id),
       followers: followers.map(f => f.follower_id),
       people,
       activity,
+      reactions,
+      unseen: unseen.length,
       lists
     };
   }
@@ -65,6 +75,10 @@ export async function social(ctx) {
       ok: true
     };
   }
+  if (input.action === 'recommend') return recommendFilm(ctx, input);
+  if (input.action === 'recommend-seen') return markRecommendationsSeen(ctx);
+  if (input.action === 'recommend-dismiss') return dismissRecommendation(ctx, input.id);
+  if (input.action === 'react') return react(ctx, input);
   if (input.action === 'push-subscribe') return subscribePush(ctx, input.subscription);
   if (input.action === 'push-unsubscribe') return unsubscribePush(ctx, input.endpoint);
   if (input.action === 'unfollow') {

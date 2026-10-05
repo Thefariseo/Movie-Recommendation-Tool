@@ -230,3 +230,47 @@ export function circleReason(pick) {
   const fit = pick.fit >= 0.4 ? '; people with your taste love it too' : pick.fit <= 0 ? '; a step away from your usual taste' : '';
   return `${who}${also}${fit}.`;
 }
+
+/**
+ * What a friend's diary holds for the member, for their profile page.
+ * `mine` and `theirs` are diaries ({ id, title, rated, poster_path }),
+ * `myList` and `theirList` watchlists, `predict` an optional
+ * id -> { rating, support } (shared/predict.js) for the member.
+ * Returns the films both loved, the friend's favourites the member has not
+ * seen (best bets for the member first), the films both want to see, and a
+ * few numbers about the friend's diary.
+ */
+export function friendOverview(mine, theirs, myList = [], theirList = [], predict = null, { limit = 12 } = {}) {
+  const rated = (films) => films.filter((f) => Number(f.rated) > 0);
+  const my = new Map(mine.map((f) => [Number(f.id), f]));
+  const theirRated = rated(theirs);
+  const bothLoved = theirRated
+    .filter((f) => Number(f.rated) >= 8 && Number(my.get(Number(f.id))?.rated) >= 8)
+    .map((f) => ({ ...f, you: Number(my.get(Number(f.id)).rated), them: Number(f.rated) }))
+    .sort((a, b) => (b.you + b.them) - (a.you + a.them))
+    .slice(0, limit);
+  const favourites = theirRated
+    .filter((f) => Number(f.rated) >= 8 && !my.has(Number(f.id)))
+    .map((f) => {
+      const p = predict?.(f.id);
+      // Their enthusiasm, and what the member's own diary says about it when it can.
+      const score = Number(f.rated) / 10 + (p && p.support > 0.3 ? (p.rating - 6.5) / 4 : 0);
+      return { ...f, them: Number(f.rated), predicted: p && p.support > 0.3 ? p.rating : null, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+  const want = new Set(myList.map((f) => Number(f.id)));
+  const bothWant = theirList.filter((f) => want.has(Number(f.id)));
+  const ratings = theirRated.map((f) => Number(f.rated));
+  return {
+    bothLoved,
+    favourites,
+    bothWant,
+    stats: {
+      rated: ratings.length,
+      mean: ratings.length ? Number((ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1)) : null,
+      loved: ratings.filter((r) => r >= 8).length,
+      watchlist: theirList.length
+    }
+  };
+}

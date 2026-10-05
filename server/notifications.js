@@ -10,6 +10,7 @@ import { database, HttpError } from './http.js';
 import { seasonWeek, weekOpens } from '../shared/seasons.js';
 
 const DAY = 86_400_000;
+const EMOJI = { heart: '❤️', fire: '🔥', wow: '😮', laugh: '😂', sad: '😢', agree: '👍' };
 const since = (days) => new Date(Date.now() - days * DAY).toISOString();
 const name = (people, id) => people.get(id)?.display_name || 'A friend';
 const filmTitle = (night, id) => night.films?.find((f) => Number(f.id) === Number(id))?.title || 'a film';
@@ -17,12 +18,15 @@ const filmTitle = (night, id) => night.films?.find((f) => Number(f.id) === Numbe
 /** The bell's items, newest first: [{ id, kind, at, title, body, link, actor, poster }]. */
 export async function readNotifications(ctx) {
   const db = database(ctx.token), me = ctx.user.id;
-  const [nights, followers, following, seasons] = await Promise.all([
+  const [nights, followers, following, seasons, picks, reactions] = await Promise.all([
     db(`tonight_sessions?members=cs.{${me}}&or=${encodeURIComponent(`(status.eq.open,decided_at.gte."${since(7)}")`)}&select=id,host,members,status,winner,films,created_at,decided_at&order=created_at.desc&limit=10`),
     db(`follows?followed_id=eq.${me}&created_at=gte.${since(30)}&select=follower_id,created_at&order=created_at.desc&limit=20`),
     db(`follows?follower_id=eq.${me}&select=followed_id&limit=500`),
     // Before the seasons migration runs, there are simply no seasons.
-    db(`cinema_seasons?members=cs.{${me}}&select=id,host,season,started_at&order=started_at.desc&limit=10`).catch(() => [])
+    db(`cinema_seasons?members=cs.{${me}}&select=id,host,season,started_at&order=started_at.desc&limit=10`).catch(() => []),
+    // Films friends sent, still unseen, and friends' reactions to the member's films.
+    db(`film_recommendations?recipient=eq.${me}&seen_at=is.null&select=id,sender,movie,note,created_at&order=created_at.desc&limit=10`).catch(() => []),
+    db(`activity_reactions?owner=eq.${me}&created_at=gte.${since(14)}&select=movie_id,reactor,emoji,created_at&order=created_at.desc&limit=30`).catch(() => [])
   ]);
   // Each season's film of the week, when the member has not watched it yet.
   const weekly = seasons.map((s) => ({ s, k: seasonWeek(s).current, w: s.season.weeks[seasonWeek(s).current] })).filter(({ s }) => !seasonWeek(s).finished);
@@ -32,7 +36,7 @@ export async function readNotifications(ctx) {
     open.length ? db(`tonight_votes?user_id=eq.${me}&session_id=in.(${open.map((n) => n.id).join(',')})&select=session_id&limit=200`) : [],
     following.length ? db(`user_movies?user_id=in.(${following.map((f) => f.followed_id).slice(0, 200).join(',')})&kind=eq.watched&deleted=eq.false&rating=gte.9&updated_at=gte.${since(14)}&select=user_id,movie_id,movie,rating,updated_at&order=updated_at.desc&limit=12`) : []
   ]);
-  const ids = new Set([...nights.flatMap((n) => [n.host, ...n.members]), ...followers.map((f) => f.follower_id), ...loved.map((l) => l.user_id)]);
+  const ids = new Set([...nights.flatMap((n) => [n.host, ...n.members]), ...followers.map((f) => f.follower_id), ...loved.map((l) => l.user_id), ...picks.map((r) => r.sender), ...reactions.map((r) => r.reactor)]);
   ids.delete(me);
   const people = new Map(ids.size ? (await db(`profiles?id=in.(${[...ids].join(',')})&select=id,display_name,avatar_url`)).map((p) => [p.id, p]) : []);
   const voted = new Set(votes.map((v) => v.session_id));
@@ -51,6 +55,20 @@ export async function readNotifications(ctx) {
   for (const { s, k, w } of weekly) {
     if (seenWeekly.has(Number(w.id))) continue;
     items.push({ id: `season:${s.id}:${k}`, kind: 'season-week', at: weekOpens(s, k).toISOString(), actor: null, title: `Week ${k + 1} of ${s.season.title}: ${w.title}`, body: w.question ? `After watching: ${w.question}` : 'This week\'s film is open.', link: `/season/${s.id}`, poster: w.poster_path || null });
+  }
+  for (const r of picks) {
+    items.push({ id: `pick:${r.id}`, kind: 'friend-pick', at: r.created_at, actor: people.get(r.sender) || null, title: `${name(people, r.sender)} recommends ${r.movie?.title || 'a film'}`, body: r.note || 'A film picked for you by a friend.', link: '/friends?tab=inbox', poster: r.movie?.poster_path || null });
+  }
+  // Reactions to one film come as one item.
+  const byFilm = new Map();
+  for (const r of reactions) (byFilm.get(r.movie_id) || byFilm.set(r.movie_id, []).get(r.movie_id)).push(r);
+  if (byFilm.size) {
+    const films = new Map((await db(`user_movies?user_id=eq.${me}&movie_id=in.(${[...byFilm.keys()].join(',')})&kind=eq.watched&select=movie_id,movie`).catch(() => [])).map((m) => [Number(m.movie_id), m.movie]));
+    for (const [movieId, list] of byFilm) {
+      const film = films.get(Number(movieId));
+      const who = list.length === 1 ? name(people, list[0].reactor) : `${name(people, list[0].reactor)} and ${list.length - 1} more`;
+      items.push({ id: `react:${movieId}`, kind: 'reaction', at: list[0].created_at, actor: people.get(list[0].reactor) || null, title: `${who} reacted to ${film?.title || 'a film you watched'}`, body: list.map((r) => EMOJI[r.emoji] || '').join(' '), link: '/friends', poster: film?.poster_path || null });
+    }
   }
   for (const f of followers) {
     const back = followed.has(f.follower_id);
