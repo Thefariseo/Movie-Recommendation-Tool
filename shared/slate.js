@@ -49,12 +49,12 @@ export function slate(movies, {
     && !(m.dirName && directors.has(m.dirName)) && !chosen.some((c) => similar(c.m, m) >= 0.95);
   take(top, { kind: 'top', label: 'Your top match' });
   const roles = [
-    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you loved “${anchor(m).title}”` }]; },
+    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you ${anchor(m).seed ? "picked" : "loved"} “${anchor(m).title}”` }]; },
     () => { const m = movies.find((x) => open(x) && circle(x)); return m && [m, { kind: 'circle', label: `From your circle: ${circle(m).name}` }]; },
-    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you loved “${anchor(m).title}”` }]; },
+    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you ${anchor(m).seed ? "picked" : "loved"} “${anchor(m).title}”` }]; },
     () => { const m = movies.find((x) => open(x, 1.5) && territory(x)); return m && [m, { kind: 'territory', label: 'New territory for you', place: territory(m) }]; },
     () => { const m = movies.find((x) => open(x, 1.5) && gem(x)); return m && [m, { kind: 'gem', label: 'A hidden gem' }]; },
-    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you loved “${anchor(m).title}”` }]; }
+    () => { const m = movies.find((x) => open(x) && anchor(x) && !sides.some((s) => sameSide(s, anchor(x)))); return m && [m, { kind: 'because', label: `Because you ${anchor(m).seed ? "picked" : "loved"} “${anchor(m).title}”` }]; }
   ];
   for (const role of roles) {
     if (chosen.length >= ROLE_PLACES) break;

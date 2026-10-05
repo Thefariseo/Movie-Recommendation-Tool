@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Bookmark, Star } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -8,9 +8,13 @@ import CommunityPicks from "../components/CommunityPicks";
 import { lazyPage } from "../utils/lazyPage";
 import { PicksSkeleton } from "../components/PicksShowcase";
 import RecommendationList from "../components/RecommendationList";
+import { useSignals } from "../utils/signals";
+import { onboardingSkipped } from "../utils/onboarding";
+import { hasSeeds } from "../../shared/onboarding.js";
 // Guests' picks are computed in the browser; members' come from the server,
 // so the in-browser recommender is only downloaded when a guest needs it.
 const ForYouSection = lazyPage(() => import("../components/ForYouSection"));
+const TasteOnboarding = lazyPage(() => import("../components/TasteOnboarding"));
 
 export default function Home() {
   const { user } = useAuth(),
@@ -18,7 +22,13 @@ export default function Home() {
     { watchlist } = useWatchlist();
   const [params] = useSearchParams();
   const view = params.get("view") === "browse" ? "browse" : "foryou";
-  const hasTaste = watched.length > 0 || watchlist.length > 0;
+  const seeded = hasSeeds(useSignals(user?.id));
+  const [skipped, setSkipped] = useState(onboardingSkipped);
+  // Kept on screen once done, to show the choices the new picks follow.
+  const [finished, setFinished] = useState(false);
+  // A newcomer with nothing rated first makes a few quick choices.
+  const onboarding = finished || (!watched.some((m) => Number(m.rated) > 0) && !seeded && !skipped);
+  const hasTaste = watched.length > 0 || watchlist.length > 0 || seeded;
   return (
     <main className="discover-page">
       <div className="discovery-heading">
@@ -57,13 +67,22 @@ export default function Home() {
         </div>
       ) : (
         <div className="space-y-8 pt-7">
+          {onboarding && (
+            <Suspense fallback={<PicksSkeleton />}>
+              <TasteOnboarding onSkip={() => setSkipped(true)} onDone={() => setFinished(true)} />
+              {!finished && <p className="text-sm text-slate-500">
+                Already keep a film diary?{" "}
+                <Link className="font-medium text-indigo-600 hover:underline" to="/library/watched?import=1">Import it from Letterboxd</Link>
+              </p>}
+            </Suspense>
+          )}
           {user ? (
             <CommunityPicks />
           ) : hasTaste ? (
             <Suspense fallback={<PicksSkeleton />}>
               <ForYouSection />
             </Suspense>
-          ) : (
+          ) : onboarding ? null : (
             <section className="welcome-panel">
               <div>
                 <span className="welcome-icon">

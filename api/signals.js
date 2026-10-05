@@ -1,5 +1,5 @@
 import { nodeHandler, identify, body, HttpError } from '../server/http.js';
-import { readSignals, readRules, dismiss, undismiss } from '../server/signals.js';
+import { readSignals, readRules, dismiss, undismiss, saveOnboarding } from '../server/signals.js';
 import { readJourneys, saveJourney, dropJourney } from '../server/journeys.js';
 // A member's notes on their taste: "Not for me", what the critic said about
 // films and learned about them (its taste rules), and the journeys they follow.
@@ -14,6 +14,7 @@ export async function signals(ctx) {
   const input = await body(ctx);
   if (input.action === 'dismiss') return dismiss(ctx, input.movie);
   if (input.action === 'undismiss') return undismiss(ctx, input.movie_id);
+  if (input.action === 'onboarding') return saveOnboarding(ctx, input.movies);
   if (input.action === 'save-journey') return saveJourney(ctx, input.journey);
   if (input.action === 'drop-journey') return dropJourney(ctx, input.id);
   throw new HttpError(400, 'Unknown action.');

@@ -24,7 +24,8 @@ function writeGuest() {
 
 /** Loads the signals of `userId` (null for a guest), once per account. */
 export function loadSignals(userId) {
-  if (owner === userId && loading) return loading;
+  // Signals added since the first load (a dismissal, first-visit choices) are in `rows`.
+  if (owner === userId && loading) return loading.then(() => signalMap(rows));
   owner = userId;
   loading = (userId ? backend("signals").catch(() => ({})) : Promise.resolve({ signals: readGuest(), rules: [] }))
     .then((d) => {
@@ -49,6 +50,16 @@ export async function dismissFilm(movie) {
   rows = [entry, ...rows.filter((r) => !(Number(r.movie_id) === entry.movie_id && r.source === "dismissed"))];
   emit();
   if (owner) await backend("signals", { action: "dismiss", movie: entry.movie });
+  else writeGuest();
+}
+
+/** A first visit's choices: each chosen film is kept as an 'onboarding' signal. */
+export async function saveOnboarding(movies) {
+  const entries = movies.map((m) => ({ movie_id: Number(m.id), source: "onboarding", signal: 1, movie: { id: Number(m.id), title: m.title, poster_path: m.poster_path || null, genre_ids: m.genre_ids || (m.genres || []).map((g) => g.id ?? g) } }));
+  const ids = new Set(entries.map((e) => e.movie_id));
+  rows = [...entries, ...rows.filter((r) => !(ids.has(Number(r.movie_id)) && r.source === "onboarding"))];
+  emit();
+  if (owner) await backend("signals", { action: "onboarding", movies: entries.map((e) => e.movie) });
   else writeGuest();
 }
 

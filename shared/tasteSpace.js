@@ -71,7 +71,8 @@ export function placeMember(space, films = [], saved = [], { min = 2 } = {}) {
   const used = [];
   for (const f of films) {
     const i = index.get(Number(f.id)), c = confidence(f.rated);
-    if (i != null && c > 0) used.push({ i, c, id: Number(f.id), rated: Number(f.rated), title: f.title });
+    // A film chosen on a first visit (shared/onboarding.js) counts like a rating, but is never cited as one.
+    if (i != null && c > 0) used.push({ i, c, id: Number(f.id), rated: Number(f.rated), title: f.title, ...(f._seed ? { seed: true } : {}) });
   }
   const loved = used.length;
   const seen = new Set(used.map((u) => u.i));
@@ -137,7 +138,7 @@ export function becauseOf(space, member, i, { limit = 2 } = {}) {
     .map((u) => {
       let s = 0;
       for (let j = 0; j < k; j++) s += vectors[u.i * k + j] * x[j];
-      return { title: u.title, rated: u.rated, id: u.id, share: (1 + u.c) * s };
+      return { title: u.title, rated: u.rated, id: u.id, share: (1 + u.c) * s, ...(u.seed ? { seed: true } : {}) };
     })
     .filter((u) => u.share > 0)
     .sort((a, b) => b.share - a.share)

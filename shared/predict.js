@@ -39,9 +39,11 @@ export function ratingPredictor(space, watched) {
   const rated = [];
   for (const f of watched) {
     const r = Number(f.rated), i = space.index.get(Number(f.id));
-    if (r > 0 && i != null) rated.push({ i, id: Number(f.id), title: f.title, rated: r });
+    if (r > 0 && i != null) rated.push({ i, id: Number(f.id), title: f.title, rated: r, seed: Boolean(f._seed) });
   }
-  const all = watched.filter((f) => Number(f.rated) > 0);
+  // The member's mean is that of their real ratings; first-visit picks only add neighbours.
+  const real = watched.filter((f) => Number(f.rated) > 0 && !f._seed);
+  const all = real.length ? real : watched.filter((f) => Number(f.rated) > 0);
   const mean = all.length ? all.reduce((s, f) => s + Number(f.rated), 0) / all.length : 6.5;
   const u = unitVectors(space), k = space.k;
   const predict = (id) => {
@@ -61,7 +63,8 @@ export function ratingPredictor(space, watched) {
     return {
       rating: Number(((swr + PRIOR * mean) / (sw + PRIOR)).toFixed(2)),
       support: Number(sw.toFixed(2)),
-      neighbours: used.slice(0, 3).map(({ id, title, rated: r, sim }) => ({ id, title, rated: r, sim: Number(sim.toFixed(2)) }))
+      // Only films the member rated are named: a first-visit pick was not rated.
+      neighbours: used.filter((f) => !f.seed).slice(0, 3).map(({ id, title, rated: r, sim }) => ({ id, title, rated: r, sim: Number(sim.toFixed(2)) }))
     };
   };
   return { predict, mean };

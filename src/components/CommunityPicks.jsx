@@ -7,6 +7,7 @@ import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
 import PicksShowcase, { PicksSkeleton } from "./PicksShowcase";
 import { useSignals } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
+import { hasSeeds } from "../../shared/onboarding.js";
 export default function CommunityPicks() {
   const { user } = useAuth();
   const { watched, watchlist, ready } = useLibrary();
@@ -16,6 +17,8 @@ export default function CommunityPicks() {
   const [filters, setFilters] = useState(DEFAULT_DISCOVERY);
   const [recent, setRecent] = useState([]);
   const signals = useSignals(user?.id);
+  // Picks are asked for again once a newcomer's first choices are in.
+  const seeded = hasSeeds(signals);
   const owner = useRef(user?.id);
   const libraryKey = JSON.stringify([
     watched.map((m) => [m.id, m.rated]),
@@ -52,7 +55,7 @@ export default function CommunityPicks() {
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [user?.id, ready, libraryKey, revision, filters, recent]);
+  }, [user?.id, ready, libraryKey, revision, filters, recent, seeded]);
   if (!user) return null;
   // What is on screen: dismissed films leave at once.
   const shown = (result?.movies || []).filter((m) => !blocked(signals, m.id)).slice(0, 6);

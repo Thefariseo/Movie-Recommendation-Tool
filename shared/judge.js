@@ -20,7 +20,9 @@ const WEIGHTS = { director: 0.35, cast: 0.12, keywords: 0.30, country: 0.08, rul
 
 const quoted = f => `"${f.title}"`;
 // ""Ran" (5★) and "Ikiru" (4.5★)"
-const listed = films => films.map(f => `${quoted(f)} (${stars(f.rated)})`).join(' and ');
+const listed = films => films.map(f => `${quoted(f)} (${f.seed ? 'your pick' : stars(f.rated)})`).join(' and ');
+// What the member did with a film: rated it, or picked it on their first visit.
+const did = f => (f.seed ? 'you picked it' : `you gave ${stars(f.rated)}`);
 // ""Ran" 5★ and "Ikiru" 4.5★"
 const gave = films => films.map(f => `${quoted(f)} ${stars(f.rated)}`).join(' and ');
 const clamp01 = v => Math.max(0, Math.min(1, v));
@@ -52,7 +54,7 @@ export function judge({ details, evidence = null, rules = [], peer = null, signa
     const [first, second] = peer.films;
     signs.push({
       kind: 'peers', strength: clamp01(peerStrength(peer.z)),
-      short: `Fans of ${quoted(first)} love it — you gave ${stars(first.rated)}`,
+      short: `Fans of ${quoted(first)} love it — ${did(first)}`,
       full: `People who loved ${listed([first, second].filter(Boolean))}, as you did, tend to love this one too.`
     });
   }

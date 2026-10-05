@@ -11,6 +11,7 @@ import { tasteProfile, genreIds, qualityScore, seedMovies, diversePicks, criticA
 import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf, languageOf, stars } from "../../shared/evidence.js";
 import { placeMember, affinities, strongest, becauseOf, peerStrength, similarity } from "../../shared/tasteSpace.js";
 import { ratingPredictor } from "../../shared/predict.js";
+import { withSeeds } from "../../shared/onboarding.js";
 import { slate } from "../../shared/slate.js";
 import { territoryName } from "../../shared/atlas.js";
 import { loadTasteMap } from "../utils/tasteMap";
@@ -337,7 +338,10 @@ export async function getRecommendations({
   /* ================================================================= */
 
   const likedFilms = watched.filter(m => Number(m.rated) >= 6);
-  const taste = tasteProfile(watched);
+  // A newcomer's first-visit choices (shared/onboarding.js) stand in for
+  // ratings in their taste profile and place in the space, never as ratings.
+  const placedFilms = withSeeds(watched, signals);
+  const taste = tasteProfile(placedFilms);
   const genreAffinity = taste.genres;
   const decadeAffinity = taste.decades;
   const favGenres = [...genreAffinity].filter(([, score]) => score > 0)
@@ -388,7 +392,7 @@ export async function getRecommendations({
   // Without the file, or with too few loved films it knows, picks carry on
   // from the member's own evidence alone.
   const space = await loadTasteSpace();
-  const member = space && placeMember(space, watched, watchlist.map((m) => m.id));
+  const member = space && placeMember(space, placedFilms, watchlist.map((m) => m.id));
   const peer = member ? affinities(space, member) : null;
   const peerZ = (id) => {
     const i = peer && space.index.get(Number(id));
@@ -694,7 +698,7 @@ export async function getRecommendations({
   /* 8. Score each candidate                                             */
   /* ================================================================= */
 
-  const watchedIds = new Set(watched.map((m) => Number(m.id)));
+  const watchedIds = new Set(placedFilms.map((m) => Number(m.id)));
 
   const voteCountFloor = watched.length >= 100 ? 80 : 30;
 
@@ -912,7 +916,7 @@ export async function getRecommendations({
 
   // What the member's own ratings of the films most like each one predict,
   // including the films they disliked, which the taste space cannot see.
-  const predictor = member ? ratingPredictor(space, watched) : null;
+  const predictor = member ? ratingPredictor(space, placedFilms) : null;
   if (predictor) {
     for (const r of results.slice(0, SHORTLIST * 2)) {
       const p = predictor.predict(r.id);
