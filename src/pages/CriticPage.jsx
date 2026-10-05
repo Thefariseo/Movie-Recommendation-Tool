@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { m as motion } from "framer-motion";
 import { Feather, MessageSquarePlus, RotateCcw, Send, Sparkles, Star, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -132,6 +132,9 @@ export default function CriticPage() {
   const { user } = useAuth();
   const { watched } = useWatched();
   const [state, setState] = useState(null);
+  // A question brought from elsewhere (a cinema season's week) opens a new chat with it ready to send.
+  const [params] = useSearchParams();
+  const ask = (params.get("ask") || "").slice(0, 1000);
   // The member's message shows at once, before the critic answers.
   const [pending, setPending] = useState(null);
   const seenCount = useRef(null);
@@ -164,7 +167,11 @@ export default function CriticPage() {
     backend("critic").then(async (s) => {
       setState({ ...s, messages: [] });
       // Pick up the latest chat where it was left.
-      if (s.threads?.length) await openThread(s.threads[0].id);
+      if (ask) {
+        showThread(null);
+        setInterview(false);
+        setMessage(ask);
+      } else if (s.threads?.length) await openThread(s.threads[0].id);
       else showThread(null);
     }).catch((e) => setError(e.message));
   }, [user?.id]);

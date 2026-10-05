@@ -7,6 +7,7 @@
 // VAPID keys (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY) and the service role key.
 import webpush from 'web-push';
 import { database, HttpError } from './http.js';
+import { seasonWeek, weekOpens } from '../shared/seasons.js';
 
 const DAY = 86_400_000;
 const since = (days) => new Date(Date.now() - days * DAY).toISOString();
@@ -16,11 +17,16 @@ const filmTitle = (night, id) => night.films?.find((f) => Number(f.id) === Numbe
 /** The bell's items, newest first: [{ id, kind, at, title, body, link, actor, poster }]. */
 export async function readNotifications(ctx) {
   const db = database(ctx.token), me = ctx.user.id;
-  const [nights, followers, following] = await Promise.all([
+  const [nights, followers, following, seasons] = await Promise.all([
     db(`tonight_sessions?members=cs.{${me}}&or=${encodeURIComponent(`(status.eq.open,decided_at.gte."${since(7)}")`)}&select=id,host,members,status,winner,films,created_at,decided_at&order=created_at.desc&limit=10`),
     db(`follows?followed_id=eq.${me}&created_at=gte.${since(30)}&select=follower_id,created_at&order=created_at.desc&limit=20`),
-    db(`follows?follower_id=eq.${me}&select=followed_id&limit=500`)
+    db(`follows?follower_id=eq.${me}&select=followed_id&limit=500`),
+    // Before the seasons migration runs, there are simply no seasons.
+    db(`cinema_seasons?members=cs.{${me}}&select=id,host,season,started_at&order=started_at.desc&limit=10`).catch(() => [])
   ]);
+  // Each season's film of the week, when the member has not watched it yet.
+  const weekly = seasons.map((s) => ({ s, k: seasonWeek(s).current, w: s.season.weeks[seasonWeek(s).current] })).filter(({ s }) => !seasonWeek(s).finished);
+  const seenWeekly = weekly.length ? new Set((await db(`user_movies?user_id=eq.${me}&kind=eq.watched&deleted=eq.false&movie_id=in.(${weekly.map(({ w }) => w.id).join(',')})&select=movie_id`)).map((r) => Number(r.movie_id))) : new Set();
   const open = nights.filter((n) => n.status === 'open' && n.host !== me);
   const [votes, loved] = await Promise.all([
     open.length ? db(`tonight_votes?user_id=eq.${me}&session_id=in.(${open.map((n) => n.id).join(',')})&select=session_id&limit=200`) : [],
@@ -41,6 +47,10 @@ export async function readNotifications(ctx) {
     if (n.status !== 'decided') continue;
     const winner = n.films?.find((f) => Number(f.id) === Number(n.winner));
     items.push({ id: `decided:${n.id}`, kind: 'night-decided', at: n.decided_at, actor: people.get(n.host) || null, title: `Tonight's film: ${filmTitle(n, n.winner)}`, body: n.host === me ? 'Your movie night is decided.' : `${name(people, n.host)} decided the movie night.`, link: `/tonight/${n.id}`, poster: winner?.poster_path || null });
+  }
+  for (const { s, k, w } of weekly) {
+    if (seenWeekly.has(Number(w.id))) continue;
+    items.push({ id: `season:${s.id}:${k}`, kind: 'season-week', at: weekOpens(s, k).toISOString(), actor: null, title: `Week ${k + 1} of ${s.season.title}: ${w.title}`, body: w.question ? `After watching: ${w.question}` : 'This week\'s film is open.', link: `/season/${s.id}`, poster: w.poster_path || null });
   }
   for (const f of followers) {
     const back = followed.has(f.follower_id);
