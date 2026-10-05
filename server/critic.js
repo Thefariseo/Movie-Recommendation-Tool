@@ -7,7 +7,7 @@ import { structured } from './llm.js';
 import { watchedMovies, memberEvidence, recommendations, tmdb } from './recommendations.js';
 import { loadTasteSpace } from './tasteSpace.js';
 import { placeMember, affinities, peerStrength } from '../shared/tasteSpace.js';
-import { stars, evidenceMatch, directorsOf, castOf, keywordsOf } from '../shared/evidence.js';
+import { stars, directorsOf, castOf, keywordsOf } from '../shared/evidence.js';
 import { closestInDiary } from '../shared/comparables.js';
 import { connect } from '../shared/connections.js';
 import { writeSignals } from './signals.js';

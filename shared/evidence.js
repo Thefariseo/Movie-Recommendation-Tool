@@ -155,7 +155,7 @@ const quoted = f => `"${f.title}"`;
 // "you gave "Ran" 5★ and "Ikiru" 4.5★"
 const gave = films => films.map(f => `${quoted(f)} ${stars(f.rated)}`).join(' and ');
 // ""Ran" (5★) and "Ikiru" (4.5★)"
-const listed = films => films.map(f => `${quoted(f)} (${stars(f.rated)})`).join(' and ');
+const listed = films => films.map(f => `${quoted(f)} (${f.seed ? 'your pick' : stars(f.rated)})`).join(' and ');
 const themeList = themes => themes.map(t => t.name).join(' and ');
 const distinct = films => [...new Map(films.map(f => [f.title, f])).values()].sort((a, b) => b.rated - a.rated);
 
@@ -168,7 +168,7 @@ export function peerReason(films) {
   if (!films?.length) return null;
   const [first] = films;
   return {
-    short: `Fans of "${first.title}" love it — you gave ${stars(first.rated)}`,
+    short: `Fans of "${first.title}" love it — ${first.seed ? 'you picked it' : `you gave ${stars(first.rated)}`}`,
     full: `People who loved ${listed(films.slice(0, 2))}, as you did, tend to love this one too.`
   };
 }

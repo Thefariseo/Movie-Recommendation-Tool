@@ -152,7 +152,7 @@ export default function SearchBar() {
                     height="48"
                   />
                   <span className="min-w-0">
-                    <span className="block truncate font-medium">
+                    <span className="block truncate font-medium" translate="no">
                       {m.title}
                     </span>
                     <span className="text-xs text-slate-500">

@@ -3,6 +3,7 @@
 // =====================================================
 import React, { Suspense, useEffect } from "react";
 import { lazyPage } from "./utils/lazyPage";
+import LanguagePicker from "./components/LanguagePicker";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
 import Navbar from "./components/Navbar";
@@ -17,6 +18,7 @@ const ChatPage = lazyPage(() => import("./pages/ChatPage"));
 const CriticPage = lazyPage(() => import("./pages/CriticPage"));
 const TonightPage = lazyPage(() => import("./pages/TonightPage"));
 const NightPage = lazyPage(() => import("./pages/NightPage"));
+const SeasonPage = lazyPage(() => import("./pages/SeasonPage"));
 const AuthCallback = lazyPage(() => import("./pages/AuthCallback"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
 const FriendsPage = lazyPage(() => import("./pages/FriendsPage"));
@@ -94,6 +96,7 @@ function AppContent() {
                       <Route path="/critic" element={<CriticPage />} />
                       <Route path="/tonight" element={<TonightPage />} />
                       <Route path="/tonight/:id" element={<NightPage />} />
+                      <Route path="/season/:id" element={<SeasonPage />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<Profile />} />
                       {/* 404 */}
@@ -111,6 +114,8 @@ function AppContent() {
                     <a className="hover:underline" href="/terms">
                       Terms
                     </a>
+                    <span aria-hidden="true"> · </span>
+                    <LanguagePicker />
                   </footer>
                   <Analytics />
                   <SpeedInsights />

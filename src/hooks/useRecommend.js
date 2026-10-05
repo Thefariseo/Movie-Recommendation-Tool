@@ -7,6 +7,7 @@ import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recomm
 import { movieDetails, movieWatchProviders } from "../utils/api";
 import { loadSignals, useSignals, currentRules } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
+import { hasSeeds } from "../../shared/onboarding.js";
 
 /* ------------------------------------------------------------------ */
 /* Recently-shown tracking (session-scoped)                            */
@@ -82,12 +83,14 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
   const requestVersion = useRef(0);
   const ratingKey = JSON.stringify(watched.map(m => [m.id, m.rated]));
   const signals = useSignals(user?.id);
+  // First-visit choices count as taste until the member rates films.
+  const seeded = hasSeeds(signals);
   // Each explicit refresh is a new round: 0 is the first, stable one.
   const rounds = useRef(0);
 
   const load = useCallback(async (explore = 0) => {
     const version = ++requestVersion.current;
-    if (!watched.length && !watchlist.length) { setList([]); setLoading(false); return; }
+    if (!watched.length && !watchlist.length && !seeded) { setList([]); setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
@@ -170,7 +173,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
       if (version === requestVersion.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watched, watchlist, prefsKey, top, region, shownKey, ratingKey, user?.id]);
+  }, [watched, watchlist, prefsKey, top, region, shownKey, ratingKey, user?.id, seeded]);
 
   useEffect(() => {
     load(0);

@@ -263,7 +263,7 @@ export default function MovieModal({ movie, onClose }) {
             className="w-24 shrink-0 self-start rounded-xl shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 sm:w-28"
           />
           <div className="min-w-0 flex-1 pt-1">
-            <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl">
+            <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl" translate="no">
               {movie.title}
             </h2>
 

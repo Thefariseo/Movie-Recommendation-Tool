@@ -131,3 +131,26 @@ test('cloud picks leave out what the critic warned against or the member dismiss
   const next=await recommendations(ctx,[],{},first.movies.map(m=>m.id));
   assert.equal(next.movies.filter(m=>first.movies.some(f=>f.id===m.id)).length,0,'the next round shows other films');
 });
+test('a newcomer with no ratings is placed by their first-visit choices, which are not offered back',async()=>{
+  process.env.APP_URL='https://umbrify.test';process.env.SUPABASE_URL='https://db.test';process.env.SUPABASE_ANON_KEY='test';process.env.TMDB_KEY='test';delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const CHOSEN={129:'Spirited Away',128:'Princess Mononoke',8392:'My Neighbor Totoro'};
+  const film=id=>({...movie(id,[16]),title:CHOSEN[id]||`Film ${id}`,original_language:'ja',credits:{crew:[],cast:[]},keywords:{keywords:[]}});
+  globalThis.fetch=async url=>{
+    const u=new URL(url); let data;
+    if(u.pathname==='/models/taste-space.bin') return new Response(readFileSync(new URL('../public/models/taste-space.bin',import.meta.url)));
+    if(u.pathname.endsWith('/user_movies')) data=[];
+    else if(u.pathname.endsWith('/taste_signals')) data=Object.keys(CHOSEN).map(id=>({movie_id:Number(id),source:'onboarding',signal:1,movie:{id:Number(id),title:CHOSEN[id],genre_ids:[16]}}));
+    else if(u.pathname.endsWith('collaborative_candidates')) data=[];
+    else if(u.pathname.endsWith('/recommendations')) data={results:[]};
+    else if(u.pathname.endsWith('/discover/movie')) data={results:[movie(900001,[16]),movie(900002,[16])]};
+    else if(/\/movie\/\d+$/.test(u.pathname)) data=film(Number(u.pathname.split('/').pop()));
+    else if(u.pathname.startsWith('/models/')) return new Response('',{status:404});
+    else throw new Error(`Unexpected request: ${u.pathname}`);
+    return Response.json(data);
+  };
+  const {movies,engine}=await recommendations({user:{id:'11111111-1111-4111-8111-111111111111'},token:'test'},[],{});
+  assert.equal(engine,'taste-space');
+  assert(movies.some(m=>m.id===4935),"the choices lead to Howl's Moving Castle");
+  assert(!movies.some(m=>CHOSEN[m.id]),'the films chosen are not offered back');
+  assert(!movies.some(m=>/you gave/.test(m._reason||'')&&/Spirited Away|Princess Mononoke|Totoro/.test(m._reason)),'a choice is never cited as a rating');
+});

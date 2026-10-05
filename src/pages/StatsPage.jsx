@@ -301,7 +301,7 @@ export default function StatsPage() {
                 style={{ aspectRatio: "2 / 3" }}
                 loading="lazy"
               />
-              <p className="mt-1 line-clamp-2 text-xs leading-tight text-slate-500 dark:text-slate-400">
+              <p className="mt-1 line-clamp-2 text-xs leading-tight text-slate-500 dark:text-slate-400" translate="no">
                 {m.title}
               </p>
               {m.rated && (

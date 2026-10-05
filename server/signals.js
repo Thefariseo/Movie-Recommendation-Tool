@@ -28,6 +28,16 @@ export async function writeSignals(ctx, entries) {
   } catch { /* A signal is a refinement; the reply it came with still stands. */ }
 }
 
+/** A first visit's choices: each chosen film becomes an 'onboarding' signal. */
+export async function saveOnboarding(ctx, movies) {
+  if (!Array.isArray(movies) || !movies.length || movies.length > 12 || movies.some((m) => !Number.isSafeInteger(Number(m?.id)) || Number(m.id) <= 0)) throw new HttpError(400, 'Choose up to twelve films.');
+  await database(ctx.token)('taste_signals?on_conflict=user_id,movie_id,source', {
+    method: 'POST', prefer: 'resolution=merge-duplicates',
+    body: movies.map((m) => ({ user_id: ctx.user.id, movie_id: Number(m.id), source: 'onboarding', signal: 1, movie: compact(m), created_at: new Date().toISOString() }))
+  });
+  return { ok: true };
+}
+
 export async function dismiss(ctx, movie) {
   if (!Number.isSafeInteger(Number(movie?.id)) || Number(movie.id) <= 0) throw new HttpError(400, 'Choose a film.');
   await database(ctx.token)('taste_signals?on_conflict=user_id,movie_id,source', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { user_id: ctx.user.id, movie_id: Number(movie.id), source: 'dismissed', signal: -2, movie: compact(movie) } });

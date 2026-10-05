@@ -3,7 +3,8 @@
 // critic warned against, judged "skip", or the member dismissed is not
 // recommended again; one the critic recommended is favoured.
 
-export const SOURCES = ['dismissed', 'critic_warned', 'critic_pick', 'verdict'];
+// 'onboarding': a film chosen over another on a first visit (shared/onboarding.js).
+export const SOURCES = ['dismissed', 'critic_warned', 'critic_pick', 'verdict', 'onboarding'];
 export const VERDICT_SIGNAL = { love: 2, like: 1, mixed: -1, skip: -2 };
 
 /**

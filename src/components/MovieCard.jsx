@@ -42,7 +42,7 @@ export default function MovieCard({ movie, showActions = true, dismissable = fal
           />
           <FilmRatings movieId={movie.id} className="film-rating" />
         </span>
-        <span className="film-title">{movie.title}</span>
+        <span className="film-title" translate="no">{movie.title}</span>
         <span className="film-year">
           {movie.release_date?.slice(0, 4) || movie.year || "Year unavailable"}
         </span>

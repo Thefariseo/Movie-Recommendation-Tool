@@ -221,5 +221,33 @@ select public.test_assert(not public.consume_auth_limit('login-ip',repeat('b',64
 update public.auth_attempts set window_start=now()-interval '2 minutes';
 select public.test_assert(public.consume_auth_limit('login-ip',repeat('b',64),2,60),'a new window starts after the old one expires');
 reset role;
+-- Cinema seasons: friends only, notes kept to the season, the host ends it, others leave.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $$begin
+ begin insert into public.cinema_seasons(host,members,season) values(auth.uid(),array[auth.uid(),'33333333-3333-4333-8333-333333333333'::uuid],'{"weeks":[]}');raise exception 'Invited a stranger to a season';exception when insufficient_privilege then null;end;
+end$$;
+insert into public.cinema_seasons(id,host,members,season) values('dddddddd-dddd-4ddd-8ddd-dddddddddddd',auth.uid(),array[auth.uid(),'22222222-2222-4222-8222-222222222222'::uuid],'{"title":"S","weeks":[{"id":1}]}');
+insert into public.season_notes(season_id,user_id,movie_id,note) values('dddddddd-dddd-4ddd-8ddd-dddddddddddd',auth.uid(),1,'Mine');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=1 from public.season_notes),'a friend in the season reads its notes');
+do $$begin
+ begin insert into public.season_notes(season_id,user_id,movie_id,note) values('dddddddd-dddd-4ddd-8ddd-dddddddddddd','11111111-1111-4111-8111-111111111111',1,'Forged');raise exception 'Wrote a note as someone else';exception when insufficient_privilege then null;end;
+ begin delete from public.cinema_seasons;raise exception 'unreachable';exception when others then null;end;
+end$$;
+select public.test_assert((select count(*)=1 from public.cinema_seasons),'only the host ends a season');
+select public.leave_season('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+select public.test_assert((select count(*)=0 from public.cinema_seasons),'a member who left no longer sees the season');
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=0 from public.season_notes),'strangers read no season notes');
+-- Push subscriptions belong to their member alone.
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.push_subscriptions(user_id,endpoint,p256dh,auth) values(auth.uid(),'https://push.test/1',repeat('k',60),repeat('a',16));
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=0 from public.push_subscriptions),'nobody reads another member''s devices');
+do $$begin
+ begin insert into public.push_subscriptions(user_id,endpoint,p256dh,auth) values('11111111-1111-4111-8111-111111111111','https://push.test/2',repeat('k',60),repeat('a',16));raise exception 'Subscribed someone else';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

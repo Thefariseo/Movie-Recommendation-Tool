@@ -33,7 +33,7 @@ function Film({ film, caption }) {
   return (
     <button type="button" onClick={() => open(film)} className="block w-full text-left">
       <img className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} alt="" src={posterOf(film)} />
-      <span className="mt-1 block truncate text-[11px] font-medium">{film.title}</span>
+      <span className="mt-1 block truncate text-[11px] font-medium" translate="no">{film.title}</span>
       {caption && <span className="block truncate text-[10px] text-slate-500">{caption}</span>}
     </button>
   );
@@ -229,7 +229,7 @@ export default function MapPage() {
                 {m.earned ? <Award className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{m.title}</p>
+                <p className="text-sm font-semibold" translate="no">{m.title}</p>
                 <p className="text-xs text-slate-500">{m.detail}</p>
                 {!m.earned && (
                   <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-amber-400" style={{ width: `${(100 * m.have) / m.need}%` }} /></div>

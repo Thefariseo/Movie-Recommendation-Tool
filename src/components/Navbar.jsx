@@ -4,6 +4,7 @@ import { Compass, Library, Users, UserRound, Sun, Moon, Feather, Clapperboard } 
 import { useAuth } from "../contexts/AuthContext";
 import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
+import NotificationBell, { InstallButton } from "./NotificationBell";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
   { path: "/tonight", label: "Tonight", icon: Clapperboard },
@@ -74,6 +75,7 @@ export default function Navbar() {
             <SearchBar />
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {user ? <NotificationBell userId={user.id} /> : <InstallButton />}
             <button
               onClick={toggle}
               className="icon-control"

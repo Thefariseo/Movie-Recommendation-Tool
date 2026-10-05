@@ -10,6 +10,7 @@ import { passesFilters } from '../shared/tonight.js';
 import { loadTasteSpace, loadTasteMap } from './tasteSpace.js';
 import { ratingPredictor, spaceCandidates } from '../shared/predict.js';
 import { slate } from '../shared/slate.js';
+import { withSeeds } from '../shared/onboarding.js';
 import { tasteOf, closeness, circlePicks, circleReason } from '../shared/social.js';
 import { territoryName } from '../shared/atlas.js';
 import { stars } from '../shared/evidence.js';
@@ -117,6 +118,10 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // follow it: a group night weighs everyone equally.
   const rules = ids.length === 1 ? await readRules(ctx) : [];
   for (const [id] of signals) if (blocked(signals, id)) excluded.add(id);
+  // A newcomer's first-visit choices place them in the taste space until they
+  // rate films; the films they chose are not offered back to them.
+  const hostFilms = withSeeds(watchedMovies(libraries[0]), signals);
+  for (const f of hostFilms) if (f._seed) excluded.add(Number(f.id));
   const savedIds = new Set(libraries.flat().filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
   let model = null;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -152,8 +157,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // Every member is placed in the taste space from their own ratings. It costs
   // no provider calls, so group picks use it for everyone.
   const space = await loadTasteSpace();
-  const placed = space ? libraries.map(rows => {
-    const member = placeMember(space, watchedMovies(rows), rows.filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
+  const placed = space ? libraries.map((rows, index) => {
+    const member = placeMember(space, index === 0 ? hostFilms : watchedMovies(rows), rows.filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
     return member && { member, z: affinities(space, member) };
   }) : [];
   const peerZ = (index, id) => {
@@ -164,7 +169,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   // its weakest match among the members the space could place.
   const spaceIds = [];
   const solo = ids.length === 1;
-  const mine = solo ? watchedMovies(libraries[0]) : [];
+  const mine = solo ? hostFilms : [];
   // One member's own ratings predict a rating for any film the space knows,
   // including what the films they disliked say about it.
   const predictor = solo && placed[0] ? ratingPredictor(space, mine) : null;
@@ -216,7 +221,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   for (const r of details) if (r.status === 'fulfilled') add([listed(r.value)]);
   for (const r of similar) if (r.status === 'fulfilled') add(r.value.results);
   for (const r of savedDetails) if (r.status === 'fulfilled') add([listed(r.value)]);
-  const profiles = libraries.map(rows => tasteProfile(watchedMovies(rows)));
+  const profiles = libraries.map((rows, index) => tasteProfile(index === 0 ? hostFilms : watchedMovies(rows)));
   const genres = constraints.genre_ids?.length ? constraints.genre_ids : [...new Set(profiles.flatMap(p => [...p.genres].filter(([,score]) => score > 0).sort((a,b) => b[1] - a[1]).slice(0, 2).map(([id]) => id)))].slice(0, 6);
   const discoveryParams = {
     ...(constraints.decade ? {'primary_release_date.gte': `${constraints.decade}-01-01`, 'primary_release_date.lte': `${constraints.decade + 9}-12-31`} : {}),

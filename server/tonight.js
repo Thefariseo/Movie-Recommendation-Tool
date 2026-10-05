@@ -8,6 +8,7 @@ import { MOODS, TIMES, VOTES, DRAWS, compromise, fairnessWeights, tally, passesF
 
 import { LOOKS } from '../shared/visual.js';
 import { filmLook } from './visual.js';
+import { notify, senderName } from './notifications.js';
 
 const BALLOT = 5;
 // Films kept back, unseen, for a wild-card draw.
@@ -82,6 +83,7 @@ export async function createNight(ctx, { members = [], mood = null, time = null,
   const everyone = [ctx.user.id, ...friends];
   const weights = fairnessWeights(compromise(await history(db, everyone), everyone));
   const [night] = await db('tonight_sessions', { method: 'POST', prefer: 'return=representation', body: { host: ctx.user.id, members: everyone, films: [...ballot, ...reserve].map(compact), weights } });
+  await notify(friends, async () => ({ title: `${await senderName(ctx)} invited you to a movie night`, body: `${ballot.length} films are waiting for your vote.`, link: `/tonight/${night.id}`, tag: `night-${night.id}` }));
   return { night };
 }
 
@@ -135,5 +137,7 @@ export async function decide(ctx, id, mode = 'best') {
   // decision is saved without the odds.
   const saved = await patch({ ...decision, draw: { mode, odds, at: now } }).catch(e => (e.status === 400 ? patch(decision) : Promise.reject(e)));
   if (!saved.length) throw new HttpError(409, 'This movie night has already been decided.');
+  const title = night.films.find(f => Number(f.id) === Number(winner))?.title || 'a film';
+  await notify(night.members.filter(m => m !== ctx.user.id), async () => ({ title: `Tonight's film: ${title}`, body: `${await senderName(ctx)} decided the movie night.`, link: `/tonight/${night.id}`, tag: `night-${night.id}` }));
   return readNight(ctx, id);
 }

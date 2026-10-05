@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Clapperboard, Compass, Flag, Info, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
+import { CalendarDays, Check, Clapperboard, Compass, Flag, Info, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
 import useWatchlist from "../hooks/useWatchlist";
@@ -13,6 +13,8 @@ import { directorContext, directorsToDiscover, lovedDirectors } from "../utils/d
 import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
 import { memberMap, planJourney, planJourneys, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
 import TasteAtlas from "../components/TasteAtlas";
+import SeasonPlanner, { SeasonList } from "../components/SeasonPlanner";
+import { backend } from "../utils/backend";
 import { territoryGrid, territories } from "../../shared/atlas.js";
 
 const LENGTHS = [
@@ -297,12 +299,19 @@ export default function JourneysPage() {
   const [planError, setPlanError] = useState("");
   const [skip, setSkip] = useState(() => new Set());
   const [notice, setNotice] = useState({});
+  const [seasons, setSeasons] = useState([]);
 
+  useEffect(() => {
+    if (!user) { setSeasons([]); return; }
+    backend("critic?seasons=1").then((d) => setSeasons(d.seasons || [])).catch(() => setSeasons([]));
+  }, [user?.id]);
   useEffect(() => {
     Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, ...atlas }) : setFailed(true)));
   }, []);
 
   const member = useMemo(() => (model ? placeMember(model.space, watched, []) : null), [model, watched]);
+  // Films already on a followed journey stay out of a season.
+  const onJourneys = useMemo(() => new Set(followed.flatMap((j) => j.steps.map((s) => s.id))), [followed]);
   const grid = useMemo(() => (model ? territoryGrid(model.map) : null), [model]);
   const lands = useMemo(() => (model ? territories(model.space, model.map, model.regions, watched, grid) : null), [model, grid, watched]);
   const scores = useMemo(() => (model ? regionScores(model.space, model.map, model.regions, member, watched) : []), [model, member, watched]);
@@ -440,6 +449,13 @@ export default function JourneysPage() {
               ))}
             </>
           )}
+          {seasons.length > 0 && (
+            <>
+              <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> YOUR CINEMA SEASONS</p>
+              <SeasonList seasons={seasons} />
+            </>
+          )}
+          <SeasonPlanner model={model} member={member} watched={watched} exclude={onJourneys} signedIn={Boolean(user)} />
           <DirectorJourneys ctx={ctx} model={model} member={member} watched={watched}
             exclude={new Set(followed.flatMap((j) => j.steps.map((s) => s.id)))} onPlanned={setDirectorPlans} />
           <div className="flex flex-wrap items-end justify-between gap-2">

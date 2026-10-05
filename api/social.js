@@ -1,10 +1,12 @@
 import { nodeHandler, identify, database, allRows, body, HttpError, uuid } from '../server/http.js';
 import { normalizeMovie } from '../shared/library.js';
+import { readNotifications, subscribePush, unsubscribePush, notify, senderName } from '../server/notifications.js';
 export async function social(ctx) {
   await identify(ctx);
   const db = database(ctx.token),
     me = ctx.user.id;
   if (ctx.request.method === 'GET') {
+    if (ctx.url.searchParams.has('notifications')) return readNotifications(ctx);
     const q = (ctx.url.searchParams.get('q') || '').trim();
     if (q) {
       if (q.length < 2 || q.length > 60) throw new HttpError(400, 'Search with 2–60 characters.');
@@ -58,10 +60,13 @@ export async function social(ctx) {
       },
       prefer: 'resolution=ignore-duplicates'
     });
+    await notify([uuid(input.user_id)], async () => ({ title: `${await senderName(ctx)} follows you`, body: 'Follow back to share picks and plan movie nights.', link: '/friends', tag: `follow-${me}` }));
     return {
       ok: true
     };
   }
+  if (input.action === 'push-subscribe') return subscribePush(ctx, input.subscription);
+  if (input.action === 'push-unsubscribe') return unsubscribePush(ctx, input.endpoint);
   if (input.action === 'unfollow') {
     await db(`follows?follower_id=eq.${me}&followed_id=eq.${uuid(input.user_id)}`, {
       method: 'DELETE'
