@@ -112,7 +112,7 @@ export default function ActivityFeed({ data, me, onChanged }) {
               return (
                 <li key={`${key}:${a.kind}`} className="account-panel flex gap-3 p-3">
                   <button type="button" onClick={() => show({ ...a.movie, id: Number(a.movie_id) })} className="w-14 shrink-0" aria-label={`Open ${a.movie?.title}`}>
-                    <img src={poster(a.movie)} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
+                    <img loading="lazy" decoding="async" src={poster(a.movie)} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
                   </button>
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p className="flex flex-wrap items-center gap-x-1.5 text-sm">

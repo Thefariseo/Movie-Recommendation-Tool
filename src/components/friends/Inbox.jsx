@@ -56,7 +56,7 @@ export default function Inbox({ people, onSeen }) {
           return (
             <li key={r.id} className={`account-panel flex gap-3 p-3 ${r.seen_at ? "" : "ring-2 ring-indigo-300 dark:ring-indigo-700"}`}>
               <button type="button" onClick={() => show(r.movie)} className="w-20 shrink-0" aria-label={`Open ${r.movie?.title}`}>
-                <img src={poster(r.movie)} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
+                <img loading="lazy" decoding="async" src={poster(r.movie)} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
               </button>
               <div className="min-w-0 flex-1 space-y-1.5">
                 <Link to={`/friends/${r.sender}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:underline dark:text-slate-300">

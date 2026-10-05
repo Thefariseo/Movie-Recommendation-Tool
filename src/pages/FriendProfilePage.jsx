@@ -27,7 +27,7 @@ function Film({ film, caption, children }) {
   return (
     <li className="w-28 shrink-0 sm:w-32">
       <button type="button" onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
-        <img src={poster(film)} alt="" className="w-full rounded-lg object-cover shadow-sm" style={{ aspectRatio: "2 / 3" }} />
+        <img loading="lazy" decoding="async" src={poster(film)} alt="" className="w-full rounded-lg object-cover shadow-sm" style={{ aspectRatio: "2 / 3" }} />
         <span className="mt-1 block truncate text-xs font-semibold" translate="no">{film.title}</span>
       </button>
       {caption && <span className="block text-[11px] leading-tight text-slate-500">{caption}</span>}
@@ -224,7 +224,7 @@ export default function FriendProfilePage() {
                   <ul className="space-y-2">
                     {list.slice(0, 6).map((r) => (
                       <li key={r.id} className="flex items-center gap-2 text-sm">
-                        <img src={poster(r.movie, "w92")} alt="" className="w-8 shrink-0 rounded" style={{ aspectRatio: "2 / 3" }} />
+                        <img loading="lazy" decoding="async" src={poster(r.movie, "w92")} alt="" className="w-8 shrink-0 rounded" style={{ aspectRatio: "2 / 3" }} />
                         <span className="min-w-0"><span className="block truncate font-medium" translate="no">{r.movie?.title}</span>{r.note && <span className="block truncate text-xs italic text-slate-500" translate="no">“{r.note}”</span>}</span>
                       </li>
                     ))}

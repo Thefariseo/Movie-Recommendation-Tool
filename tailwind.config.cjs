@@ -44,19 +44,20 @@ module.exports = {
           light:   '#8292dc',
           dark:    '#00106d'
         },
-        // The accent is a deep cinema blue; the existing indigo classes take it on.
+        // The accent is PANTONE 19-1650 TCX Biking Red (#77212E); the existing
+        // indigo classes take it on.
         indigo: {
-          50: '#eef0fb',
-          100: '#dde2f6',
-          200: '#bac3ec',
-          300: '#97a5e3',
-          400: '#5a6fd0',
-          500: '#001aaf',
-          600: '#001489',
-          700: '#00106d',
-          800: '#000c52',
-          900: '#000838',
-          950: '#00041f'
+          50: '#fbf1f2',
+          100: '#f5e1e3',
+          200: '#ebc2c7',
+          300: '#db96a0',
+          400: '#c05a69',
+          500: '#9a2e3e',
+          600: '#77212e',
+          700: '#611b26',
+          800: '#4a151d',
+          900: '#341014',
+          950: '#1f090c'
         },
         // Pure neutral greys, without the blue cast of slate.
         slate: {

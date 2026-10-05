@@ -49,7 +49,7 @@ export default function ListsPage() {
           <li key={l.id}>
             <Link to={`/list/${l.id}`} className="account-panel block space-y-3 text-slate-900 transition hover:border-slate-900 dark:text-slate-100 dark:hover:border-white">
               <div className="flex h-24 gap-1 overflow-hidden">
-                {l.films.slice(0, 5).map((f) => <img key={f.id} src={poster(f)} alt="" className="h-24 w-16 object-cover" />)}
+                {l.films.slice(0, 5).map((f) => <img loading="lazy" decoding="async" key={f.id} src={poster(f)} alt="" className="h-24 w-16 object-cover" />)}
                 {!l.films.length && <span className="flex h-24 w-full items-center justify-center bg-slate-100 text-xs text-slate-400 dark:bg-slate-800">Empty</span>}
               </div>
               <div>

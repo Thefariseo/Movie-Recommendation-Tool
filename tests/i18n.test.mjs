@@ -25,11 +25,18 @@ test('the recommender\'s explanations, sentence by sentence, with the bits insid
   assert.equal(tr('A sentence nobody wrote. Another one.'), 'A sentence nobody wrote. Another one.');
 });
 
+test('known text inside a slot is translated too, and a number slot holds only digits', () => {
+  const tr = translator(it);
+  assert.equal(tr('Guided by Ozu · Drama & Comedy, 1950s'), 'Con la guida di Ozu · Drammatico e Commedia, anni 1950');
+  assert.equal(tr('5 rated films shape your recommendations · 4.6/5 average rating.'), '5 film votati danno forma ai tuoi consigli · voto medio 4.6/5.');
+  assert.equal(tr('Films, friends'), 'Films, friends');
+});
+
 test('every pattern names its slots in the translation, and no key is a bare slot', () => {
   for (const [en, out] of Object.entries(it).filter(([k]) => !k.startsWith('__'))) {
-    const slots = (s) => [...s.matchAll(/\{(\d)\}/g)].map((m) => m[1]).sort().join();
+    const slots = (s) => [...s.matchAll(/\{#?(\d)\}/g)].map((m) => m[1]).sort().join();
     assert.equal(slots(out), slots(en), en);
-    assert.match(en.replace(/\{\d\}/g, ''), /[A-Za-z]/, en);
+    assert.match(en.replace(/\{#?\d\}/g, ''), /[A-Za-z]/, en);
   }
 });
 

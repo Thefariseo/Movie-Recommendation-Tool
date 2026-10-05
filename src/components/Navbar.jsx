@@ -6,6 +6,7 @@ import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 import NotificationBell, { InstallButton } from "./NotificationBell";
 import LanguagePicker from "./LanguagePicker";
+import { preloadPage } from "../utils/lazyPage";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
   { path: "/tonight", label: "Tonight", icon: Clapperboard },
@@ -48,6 +49,8 @@ export default function Navbar() {
       key={path}
       to={path}
       end={path === "/"}
+      onPointerEnter={() => preloadPage(path)}
+      onFocus={() => preloadPage(path)}
       className={({ isActive }) =>
         `nav-destination ${mobile ? "nav-mobile" : ""} ${isActive || (path === "/" && pathname === "/chat") ? "nav-selected" : ""}`
       }

@@ -43,7 +43,7 @@ export default function TasteOnboarding({ onDone, onSkip }) {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions) }) : setFailed(true)));
+    Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions, atlas.landmarks) }) : setFailed(true)));
   }, []);
   const pair = useMemo(() => (model && !done ? nextPair(model.space, model.pool, history) : null), [model, history, done]);
   const chosen = history.filter((h) => h.chosen);

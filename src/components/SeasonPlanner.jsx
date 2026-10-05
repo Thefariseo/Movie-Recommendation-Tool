@@ -19,7 +19,7 @@ export function SeasonList({ seasons }) {
         const film = s.season.weeks[current];
         return (
           <Link key={s.id} to={`/season/${s.id}`} className="account-panel flex gap-3 text-slate-900 transition hover:ring-2 hover:ring-indigo-300 dark:text-slate-100">
-            <img src={poster(film)} alt="" className="h-24 w-16 shrink-0 rounded-md object-cover" />
+            <img loading="lazy" decoding="async" src={poster(film)} alt="" className="h-24 w-16 shrink-0 rounded-md object-cover" />
             <span className="min-w-0">
               <span className="block text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{finished ? "Season complete" : `Week ${current + 1} of ${s.season.weeks.length}`}</span>
               <span className="block truncate font-semibold" translate="no">{s.season.title}</span>
@@ -117,7 +117,7 @@ export default function SeasonPlanner({ model, member, watched, exclude, signedI
             <ol className="flex gap-2 overflow-x-auto pb-1" aria-label="The season's films">
               {plan.steps.map((s, k) => (
                 <li key={s.id} className="w-20 shrink-0">
-                  <img src={poster(details[s.id])} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
+                  <img loading="lazy" decoding="async" src={poster(details[s.id])} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
                   <span className="mt-1 block text-[10px] font-semibold uppercase text-slate-400">Week {k + 1}</span>
                   <span className="block truncate text-[11px] font-medium" translate="no">{details[s.id]?.title || "…"}</span>
                 </li>

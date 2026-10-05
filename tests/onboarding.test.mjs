@@ -9,8 +9,17 @@ import { ratingPredictor } from '../shared/predict.js';
 
 const b = readFileSync(new URL('../public/models/taste-space.bin', import.meta.url));
 const space = parseTasteSpace(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-const { regions } = JSON.parse(readFileSync(new URL('../public/models/taste-map.json', import.meta.url)));
-const pool = onboardingPool(space, regions);
+const { regions, landmarks } = JSON.parse(readFileSync(new URL('../public/models/taste-map.json', import.meta.url)));
+const pool = onboardingPool(space, regions, landmarks);
+const famous = new Set(landmarks.map((l) => l.id));
+
+test('every pair is two films nearly everyone knows, from groups across the taste map', () => {
+  assert.ok(pool.length >= 100 && pool.every((f) => famous.has(f.id)));
+  assert.ok(new Set(pool.map((f) => f.region)).size >= 2 * ROUNDS);
+  // Without the best-known films, the regions' own landmarks stand in.
+  assert.ok(onboardingPool(space, regions).length > 0);
+});
+
 const seededRandom = (seed) => () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
 
 test('pairs set two regions against each other and never repeat a film or a region', () => {

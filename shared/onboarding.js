@@ -11,11 +11,38 @@ export const ROUNDS = 7;
 export const SEED_RATING = 8;
 
 /**
- * The films the pairs are drawn from: the best-known films of every region of
- * the taste map, the ones a newcomer is most likely to know.
- * Returns [{ id, title, year, region, i }].
+ * The films the pairs are drawn from: films nearly everyone knows, so a
+ * newcomer can answer every pair with confidence. These are the map's
+ * best-known films overall (`landmarks`). Famous films crowd into a few
+ * regions of the map, so they are grouped by taste instead: the most
+ * different films become group centres and every other joins its nearest,
+ * and a pair never repeats a group. Without them, the best-known films of
+ * every region are used. Returns [{ id, title, year, region, i }].
  */
-export function onboardingPool(space, regions) {
+export const GROUPS = 3 * ROUNDS;
+
+export function onboardingPool(space, regions, landmarks = null) {
+  if (landmarks?.length) {
+    const films = landmarks
+      .map((l) => ({ id: Number(l.id), title: l.title, year: l.year ?? null, i: space.index.get(Number(l.id)) }))
+      .filter((f) => f.i != null);
+    if (films.length >= 2 * GROUPS) {
+      // Farthest-point centres, from the best-known film onwards.
+      const centres = [films[0]];
+      const closest = films.map((f) => cosine(space, f.i, films[0].i));
+      while (centres.length < GROUPS) {
+        let next = 0;
+        for (let j = 1; j < films.length; j++) if (closest[j] < closest[next]) next = j;
+        centres.push(films[next]);
+        films.forEach((f, j) => { closest[j] = Math.max(closest[j], cosine(space, f.i, films[next].i)); });
+      }
+      return films.map((f) => {
+        let region = 0, best = -Infinity;
+        centres.forEach((c, g) => { const v = cosine(space, f.i, c.i); if (v > best) { best = v; region = g; } });
+        return { ...f, region };
+      });
+    }
+  }
   const pool = [];
   for (const r of regions) {
     for (const l of (r.landmarks || []).slice(0, 3)) {
