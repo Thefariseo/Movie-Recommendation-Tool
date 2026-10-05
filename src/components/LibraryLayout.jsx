@@ -19,6 +19,7 @@ export default function LibraryLayout() {
           ["stats", "Stats", null],
           ["map", "Map", null],
           ["journeys", "Journeys", null],
+          ["lists", "Lists", null],
         ].map(([path, label, count]) => (
           <NavLink
             key={path}

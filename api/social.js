@@ -1,8 +1,14 @@
 import { nodeHandler, identify, database, allRows, body, HttpError, uuid } from '../server/http.js';
 import { normalizeMovie } from '../shared/library.js';
 import { personView, recommendFilm, inbox, markRecommendationsSeen, dismissRecommendation, react, reactionsFor } from '../server/friends.js';
+import { readList, myLists, saveList, changeListFilm, deleteList } from '../server/lists.js';
 import { readNotifications, subscribePush, unsubscribePush, notify, senderName } from '../server/notifications.js';
 export async function social(ctx) {
+  // A public list opens for anyone with the link, signed in or not.
+  if (ctx.request.method === 'GET' && ctx.url.searchParams.get('list')) {
+    await identify(ctx, false);
+    return readList(ctx, ctx.url.searchParams.get('list'));
+  }
   await identify(ctx);
   const db = database(ctx.token),
     me = ctx.user.id;
@@ -10,6 +16,7 @@ export async function social(ctx) {
     if (ctx.url.searchParams.has('notifications')) return readNotifications(ctx);
     if (ctx.url.searchParams.get('person')) return personView(ctx, ctx.url.searchParams.get('person'));
     if (ctx.url.searchParams.has('inbox')) return inbox(ctx);
+    if (ctx.url.searchParams.has('lists')) return myLists(ctx);
     const q = (ctx.url.searchParams.get('q') || '').trim();
     if (q) {
       if (q.length < 2 || q.length > 60) throw new HttpError(400, 'Search with 2–60 characters.');
@@ -76,6 +83,10 @@ export async function social(ctx) {
     };
   }
   if (input.action === 'recommend') return recommendFilm(ctx, input);
+  if (input.action === 'list-save') return saveList(ctx, input.list || {});
+  if (input.action === 'list-add') return changeListFilm(ctx, input.id, input.movie);
+  if (input.action === 'list-remove') return changeListFilm(ctx, input.id, input.movie_id, true);
+  if (input.action === 'list-delete') return deleteList(ctx, input.id);
   if (input.action === 'recommend-seen') return markRecommendationsSeen(ctx);
   if (input.action === 'recommend-dismiss') return dismissRecommendation(ctx, input.id);
   if (input.action === 'react') return react(ctx, input);

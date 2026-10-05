@@ -1,4 +1,11 @@
 // Shared by Node functions and the Edge recommender. No browser secrets.
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// The interface language of the request being served, for the films it fetches.
+const requestLanguage = new AsyncLocalStorage();
+const LANGUAGES = { it: 'it-IT', en: 'en-US' };
+/** TMDB's locale for the request being served (en-US outside a request). */
+export const tmdbLocale = () => requestLanguage.getStore() || 'en-US';
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -226,7 +233,8 @@ export async function execute(request, work, methods = ['GET', 'POST']) {
   try {
     if (!methods.includes(request.method)) throw new HttpError(405, 'Method not allowed.');
     if (!['GET', 'HEAD'].includes(request.method)) csrf(request);
-    result = await work(ctx);
+    const lang = LANGUAGES[String(request.headers.get('x-umbrify-lang') || '').toLowerCase()] || 'en-US';
+    result = await requestLanguage.run(lang, () => work(ctx));
   } catch (e) {
     status = e.status || 500;
     // Never log auth tokens, provider payloads, message content, or rating matrices.

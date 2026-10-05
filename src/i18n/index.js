@@ -12,20 +12,44 @@ export const LANGUAGES = [
   { code: "it", label: "Italiano" }
 ];
 
-/** The interface language: the member's choice, else the browser's. */
+const AUTO_KEY = "umbrify_lang_country_v1";
+// The language spoken in a country, among those the interface has.
+const COUNTRY_LANGUAGES = { IT: "it", SM: "it", VA: "it" };
+const readStorage = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+
+/**
+ * The interface language: the member's own choice, else the language of the
+ * country in their profile, else the browser's.
+ */
 export function currentLanguage() {
-  try {
-    const saved = localStorage.getItem(KEY);
-    if (LANGUAGES.some((l) => l.code === saved)) return saved;
-  } catch { /* storage may be blocked */ }
+  const saved = readStorage(KEY);
+  if (LANGUAGES.some((l) => l.code === saved)) return saved;
+  const country = readStorage(AUTO_KEY);
+  if (LANGUAGES.some((l) => l.code === country)) return country;
   const browser = (typeof navigator !== "undefined" && navigator.language) || "en";
   return browser.toLowerCase().startsWith("it") ? "it" : "en";
 }
+
+/** TMDB's locale for the interface language, so films come with their local titles and plots. */
+export const tmdbLocale = () => ({ it: "it-IT" }[currentLanguage()] || "en-US");
 
 /** Switches the language. The page reloads, so every text starts from its source. */
 export function setLanguage(code) {
   try { localStorage.setItem(KEY, code); } catch { /* the choice lasts this visit */ }
   window.location.reload();
+}
+
+/**
+ * Follows the country in a member's profile, unless they chose a language
+ * themselves. Reloads once when that changes the language.
+ */
+export function followCountry(country) {
+  if (readStorage(KEY)) return;
+  const lang = COUNTRY_LANGUAGES[String(country || "").toUpperCase()] || "en";
+  if (readStorage(AUTO_KEY) === lang) return;
+  const before = currentLanguage();
+  try { localStorage.setItem(AUTO_KEY, lang); } catch { return; }
+  if (currentLanguage() !== before) window.location.reload();
 }
 
 const space = (s) => s.replace(/\s+/g, " ").trim();

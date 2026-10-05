@@ -1,4 +1,4 @@
-import { HttpError, remote } from './http.js';
+import { HttpError, remote, tmdbLocale } from './http.js';
 
 // Answers are kept for a while in a warm instance: "Other picks", a second
 // member asking for the same films, the critic and the night all ask TMDB
@@ -18,7 +18,7 @@ export async function tmdb(path, params = {}) {
   if (!key) throw new HttpError(503, 'Film discovery is not configured yet.');
   const query = new URLSearchParams({
     api_key: key,
-    language: 'en-US',
+    language: tmdbLocale(),
     ...params
   });
   const url = `https://api.themoviedb.org/3/${path}?${query}`;

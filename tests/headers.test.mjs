@@ -28,7 +28,7 @@ test('the policy allows every external host the app loads from', () => {
   const allowed = [...csp['img-src'], ...csp['connect-src'], ...csp['frame-src'], ...csp['style-src'], ...csp['script-src']];
   const covers = host => allowed.some(a => a === `https://${host}` || (a.startsWith('https://*.') && host.endsWith(a.slice(9))));
   // Hosts only ever linked to, never loaded from.
-  const linkOnly = new Set(['www.themoviedb.org', 'letterboxd.com', 'www.imdb.com', 'www.justwatch.com', 'www.cinematlas.it', 'umbrify.vercel.app', 'www.youtube.com']);
+  const linkOnly = new Set(['www.themoviedb.org', 'letterboxd.com', 'www.imdb.com', 'www.justwatch.com', 'www.cinematlas.it', 'umbrify.vercel.app', 'www.youtube.com', 'www.google.com']);
   const hosts = new Set(files.flatMap(f => [...readFileSync(f, 'utf8').matchAll(/https:\/\/([a-z0-9.-]+\.[a-z]{2,})/g)].map(m => m[1])));
   for (const host of hosts) if (!linkOnly.has(host)) assert.ok(covers(host), `${host} is used by the app but not allowed by the policy`);
   assert.ok(csp['frame-src'].includes('https://www.youtube-nocookie.com'), 'trailers play');

@@ -31,6 +31,8 @@ import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 import RecommendToFriend from "./friends/RecommendToFriend";
+import AddToList from "./lists/AddToList";
+import { Link } from "react-router-dom";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -281,9 +283,10 @@ export default function MovieModal({ movie, onClose }) {
             {director && (
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Dir.{" "}
-                <span className="font-medium text-slate-700 dark:text-slate-300">
+                <Link to={`/person/${director.id}?role=directing`} onClick={onClose} translate="no"
+                  className="font-medium text-slate-700 underline-offset-2 hover:underline dark:text-slate-300">
                   {director.name}
-                </span>
+                </Link>
               </p>
             )}
 
@@ -377,7 +380,8 @@ export default function MovieModal({ movie, onClose }) {
             </p>
             <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
               {cast.map((a) => (
-                <div key={a.id} className="w-14 shrink-0 text-center">
+                <Link key={a.id} to={`/person/${a.id}?role=acting`} onClick={onClose} title={a.character ? `${a.name} · ${a.character}` : a.name}
+                  className="w-14 shrink-0 text-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
                   <img
                     src={
                       a.profile_path
@@ -387,10 +391,10 @@ export default function MovieModal({ movie, onClose }) {
                     alt={a.name}
                     className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
                   />
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight" translate="no">
                     {a.name}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -433,6 +437,7 @@ export default function MovieModal({ movie, onClose }) {
             </button>
           )}
 
+          <AddToList movie={movie} />
           <RecommendToFriend movie={movie} />
 
           {!alreadyWatched && (
