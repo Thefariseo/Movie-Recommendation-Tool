@@ -61,7 +61,7 @@ export default function NotificationBell({ userId }) {
               <li key={n.id}>
                 <Link to={n.link} onClick={() => setOpen(false)}
                   className={`flex gap-3 px-4 py-3 text-left text-slate-900 transition dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/60 ${String(n.at) > seen ? "bg-indigo-50/60 dark:bg-indigo-950/30" : ""}`}>
-                  {n.poster ? <img src={`https://image.tmdb.org/t/p/w92${n.poster}`} alt="" className="h-12 w-8 shrink-0 rounded object-cover" />
+                  {n.poster ? <img loading="lazy" decoding="async" src={`https://image.tmdb.org/t/p/w92${n.poster}`} alt="" className="h-12 w-8 shrink-0 rounded object-cover" />
                     : <UserAvatar user={n.actor} name={n.actor?.display_name} className="bell-avatar" />}
                   <span className="min-w-0">
                     <span className="block text-sm font-medium leading-snug">{n.title}</span>

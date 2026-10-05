@@ -1,8 +1,8 @@
 // =====================================================
 // Root component – providers + routes + cinematic intro
 // =====================================================
-import React, { Suspense, useEffect } from "react";
-import { lazyPage } from "./utils/lazyPage";
+import React, { Suspense, useEffect, useState } from "react";
+import { lazyPage, preloadPagesWhenIdle } from "./utils/lazyPage";
 import LanguagePicker from "./components/LanguagePicker";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
@@ -15,8 +15,8 @@ import Spinner from "./components/Spinner";
 
 // Discover ships with the app; every other page loads when it is first opened.
 const ChatPage = lazyPage(() => import("./pages/ChatPage"));
-const CriticPage = lazyPage(() => import("./pages/CriticPage"));
-const TonightPage = lazyPage(() => import("./pages/TonightPage"));
+const CriticPage = lazyPage(() => import("./pages/CriticPage"), "/critic");
+const TonightPage = lazyPage(() => import("./pages/TonightPage"), "/tonight");
 const NightPage = lazyPage(() => import("./pages/NightPage"));
 const SeasonPage = lazyPage(() => import("./pages/SeasonPage"));
 const FriendProfilePage = lazyPage(() => import("./pages/FriendProfilePage"));
@@ -24,9 +24,9 @@ const PersonPage = lazyPage(() => import("./pages/PersonPage"));
 const ListPage = lazyPage(() => import("./pages/ListPage"));
 const ListsPage = lazyPage(() => import("./pages/ListsPage"));
 const AuthCallback = lazyPage(() => import("./pages/AuthCallback"));
-const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
-const FriendsPage = lazyPage(() => import("./pages/FriendsPage"));
-const Profile = lazyPage(() => import("./pages/Profile"));
+const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"), "/library");
+const FriendsPage = lazyPage(() => import("./pages/FriendsPage"), "/friends");
+const Profile = lazyPage(() => import("./pages/Profile"), "/profile");
 const WatchedPage = lazyPage(() => import("./pages/WatchedPage"));
 const StatsPage = lazyPage(() => import("./pages/StatsPage"));
 const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
@@ -53,6 +53,16 @@ function AppContent() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [pathname]);
+  useEffect(() => { preloadPagesWhenIdle(); }, []);
+  // Pages wait for the account to be known: rendered as a guest first, they
+  // were thrown away and rebuilt a moment later (a flash, and their films
+  // fetched twice). A slow answer does not hold the page for long.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+  const pagesReady = !loading || waited;
 
   // Keep the email callback outside the account-keyed tree and analytics.
   if (pathname === "/auth/callback") return <Suspense fallback={null}><AuthCallback /></Suspense>;
@@ -62,14 +72,15 @@ function AppContent() {
   return (
     <LazyMotion features={domAnimation} strict><MotionConfig reducedMotion="user">
     <ToastProvider>
-      <LibraryProvider key={loading ? "loading" : user?.id || "guest"}>
+      <LibraryProvider key={user?.id || "guest"}>
         <WatchedProvider>
           <WatchlistProvider>
             <ModalProvider>
                               <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
                   <Navbar />
                   <div id="page-content" tabIndex={-1}>
-                    <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}>
+                    {!pagesReady ? <div className="page-wait"><Spinner /></div> : (
+                    <Suspense fallback={<div className="flex min-h-screen justify-center py-16"><Spinner /></div>}>
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/library" element={<LibraryLayout />}>
@@ -111,10 +122,11 @@ function AppContent() {
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                     </Suspense>
+                    )}
                   </div>
                   {/* Plain anchors, not router Links: these pages are static HTML outside
                   the app, so the router must not claim them and redirect home. */}
-                  <footer className="mx-auto max-w-[var(--app-width)] px-4 pb-28 pt-8 text-sm text-[rgb(var(--color-fg-muted))] sm:px-8 md:pb-10">
+                  {pagesReady && <footer className="mx-auto max-w-[var(--app-width)] px-4 pb-28 pt-8 text-sm text-[rgb(var(--color-fg-muted))] sm:px-8 md:pb-10">
                     <a className="hover:underline" href="/privacy">
                       Privacy
                     </a>
@@ -124,7 +136,7 @@ function AppContent() {
                     </a>
                     <span aria-hidden="true"> · </span>
                     <LanguagePicker />
-                  </footer>
+                  </footer>}
                   <Analytics />
                   <SpeedInsights />
                 </div>

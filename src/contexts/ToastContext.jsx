@@ -44,7 +44,7 @@ export function ToastProvider({ children }) {
               type === "error"
                 ? "bg-red-600"
                 : type === "info"
-                ? "bg-blue-600"
+                ? "bg-slate-900"
                 : "bg-emerald-600";
 
             return (

@@ -33,7 +33,7 @@ function Dispute({ film, details, line }) {
   const d = details[film.id];
   return (
     <button type="button" disabled={!d} onClick={() => d && open(d)} className="flex items-center gap-2 text-left">
-      <img className="w-10 shrink-0 rounded" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(d, "w92")} />
+      <img loading="lazy" decoding="async" className="w-10 shrink-0 rounded" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(d, "w92")} />
       <span className="text-xs"><span className="block font-medium text-slate-800 dark:text-slate-100">{d?.title || "…"}</span>{line}</span>
     </button>
   );

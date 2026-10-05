@@ -5,8 +5,11 @@
 import { lazy } from "react";
 
 const KEY = "umbrify_reloaded_for_update";
+// Each main destination's file, fetched early so opening it is instant.
+const loaders = new Map();
 
-export function lazyPage(load) {
+export function lazyPage(load, path = null) {
+  if (path) loaders.set(path, load);
   return lazy(() => load()
     .then((module) => {
       try { sessionStorage.removeItem(KEY); } catch { /* storage may be blocked */ }
@@ -20,4 +23,19 @@ export function lazyPage(load) {
       // Nothing renders while the page reloads.
       return new Promise(() => {});
     }));
+}
+
+/** Fetches a destination's file ahead of time (a pointer resting on its link). */
+export function preloadPage(path) {
+  loaders.get(path)?.().catch(() => { /* fetched again, with its fallback, when opened */ });
+}
+
+/**
+ * Once the page is idle, fetches the main destinations' files, unless the
+ * visitor asked their browser to save data.
+ */
+export function preloadPagesWhenIdle() {
+  if (typeof navigator !== "undefined" && navigator.connection?.saveData) return;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2000));
+  idle(() => { for (const path of loaders.keys()) preloadPage(path); }, { timeout: 5000 });
 }

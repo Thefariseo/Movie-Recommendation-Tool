@@ -3,8 +3,8 @@ import { territoryName } from "../../shared/atlas.js";
 
 // Colours of the territories, light and dark.
 const FILL = {
-  conquered: ["rgba(79,70,229,0.62)", "rgba(129,140,248,0.62)"],
-  settled: ["rgba(90,111,208,0.32)", "rgba(0,20,137,0.32)"],
+  conquered: ["rgba(119,33,46,0.62)", "rgba(219,150,160,0.62)"],
+  settled: ["rgba(192,90,105,0.28)", "rgba(219,150,160,0.25)"],
   frontier: ["rgba(245,158,11,0.30)", "rgba(245,158,11,0.26)"],
   unexplored: ["rgba(148,163,184,0.16)", "rgba(100,116,139,0.20)"],
 };
@@ -125,9 +125,9 @@ export default function TasteAtlas({ model, grid, lands, points = [], centre = n
         ctx.beginPath(); ctx.moveTo(px(end.x) + 1.5, py(end.y) - 14); ctx.lineTo(px(end.x) + 10, py(end.y) - 10.5); ctx.lineTo(px(end.x) + 1.5, py(end.y) - 7); ctx.fill();
       });
 
-      // The member's films: loved in indigo, disliked in rose.
+      // The member's films: loved in deep red, disliked in rose.
       for (const p of points) {
-        ctx.fillStyle = p.rated >= 7 ? (dark ? "#c7d2fe" : "#312e81") : p.rated != null && p.rated <= 4 ? "#f43f5e" : dark ? "#94a3b8" : "#475569";
+        ctx.fillStyle = p.rated >= 7 ? (dark ? "#f5e1e3" : "#4a151d") : p.rated != null && p.rated <= 4 ? "#f43f5e" : dark ? "#94a3b8" : "#475569";
         ctx.beginPath();
         ctx.arc(px(p.x), py(p.y), p.rated >= 9 ? 3.2 : 2.4, 0, 7);
         ctx.fill();
@@ -149,7 +149,7 @@ export default function TasteAtlas({ model, grid, lands, points = [], centre = n
         const box = { x: cx - tw / 2, y: py(a.y) - 6, w: tw, h: 12 };
         if (drawn.some((b) => box.x < b.x + b.w + 4 && b.x < box.x + box.w + 4 && box.y < b.y + b.h && b.y < box.y + box.h)) continue;
         drawn.push(box);
-        ctx.fillStyle = t.status === "conquered" ? (dark ? "#e0e7ff" : "#1e1b4b") : t.status === "frontier" ? (dark ? "#fcd34d" : "#92400e") : dark ? "rgba(226,232,240,0.75)" : "rgba(51,65,85,0.75)";
+        ctx.fillStyle = t.status === "conquered" ? (dark ? "#fbf1f2" : "#341014") : t.status === "frontier" ? (dark ? "#fcd34d" : "#92400e") : dark ? "rgba(226,232,240,0.75)" : "rgba(51,65,85,0.75)";
         ctx.fillText(title, cx, py(a.y) + 4);
       }
       ctx.textAlign = "start";
@@ -186,7 +186,7 @@ export default function TasteAtlas({ model, grid, lands, points = [], centre = n
         onClick={(e) => { const hit = regionUnder(e); if (hit && onPick) onPick(hit.r); }}
         onMouseMove={(e) => setHover(regionUnder(e))}
         onMouseLeave={() => setHover(null)}
-        className={`w-full rounded-xl bg-sky-50/60 dark:bg-slate-950 ${onPick ? "cursor-pointer" : ""}`}
+        className={`w-full rounded-xl bg-slate-50 dark:bg-slate-950 ${onPick ? "cursor-pointer" : ""}`}
         style={{ aspectRatio: "16 / 10", maxHeight: compact ? 460 : 640 }}
         role="img"
         aria-label={`Map of cinema in ${model.regions.length} territories, coloured by how much of each you have explored.`}

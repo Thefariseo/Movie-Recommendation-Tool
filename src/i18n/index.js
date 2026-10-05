@@ -72,30 +72,38 @@ export function translator(dictionary) {
   // A slot never runs across the end of a sentence.
   const SLOT = "((?:(?![.!?] [A-Z]).)+?)";
   for (const [en, out] of Object.entries(entries)) {
-    if (/\{\d\}/.test(en)) {
-      const order = [...en.matchAll(/\{(\d)\}/g)].map((m) => Number(m[1]));
-      const source = escape(space(en)).replace(/\{(\d)\}/g, SLOT);
+    if (/\{#?\d\}/.test(en)) {
+      const order = [...en.matchAll(/\{#?(\d)\}/g)].map((m) => Number(m[1]));
+      // {#0} holds a number only ("{#0}s" is a decade, never any word ending in s).
+      const source = escape(space(en)).replace(/\{#(\d)\}/g, "(\\d+)").replace(/\{(\d)\}/g, SLOT);
       patterns.push({ re: new RegExp(`^${source}$`), order, out });
     } else exact.set(space(en), out);
   }
   // Longer patterns first: they are the more specific.
   patterns.sort((a, b) => b.re.source.length - a.re.source.length);
-  const slot = (value) => exact.get(space(value)) ?? inside.reduce((v, [re, out]) => v.replace(re, out), value);
-  const one = (key) => {
+  // What a slot holds is translated too when it is itself a known text (a
+  // genre in a region's name, an ending like " · 4.6/5 average rating").
+  const slot = (value, depth) => {
+    const key = space(value);
+    const hit = exact.get(key) ?? (depth < 2 && /[A-Za-z]/.test(key) ? one(key, depth + 1) : null);
+    if (hit != null) return value.match(/^\s*/)[0] + hit + value.match(/\s*$/)[0];
+    return inside.reduce((v, [re, out]) => v.replace(re, out), value);
+  };
+  const one = (key, depth = 0) => {
     const hit = exact.get(key);
     if (hit != null) return hit;
     // An ending is peeled off first, so no slot swallows it.
     for (const [re, out] of suffixes) {
       const m = key.match(re);
       if (!m || m.index === 0) continue;
-      const rest = one(key.slice(0, m.index));
+      const rest = one(key.slice(0, m.index), depth);
       if (rest != null) return rest + m[0].replace(re, out);
     }
     for (const p of patterns) {
       const m = key.match(p.re);
       if (!m) continue;
       const slots = {};
-      p.order.forEach((n, i) => { slots[n] = slot(m[i + 1]); });
+      p.order.forEach((n, i) => { slots[n] = slot(m[i + 1], depth); });
       return p.out.replace(/\{(\d)\}/g, (_, n) => slots[n] ?? "");
     }
     return null;

@@ -54,7 +54,7 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
     <li className={`account-panel space-y-3 ${current ? "ring-2 ring-indigo-400" : ""}`}>
       <div className="flex gap-4">
         <button type="button" onClick={showFilm} className="w-24 shrink-0 sm:w-28" aria-label={`Open ${week.title}`}>
-          <img src={poster(week)} alt="" className="w-full rounded-lg object-cover shadow" style={{ aspectRatio: "2 / 3" }} />
+          <img loading="lazy" decoding="async" src={poster(week)} alt="" className="w-full rounded-lg object-cover shadow" style={{ aspectRatio: "2 / 3" }} />
         </button>
         <div className="min-w-0 space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{`Week ${k + 1}${current ? " · this week" : ""}`}</p>

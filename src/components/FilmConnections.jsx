@@ -50,7 +50,7 @@ export default function FilmConnections({ movie, details }) {
       <ul className="mt-3 space-y-2.5">
         {result.links.map(({ film, ties }) => (
           <li key={film.id} className="flex gap-3">
-            <img className="w-10 shrink-0 self-start rounded" style={{ aspectRatio: "2 / 3" }} alt=""
+            <img loading="lazy" decoding="async" className="w-10 shrink-0 self-start rounded" style={{ aspectRatio: "2 / 3" }} alt=""
               src={film.poster ? `https://image.tmdb.org/t/p/w92${film.poster}` : "/placeholder_poster.svg"} />
             <div className="min-w-0">
               <p className="text-sm font-medium leading-tight">

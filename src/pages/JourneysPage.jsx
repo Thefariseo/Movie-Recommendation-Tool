@@ -30,7 +30,7 @@ function Poster({ id, details, badge, dim, ring, caption, note }) {
   const d = details[id];
   return (
     <button type="button" disabled={!d} onClick={() => d && open(d)} className="relative block w-full text-left">
-      <img style={{ aspectRatio: "2 / 3" }} className={`w-full rounded-md object-cover ${dim ? "opacity-60" : ""} ${ring ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900" : ""}`} alt="" src={poster(d)} />
+      <img loading="lazy" decoding="async" style={{ aspectRatio: "2 / 3" }} className={`w-full rounded-md object-cover ${dim ? "opacity-60" : ""} ${ring ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900" : ""}`} alt="" src={poster(d)} />
       {badge}
       <span className="mt-1 block truncate text-[11px] font-medium leading-tight">{d?.title || "…"}</span>
       {caption && <span className="block truncate text-[10px] leading-tight text-slate-500">{caption}</span>}
@@ -401,7 +401,7 @@ export default function JourneysPage() {
           <div>
             <p className="eyebrow flex items-center gap-1.5"><Compass className="h-3.5 w-3.5" /> YOUR TASTE MAP</p>
             <h2 className="section-title">You have explored {view.visited.size} of {total} regions of cinema.</h2>
-            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded indigo, your frontier amber. Tap a territory to explore it.</p>
+            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded red, your frontier amber. Tap a territory to explore it.</p>
           </div>
           {growth.length > 1 && (
             <p className="text-xs text-slate-500">Regions over time: {growth.slice(-6).map((g) => `${g.month.slice(2)} · ${g.regions}`).join("  →  ")}</p>

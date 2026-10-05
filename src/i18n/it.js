@@ -737,7 +737,7 @@ export default {
   "Drawing your taste map…": "Disegno la tua mappa del gusto…",
   "YOUR TASTE MAP": "LA TUA MAPPA DEL GUSTO",
   "You have explored {0} of {1} regions of cinema.": "Hai esplorato {0} regioni del cinema su {1}.",
-  "16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded indigo, your frontier amber. Tap a territory to explore it.": "16.000 film, disposti in modo che i film amati dalle stesse persone stiano vicini. I tuoi film sono i punti scuri (rosa: non piaciuti); i territori visitati sono in indaco, la tua frontiera in ambra. Tocca un territorio per esplorarlo.",
+  "16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded red, your frontier amber. Tap a territory to explore it.": "16.000 film, disposti in modo che i film amati dalle stesse persone stiano vicini. I tuoi film sono i punti scuri (rosa: non piaciuti); i territori visitati sono in rosso, la tua frontiera in ambra. Tocca un territorio per esplorarlo.",
   "Regions over time:": "Regioni nel tempo:",
   "The full atlas, with your territories, frontier, friends and milestones, is on the": "L'atlante completo, con territori, frontiera, amici e traguardi, è nella",
   "Unexplored, and made for you:": "Inesplorate, e fatte per te:",
@@ -897,8 +897,34 @@ export default {
   "Some common ground": "Qualcosa in comune",
   "Opposite tastes": "Gusti opposti",
 
+  // ── Places on the map of cinema: genres and a decade, and a well-known film ──
+  "{0} & {1}, {#2}s · {3}": "{0} e {1}, anni {2} · {3}",
+  "{0} & {1}, {#2}s": "{0} e {1}, anni {2}",
+  "{0}, {#1}s · {2}": "{0}, anni {1} · {2}",
+  "{0}, {#1}s": "{0}, anni {1}",
+  "You love {0}.": "Ami: {0}.",
+  "Guided by {0} · {1}": "Con la guida di {0} · {1}",
+
+  // ── Cinematic persona ──
+  "The Thoughtful Auteur": "L'autore riflessivo",
+  "The Edge-of-Seat Devotee": "Il devoto della suspense",
+  "The Adrenaline Seeker": "Il cacciatore di adrenalina",
+  "The Laugh Connoisseur": "L'intenditore di risate",
+  "The Night Owl": "Il nottambulo",
+  "The World Builder": "Il costruttore di mondi",
+  "The Mythmaker": "Il creatore di miti",
+  "The Romantic": "Il romantico",
+  "The Detective": "Il detective",
+  "The Truth Seeker": "Il cercatore di verità",
+  "The Imagineer": "L'immaginifico",
+  "The Chronicler": "Il cronista",
+  "The Puzzle Solver": "Il risolutore di enigmi",
+  "The Cinephile": "Il cinefilo",
+
   // Bits inside the slots above, and endings peeled off before translating.
   "__inside": [
+    ["dark & moody", "cupo e d'atmosfera"], ["bright & airy", "luminoso e arioso"], ["vivid colour", "colori vivi"], ["muted colour", "colori smorzati"],
+    ["black & white", "bianco e nero"], ["warm tones", "toni caldi"], ["cool tones", "toni freddi"], ["hard contrast", "contrasto forte"],
     [" \\(your pick\\)", " (scelto da te)"],
     ["\\) and \"", ") e \""],
     ["★ and \"", "★ e \""]
