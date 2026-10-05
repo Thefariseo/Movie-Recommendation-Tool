@@ -109,12 +109,10 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
 
       // Fetch full details (keywords, videos, credits)
       const topIds  = ranked.map((r) => r.id);
-      const details = [];
-      for (let i = 0; i < topIds.length; i += 5) {
-        const batch = await Promise.allSettled(topIds.slice(i, i + 5).map(id => movieDetails(id)));
-        for (const r of batch) if (r.status === 'fulfilled') details.push(r.value);
-        if (version !== requestVersion.current) return;
-      }
+      // All at once: the TMDB client keeps six in flight.
+      const details = (await Promise.allSettled(topIds.map((id) => movieDetails(id))))
+        .filter((r) => r.status === 'fulfilled').map((r) => r.value);
+      if (version !== requestVersion.current) return;
 
       // Build enhanced objects with film-specific narratives
       const scored = details.map((d) => {

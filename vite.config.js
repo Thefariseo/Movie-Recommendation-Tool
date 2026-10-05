@@ -5,12 +5,30 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+
+// Points public/lang-preload.js at each dictionary's built file, so it can
+// start that download as early as the app's own.
+const preloadDictionaries = () => ({
+  name: "preload-dictionaries",
+  transformIndexHtml: {
+    order: "post",
+    handler(html, ctx) {
+      if (!ctx.bundle) return html;
+      const files = Object.values(ctx.bundle)
+        .filter((c) => c.type === "chunk" && /src\/i18n\/([a-z]{2})\.js$/.test(c.facadeModuleId || ""))
+        .map((c) => [c.facadeModuleId.match(/([a-z]{2})\.js$/)[1], c.fileName]);
+      const attrs = files.map(([lang, file]) => ` data-${lang}="/${file}"`).join("");
+      return html.replace('<script src="/lang-preload.js"></script>', `<script src="/lang-preload.js"${attrs}></script>`);
+    },
+  },
+});
+
 export default defineConfig(({ mode }) => {
   // Make env variables available on build as import.meta.env
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
-    plugins: [react()],
+    plugins: [react(), preloadDictionaries()],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src"),          // e.g. import foo from '@/components/Foo'
@@ -44,7 +62,6 @@ export default defineConfig(({ mode }) => {
           // stay in the browser's cache across releases.
           manualChunks: {
             react: ["react", "react-dom", "react-router-dom"],
-            motion: ["framer-motion"],
             icons: ["lucide-react"]
           }
         }

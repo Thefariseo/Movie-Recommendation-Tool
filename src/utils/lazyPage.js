@@ -3,6 +3,7 @@
 // then reloaded once, to pick up the new release. A second failure in a row
 // is a real one and is shown as an error.
 import { lazy } from "react";
+import { whenQuiet } from "./activity";
 
 const KEY = "umbrify_reloaded_for_update";
 // Each main destination's file, fetched early so opening it is instant.
@@ -31,11 +32,15 @@ export function preloadPage(path) {
 }
 
 /**
- * Once the page is idle, fetches the main destinations' files, unless the
- * visitor asked their browser to save data.
+ * Once the page has loaded and its films have arrived, fetches the main
+ * destinations' files, unless the visitor asked their browser to save data.
  */
 export function preloadPagesWhenIdle() {
   if (typeof navigator !== "undefined" && navigator.connection?.saveData) return;
-  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2000));
-  idle(() => { for (const path of loaders.keys()) preloadPage(path); }, { timeout: 5000 });
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
+  // Only once the page in front of the member has what it needs: fetched
+  // earlier, these files compete with its own films.
+  const start = () => whenQuiet().then(() => idle(() => { for (const path of loaders.keys()) preloadPage(path); }, { timeout: 3000 }));
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start, { once: true });
 }

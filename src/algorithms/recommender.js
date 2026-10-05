@@ -4,6 +4,7 @@ import {
   trendingMovies,
   upcomingMovies,
   movieDetails,
+  movieCore,
   discoverMovies,
   personMovieCredits,
 } from "../utils/api";
@@ -643,13 +644,13 @@ export async function getRecommendations({
     if (member) {
       const exclude = new Set([...watched, ...watchlist].map((m) => Number(m.id)));
       const matches = strongest(space, member, { limit: SPACE_PICKS, exclude, scores: peer });
-      for (let i = 0; i < matches.length; i += 6) {
-        const fetched = await Promise.allSettled(matches.slice(i, i + 6).map((m) => movieDetails(m.id)));
-        fetched.forEach((r) => {
-          if (r.status !== "fulfilled" || !r.value?.id || candidates.has(r.value.id)) return;
-          candidates.set(r.value.id, { id: r.value.id, raw: { ...r.value, genre_ids: genreIds(r.value) }, source: "taste-space", dirScore: 0, actorScore: 0 });
-        });
-      }
+      // Credits and keywords are all a candidate needs: about half the full
+      // details. The TMDB client keeps six requests in flight.
+      const fetched = await Promise.allSettled(matches.map((m) => movieCore(m.id)));
+      fetched.forEach((r) => {
+        if (r.status !== "fulfilled" || !r.value?.id || candidates.has(r.value.id)) return;
+        candidates.set(r.value.id, { id: r.value.id, raw: { ...r.value, genre_ids: genreIds(r.value) }, source: "taste-space", dirScore: 0, actorScore: 0 });
+      });
     }
 
     // ── Films the member's critic recommended ──
@@ -662,13 +663,13 @@ export async function getRecommendations({
     // ── TMDB recommendations from top-10 highest-rated watched films ──
     const seedFilms = seedMovies(watched, 8);
 
-    for (const m of seedFilms) {
-      const d = await movieDetails(m.id).catch(() => ({}));
-      (d.recommendations?.results || []).forEach((r) => {
+    const seedDetails = await Promise.all(seedFilms.map((m) => movieDetails(m.id).catch(() => ({}))));
+    seedFilms.forEach((m, i) => {
+      (seedDetails[i].recommendations?.results || []).forEach((r) => {
         if (!candidates.has(r.id))
           candidates.set(r.id, { id: r.id, raw: r, source: `similar:${m.title}`, dirScore: 0, actorScore: 0 });
       });
-    }
+    });
   }
 
   // Apply country/person constraints to every source, including saved watchlists.
@@ -680,17 +681,14 @@ export async function getRecommendations({
   if (prefs.country || hasPersonFilter || prefs.maxRuntime) {
     pool = pool.filter(({id, raw}) => !watched.some(m => Number(m.id) === Number(id)) && !raw.adult)
       .sort((a,b) => qualityScore(b.raw)-qualityScore(a.raw)).slice(0,80);
-    const checked = [];
-    for (let offset = 0; offset < pool.length; offset += 6) {
-      checked.push(...await Promise.allSettled(pool.slice(offset, offset + 6).map(async item => {
-      const d = await movieDetails(item.id);
+    const checked = await Promise.allSettled(pool.map(async item => {
+      const d = await movieCore(item.id);
       if (prefs.maxRuntime && (!d.runtime || d.runtime > prefs.maxRuntime)) return null;
       if (prefs.country && !(d.origin_country || d.production_countries?.map(c => c.iso_3166_1) || []).includes(prefs.country)) return null;
       if (prefs.directorId && !d.credits?.crew?.some(p => p.job === 'Director' && Number(p.id) === Number(prefs.directorId))) return null;
       if (prefs.actorId && !d.credits?.cast?.some(p => Number(p.id) === Number(prefs.actorId))) return null;
       return {...item, raw: {...item.raw, ...d, genre_ids: genreIds(d)}};
-      })));
-    }
+      }));
     pool = checked.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
   }
 
@@ -882,10 +880,7 @@ export async function getRecommendations({
   // by one loose link or by nothing but its genre drops. The reason names them.
   if (evidence.films > 0 || rules.length || member) {
     const shortlist = results.slice(0, SHORTLIST);
-    const details = [];
-    for (let i = 0; i < shortlist.length; i += 6) {
-      details.push(...await Promise.allSettled(shortlist.slice(i, i + 6).map((r) => movieDetails(r.id))));
-    }
+    const details = await Promise.allSettled(shortlist.map((r) => movieCore(r.id)));
     // Films past the shortlist were not judged: they carry half the penalty of
     // a film with no sign in its favour, so they cannot leap over judged ones.
     for (const r of results.slice(SHORTLIST)) r.score -= 0.1;
