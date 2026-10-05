@@ -15,6 +15,7 @@ import { territoryGrid, territories, tally, milestones, frontier, footprint, ter
 import { regionExperts, friendJourney } from "../../shared/social.js";
 import { stars } from "../../shared/evidence.js";
 import TasteAtlas from "../components/TasteAtlas";
+import FilmTitle from "../components/FilmTitle";
 
 const FRIEND_COLOURS = ["#059669", "#0284c7", "#db2777", "#ea580c", "#7c3aed", "#0d9488"];
 const LEGEND = [
@@ -33,7 +34,7 @@ function Film({ film, caption }) {
   return (
     <button type="button" onClick={() => open(film)} className="block w-full text-left">
       <img loading="lazy" decoding="async" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} alt="" src={posterOf(film)} />
-      <span className="mt-1 block truncate text-[11px] font-medium" translate="no">{film.title}</span>
+      <span className="mt-1 block truncate text-[11px] font-medium" translate="no"><FilmTitle film={film} /></span>
       {caption && <span className="block truncate text-[10px] text-slate-500">{caption}</span>}
     </button>
   );

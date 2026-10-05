@@ -4,7 +4,8 @@
 //          watched.csv  (Date,Name,Year,Letterboxd URI)
 // =====================================================
 import Papa from "papaparse";
-import { searchMovies } from "./api";
+import { importCandidates, localTitle } from "./api";
+import { bestMatch } from "../../shared/titleMatch.js";
 
 /** Detect format by header presence of "Rating" column */
 export function detectFormat(headers) {
@@ -79,60 +80,35 @@ export function mergeEntries(ratingsEntries, watchedEntries) {
  */
 export async function resolveToTMDB({ entries, onProgress, onResult, signal }) {
   const failed = [];
-  let resolved = 0;
+  let resolved = 0, done = 0, next = 0;
 
-  for (let i = 0; i < entries.length; i++) {
-    if (signal?.aborted) break;
-
-    const entry = entries[i];
-    try {
-      const res = await searchMovies(entry.title, 1);
-      const candidates = res?.results ?? [];
-
-      // 1. Exact year
-      let match = candidates.find(
-        (m) => parseInt((m.release_date || "").slice(0, 4), 10) === entry.year
-      );
-      // 2. Year ± 1  (region release delays)
-      if (!match) {
-        match = candidates.find((m) => {
-          const y = parseInt((m.release_date || "").slice(0, 4), 10);
-          return Math.abs(y - (entry.year || 0)) <= 1;
-        });
-      }
-      // 3. Best title similarity
-      if (!match && candidates.length) {
-        const tl = entry.title.toLowerCase();
-        match =
-          candidates.find(
-            (m) =>
-              (m.title || "").toLowerCase() === tl ||
-              (m.original_title || "").toLowerCase() === tl
-          ) || candidates[0];
-      }
-
-      if (match) {
-        onResult?.({
-          id: match.id,
-          title: match.title,
-          poster: match.poster_path,
-          genres: match.genre_ids || [],
-          year: parseInt((match.release_date || "").slice(0, 4), 10) || entry.year,
-          rated: entry.rating, // 1-10 or null
-        });
-        resolved++;
-      } else {
+  // A few entries at a time: each asks TMDB twice, and the client keeps six
+  // requests in flight.
+  const worker = async () => {
+    while (next < entries.length && !signal?.aborted) {
+      const entry = entries[next++];
+      try {
+        const match = bestMatch(await importCandidates(entry.title, entry.year), entry);
+        if (match) {
+          onResult?.({
+            id: match.id,
+            title: await localTitle(match),
+            poster: match.poster_path,
+            genres: match.genre_ids || [],
+            year: parseInt((match.release_date || "").slice(0, 4), 10) || entry.year,
+            rated: entry.rating, // 1-10 or null
+          });
+          resolved++;
+        } else {
+          failed.push(entry.title);
+        }
+      } catch {
         failed.push(entry.title);
       }
-    } catch {
-      failed.push(entry.title);
+      onProgress?.(++done, entries.length);
     }
-
-    onProgress?.(i + 1, entries.length);
-
-    // Throttle: pause every 15 requests to stay well under TMDB rate limit
-    if ((i + 1) % 15 === 0) await new Promise((r) => setTimeout(r, 200));
-  }
+  };
+  await Promise.all([worker(), worker(), worker()]);
 
   return { resolved, failed };
 }

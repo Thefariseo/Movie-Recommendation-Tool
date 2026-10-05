@@ -7,6 +7,7 @@ import useWatchlist from "../../hooks/useWatchlist";
 import useWatched from "../../hooks/useWatched";
 import { movieDetails } from "../../utils/api";
 import { backend } from "../../utils/backend";
+import FilmTitle from "../FilmTitle";
 
 const poster = (m) => (m?.poster_path ? `https://image.tmdb.org/t/p/w185${m.poster_path}` : "/placeholder_poster.svg");
 
@@ -62,7 +63,7 @@ export default function Inbox({ people, onSeen }) {
                 <Link to={`/friends/${r.sender}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:underline dark:text-slate-300">
                   <UserAvatar user={people.get(r.sender)} name={name(r.sender)} className="chip-avatar" />{`${name(r.sender)} recommends`}
                 </Link>
-                <p className="font-semibold leading-tight" translate="no">{r.movie?.title} {r.movie?.year && <span className="font-normal text-slate-500">({r.movie.year})</span>}</p>
+                <p className="font-semibold leading-tight" translate="no"><FilmTitle film={r.movie} /> {r.movie?.year && <span className="font-normal text-slate-500">({r.movie.year})</span>}</p>
                 {r.note && <p className="rounded-lg bg-slate-50 px-2 py-1 text-sm italic text-slate-700 dark:bg-slate-800/60 dark:text-slate-200" translate="no">“{r.note}”</p>}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   {rated != null ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> You have seen it</span>

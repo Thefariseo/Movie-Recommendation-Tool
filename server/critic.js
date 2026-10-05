@@ -13,6 +13,7 @@ import { connect } from '../shared/connections.js';
 import { writeSignals } from './signals.js';
 import { VERDICT_SIGNAL } from '../shared/signals.js';
 import { RULE_KINDS, STANCES, MAX_RULES, parseRule, validRule } from '../shared/rules.js';
+import { bestMatch } from '../shared/titleMatch.js';
 
 const MAX_MESSAGES = 40;
 const MAX_NOTES = 12;
@@ -204,16 +205,12 @@ async function resolveFilms(films, watched, { space = null, member = null } = {}
   const found = [];
   for (const f of films.slice(0, 6)) {
     try {
-      // Models misremember years: search with the year first, then without it,
-      // preferring the result released closest to the year given.
-      const search = params => tmdb('search/movie', { query: f.title, include_adult: 'false', ...params }).then(r => (r.results || []).filter(x => !x.adult));
-      let results = f.year ? await search({ year: String(f.year) }) : [];
-      if (!results.length) {
-        const year = Number(f.year) || null;
-        const distance = r => (year ? Math.abs((Number(String(r.release_date || '').slice(0, 4)) || 0) - year) : 0);
-        results = (await search({})).map((r, order) => ({ r, order })).sort((a, b) => Math.min(distance(a.r), 3) - Math.min(distance(b.r), 3) || a.order - b.order).map(x => x.r);
-      }
-      const hit = results[0] || null;
+      // Models misremember years, and TMDB's first result of the right year
+      // can be a making-of: search with and without the year, then weigh
+      // title, year and fame (shared/titleMatch.js).
+      const search = params => tmdb('search/movie', { query: f.title, include_adult: 'false', ...params }).then(r => (r.results || []).filter(x => !x.adult)).catch(() => []);
+      const [withYear, without] = await Promise.all([f.year ? search({ year: String(f.year) }) : [], search({})]);
+      const hit = bestMatch([...withYear, ...without], { title: f.title, year: Number(f.year) || null });
       if (!hit || found.some(x => x.id === hit.id)) continue;
       const i = space?.index.get(Number(hit.id));
       found.push({

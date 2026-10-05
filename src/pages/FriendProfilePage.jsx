@@ -17,6 +17,7 @@ import { ratingPredictor } from "../../shared/predict.js";
 import { regionName } from "../../shared/journeys.js";
 import Rail from "../components/Rail";
 import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
+import FilmTitle from "../components/FilmTitle";
 
 const poster = (m, size = "w185") => (m?.poster_path ? `https://image.tmdb.org/t/p/${size}${m.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Number(r) / 2}★`;
@@ -30,7 +31,7 @@ function Film({ film, caption, children }) {
     <li className="w-28 shrink-0 sm:w-32">
       <button type="button" onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
         <img loading="lazy" decoding="async" src={poster(film)} alt="" className="w-full rounded-lg object-cover shadow-sm" style={{ aspectRatio: "2 / 3" }} />
-        <span className="mt-1 block truncate text-xs font-semibold" translate="no">{film.title}</span>
+        <span className="mt-1 block truncate text-xs font-semibold" translate="no"><FilmTitle film={film} /></span>
       </button>
       {caption && <span className="block text-[11px] leading-tight text-slate-500">{caption}</span>}
       {children}
@@ -227,7 +228,7 @@ export default function FriendProfilePage() {
                     {list.slice(0, 6).map((r) => (
                       <li key={r.id} className="flex items-center gap-2 text-sm">
                         <img loading="lazy" decoding="async" src={poster(r.movie, "w92")} alt="" className="w-8 shrink-0 rounded" style={{ aspectRatio: "2 / 3" }} />
-                        <span className="min-w-0"><span className="block truncate font-medium" translate="no">{r.movie?.title}</span>{r.note && <span className="block truncate text-xs italic text-slate-500" translate="no">“{r.note}”</span>}</span>
+                        <span className="min-w-0"><span className="block truncate font-medium" translate="no"><FilmTitle film={r.movie} /></span>{r.note && <span className="block truncate text-xs italic text-slate-500" translate="no">“{r.note}”</span>}</span>
                       </li>
                     ))}
                   </ul>

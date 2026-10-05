@@ -34,6 +34,7 @@ import RecommendToFriend from "./friends/RecommendToFriend";
 import AddToList from "./lists/AddToList";
 import { Link } from "react-router-dom";
 import Rail from "./Rail";
+import FilmTitle from "./FilmTitle";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -156,7 +157,7 @@ export default function MovieModal({ movie, onClose }) {
   const keywords = movie._keywords || details?.keywords?.keywords || [];
 
   /* ---- CinemaAtlas deep-link ---- */
-  const cinematlasUrl = `https://www.cinematlas.it/?s=${encodeURIComponent(movie.title)}`;
+  const cinematlasUrl = `https://www.cinematlas.it/?s=${encodeURIComponent(details?.title || movie.title)}`;
 
   /* ---- YouTube thumbnails ---- */
   const thumbHq  = trailerKey ? `https://img.youtube.com/vi/${trailerKey}/hqdefault.jpg`    : null;
@@ -273,7 +274,7 @@ export default function MovieModal({ movie, onClose }) {
           />
           <div className="min-w-0 flex-1 pt-1">
             <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl" translate="no">
-              {movie.title}
+              {details?.title || <FilmTitle film={movie} />}
             </h2>
 
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -526,7 +527,7 @@ export default function MovieModal({ movie, onClose }) {
             Cinematlas <ExternalLink className="h-3 w-3" />
           </a>
           <a
-            href={`https://letterboxd.com/film/${movie.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}/`}
+            href={`https://letterboxd.com/tmdb/${movie.id}/`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1 text-slate-500 transition-colors hover:text-green-600 dark:text-slate-400 dark:hover:text-green-400"

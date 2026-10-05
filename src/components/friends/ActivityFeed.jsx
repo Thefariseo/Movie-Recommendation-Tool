@@ -6,6 +6,7 @@ import { useModal } from "../../hooks/useModal";
 import useWatchlist from "../../hooks/useWatchlist";
 import { movieDetails } from "../../utils/api";
 import { backend } from "../../utils/backend";
+import FilmTitle from "../FilmTitle";
 
 export const REACTIONS = [
   { key: "heart", emoji: "❤️", label: "Love it" },
@@ -120,7 +121,7 @@ export default function ActivityFeed({ data, me, onChanged }) {
                         <UserAvatar user={person} name={person?.display_name} className="chip-avatar" />{person?.display_name || "A friend"}
                       </Link>
                       <span className="text-slate-500">{verb(a)}</span>
-                      <span className="font-medium" translate="no">{a.movie?.title}</span>
+                      <span className="font-medium" translate="no"><FilmTitle film={a.movie} /></span>
                       {a.rating ? <span className="inline-flex items-center gap-0.5 text-amber-600"><Star className="h-3.5 w-3.5 fill-current" />{a.rating / 2}</span> : null}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">

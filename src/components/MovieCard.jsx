@@ -5,6 +5,7 @@ import { dismissFilm } from "../utils/signals";
 import { useModal } from "@/hooks/useModal";
 import useWatchlist from "../hooks/useWatchlist";
 import { useToast } from "@/contexts/ToastContext";
+import FilmTitle from "./FilmTitle";
 export default function MovieCard({ movie, showActions = true, dismissable = false }) {
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { open } = useModal(),
@@ -42,7 +43,7 @@ export default function MovieCard({ movie, showActions = true, dismissable = fal
           />
           <FilmRatings movieId={movie.id} className="film-rating" />
         </span>
-        <span className="film-title" translate="no">{movie.title}</span>
+        <span className="film-title" translate="no"><FilmTitle film={movie} /></span>
         <span className="film-year">
           {movie.release_date?.slice(0, 4) || movie.year || "Year unavailable"}
         </span>
