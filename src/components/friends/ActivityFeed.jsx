@@ -125,7 +125,7 @@ export default function ActivityFeed({ data, me, onChanged }) {
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       {a.kind === "watched" && <Reactions item={a} mine={all.find((x) => x.reactor === me)?.emoji} all={all} onReact={react} />}
-                      <button type="button" disabled={saved} onClick={() => addToWatchlist({ ...a.movie, id: Number(a.movie_id) })}
+                      <button type="button" data-pop disabled={saved} onClick={() => addToWatchlist({ ...a.movie, id: Number(a.movie_id) })}
                         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-slate-500 hover:text-indigo-600 disabled:text-emerald-600">
                         {saved ? <><Check className="h-3 w-3" /> On your watchlist</> : <><Bookmark className="h-3 w-3" /> Save</>}
                       </button>

@@ -13,6 +13,7 @@ import Inbox from '../components/friends/Inbox';
 import useWatched from '../hooks/useWatched';
 import { useCircle } from '../utils/circle';
 import { useFollowedJourneys } from '../utils/journeys';
+import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
 
 const empty = { people: [], following: [], followers: [], activity: [], reactions: {}, lists: [], unseen: 0 };
 const TABS = [
@@ -85,7 +86,7 @@ export default function FriendsPage() {
   const waiting = data.people.filter(p => data.followers.includes(p.id) && !data.following.includes(p.id));
   const people = useMemo(() => new Map(data.people.map(p => [p.id, p])), [data.people]);
 
-  if (loading) return <main className="p-8">Loading…</main>;
+  if (loading) return <main className="mx-auto max-w-6xl space-y-8 px-4 pt-10"><PageHeaderSkeleton /><PosterGridSkeleton count={6} /></main>;
   if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><p className="eyebrow">BETTER TOGETHER</p><h1 className="font-display text-2xl sm:text-3xl">A shared love of film</h1><p className="my-4 text-slate-500">Follow friends, build a watchlist together and find a film for everyone.</p><Link className="account-button inline-block" to="/profile">Sign in to connect</Link></section></main>;
 
   const select = id => setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 3 ? [...prev, id] : prev));
@@ -222,7 +223,7 @@ export default function FriendsPage() {
                   if (movie) act(() => backend('social', { action: 'add-movie', list_id: list.id, movie }));
                 }}><option value="">Choose a film…</option>{watchlist.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}</select></label>
                 {!list.list_movies.length && <p className="text-sm text-slate-500">No films on this watchlist yet.</p>}
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">{list.list_movies.map(r => <div key={r.movie_id}><MovieCard movie={r.movie} /><button className="mt-2 text-xs text-slate-500 underline" disabled={busy} onClick={() => act(() => backend('social', { action: 'remove-movie', list_id: list.id, movie_id: Number(r.movie_id) }))}>Remove from shared list</button></div>)}</div>
+                <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">{list.list_movies.map(r => <div key={r.movie_id}><MovieCard movie={r.movie} /><button className="mt-2 text-xs text-slate-500 underline" disabled={busy} onClick={() => act(() => backend('social', { action: 'remove-movie', list_id: list.id, movie_id: Number(r.movie_id) }))}>Remove from shared list</button></div>)}</div>
               </div>
             ))}
           </section>

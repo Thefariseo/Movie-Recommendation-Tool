@@ -4,6 +4,7 @@
 // =====================================================
 import { viewerLanguage } from "./trailers";
 import { currentLanguage, tmdbLocale } from "../i18n/index.js";
+import { track } from "./activity";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -42,7 +43,7 @@ async function get(url, params = {}) {
     // Waiting for a free slot must not inherit someone else's failure: a 404
     // for one film used to reject every request queued behind it.
     while (queue.length >= MAX_CONCURRENT) await Promise.race(queue.map((p) => p.catch(() => {})));
-    const pending = tmdbGet(url, params);
+    const pending = track(tmdbGet(url, params));
     queue.push(pending);
     try {
       const data = await pending;

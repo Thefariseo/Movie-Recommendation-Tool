@@ -66,7 +66,7 @@ export default function Inbox({ people, onSeen }) {
                 {r.note && <p className="rounded-lg bg-slate-50 px-2 py-1 text-sm italic text-slate-700 dark:bg-slate-800/60 dark:text-slate-200" translate="no">“{r.note}”</p>}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   {rated != null ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> You have seen it</span>
-                    : <button type="button" disabled={saved} onClick={() => addToWatchlist(r.movie)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 disabled:text-emerald-600">
+                    : <button type="button" data-pop disabled={saved} onClick={() => addToWatchlist(r.movie)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 disabled:text-emerald-600">
                       {saved ? <><Check className="h-3 w-3" /> On your watchlist</> : <><Bookmark className="h-3 w-3" /> Save</>}
                     </button>}
                   <button type="button" onClick={() => dismiss(r.id)} className="ml-auto inline-flex items-center gap-1 text-xs text-slate-400 hover:text-rose-600" aria-label="Remove from inbox"><X className="h-3 w-3" /> Remove</button>

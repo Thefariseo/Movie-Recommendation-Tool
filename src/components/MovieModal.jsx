@@ -33,6 +33,7 @@ import { useToast } from "@/contexts/ToastContext";
 import RecommendToFriend from "./friends/RecommendToFriend";
 import AddToList from "./lists/AddToList";
 import { Link } from "react-router-dom";
+import Rail from "./Rail";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -258,10 +259,14 @@ export default function MovieModal({ movie, onClose }) {
         <div className="flex gap-5">
           <img
             src={
-              movie.poster_path
+              movie._posterSrc ||
+              (movie.poster_path
                 ? `https://image.tmdb.org/t/p/w185${movie.poster_path}`
-                : "/placeholder_poster.svg"
+                : "/placeholder_poster.svg")
             }
+            data-film-poster
+            data-no-fade
+            style={{ viewTransitionName: "film-poster" }}
             alt={movie.title}
             className="w-24 shrink-0 self-start rounded-xl shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 sm:w-28"
           />
@@ -378,7 +383,7 @@ export default function MovieModal({ movie, onClose }) {
             <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               Cast
             </p>
-            <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
+            <Rail className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
               {cast.map((a) => (
                 <Link key={a.id} to={`/person/${a.id}?role=acting`} onClick={onClose} title={a.character ? `${a.name} · ${a.character}` : a.name}
                   className="w-14 shrink-0 text-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
@@ -396,7 +401,7 @@ export default function MovieModal({ movie, onClose }) {
                   </p>
                 </Link>
               ))}
-            </div>
+            </Rail>
           </div>
         )}
 
@@ -413,6 +418,7 @@ export default function MovieModal({ movie, onClose }) {
         {/* ── Action buttons ── */}
         <div className="mt-5 flex flex-wrap gap-2">
           <button
+            data-pop
             onClick={toggleWatched}
             className="btn-primary flex items-center gap-1.5 text-sm"
           >
@@ -421,6 +427,7 @@ export default function MovieModal({ movie, onClose }) {
           </button>
 
           <button
+            data-pop
             onClick={toggleWatchlist}
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >

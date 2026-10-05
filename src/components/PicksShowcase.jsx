@@ -109,7 +109,7 @@ export default function PicksShowcase({ movies }) {
     <div className="space-y-5">
       <Hero movie={first} />
       {rest.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {rest.map((m) => (
             <div key={m.id} className="min-w-0 space-y-1.5">
               <MovieCard movie={m} dismissable />

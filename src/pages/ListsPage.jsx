@@ -4,6 +4,7 @@ import { Globe, Lock, Plus } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { changeList, useMyLists } from "../utils/lists";
+import { PosterGridSkeleton } from "../components/Skeletons";
 
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w154${f.poster_path}` : "/placeholder_poster.svg");
 
@@ -42,7 +43,7 @@ export default function ListsPage() {
           <button className="account-button inline-flex items-center gap-1.5" disabled={busy || !title.trim()}><Plus className="h-4 w-4" /> New list</button>
         </form>
       </div>
-      {lists == null && <p className="text-sm text-slate-500" role="status">Loading…</p>}
+      {lists == null && <PosterGridSkeleton count={3} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" />}
       {lists && !lists.length && <p className="account-panel text-sm text-slate-500">No lists yet. Start one above, or open any film and use “Add to list”.</p>}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(lists || []).map((l) => (

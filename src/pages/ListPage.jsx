@@ -11,6 +11,7 @@ import { movieDetails } from "../utils/api";
 import { changeList, listUrl, shareLink } from "../utils/lists";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { ratingPredictor } from "../../shared/predict.js";
+import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
 
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w342${f.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Math.round(Number(r)) / 2}★`;
@@ -33,7 +34,7 @@ function Film({ film, rank, mine, seen, predicted, onRemove }) {
         {seen != null ? <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" />{seen ? `You gave ${stars(seen)}` : "Seen"}</span>
           : predicted != null ? <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 dark:text-indigo-300"><Star className="h-3 w-3 fill-current" />{`For you ≈ ${stars(predicted)}`}</span> : null}
         {mine ? <button type="button" onClick={onRemove} className="ml-auto text-slate-400 hover:text-rose-600" aria-label={`Remove ${film.title} from the list`}><X className="h-4 w-4" /></button>
-          : seen == null && <button type="button" disabled={saved} onClick={() => addToWatchlist({ ...film, id: Number(film.id) })} className="ml-auto text-slate-400 hover:text-indigo-600 disabled:text-emerald-600" aria-label={saved ? "On your watchlist" : "Save to watchlist"}>{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}</button>}
+          : seen == null && <button type="button" data-pop disabled={saved} onClick={() => addToWatchlist({ ...film, id: Number(film.id) })} className="ml-auto text-slate-400 hover:text-indigo-600 disabled:text-emerald-600" aria-label={saved ? "On your watchlist" : "Save to watchlist"}>{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}</button>}
       </span>
     </li>
   );
@@ -63,7 +64,7 @@ export default function ListPage() {
   const predicted = (fid) => { const p = predictor?.predict(fid); return p && p.support > 0.3 ? p.rating : null; };
 
   if (error) return <main className="mx-auto max-w-3xl p-4"><p className="account-panel text-sm text-rose-600">{error}</p></main>;
-  if (!list) return <main className="mx-auto max-w-6xl p-4"><p className="text-sm text-slate-500" role="status">Loading…</p></main>;
+  if (!list) return <main className="mx-auto max-w-6xl space-y-6 px-4 pb-24 pt-6"><PageHeaderSkeleton /><PosterGridSkeleton className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6" /></main>;
 
   const seenCount = list.films.filter((f) => mine.has(Number(f.id))).length;
   const save = async (patch) => {
@@ -115,7 +116,7 @@ export default function ListPage() {
         )}
       </header>
       {!list.films.length && <p className="account-panel text-sm text-slate-500">{list.mine ? "This list is empty. Open any film and use “Add to list”." : "This list is empty for now."}</p>}
-      <ol className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
+      <ol className="stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
         {list.films.map((f, i) => (
           <Film key={f.id} film={f} rank={i + 1} mine={list.mine} seen={mine.has(Number(f.id)) ? mine.get(Number(f.id)) : null} predicted={predicted(f.id)} onRemove={() => remove(f)} />
         ))}

@@ -161,7 +161,7 @@ export default function TasteCircle({ circle, watched, followed, onFollow }) {
             <h3 className="text-lg font-semibold">Picked by your circle</h3>
             <p className="text-sm text-slate-500">What your friends loved, weighted by how close their taste is to yours, not by what everyone likes.</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
             {picks.slice(0, 6).map((p) => (
               <div key={p.id}>
                 <MovieCard movie={details[p.id] ? { ...details[p.id], _reason: circleReason(p) } : { ...p.film, id: p.id }} />

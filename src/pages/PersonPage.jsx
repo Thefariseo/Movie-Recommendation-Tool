@@ -8,6 +8,7 @@ import { movieDetails, personDetails, personMovieCredits } from "../utils/api";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { ratingPredictor } from "../../shared/predict.js";
 import { creditsFor, rolesOf, rankFilmography } from "../../shared/people.js";
+import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
 
 const ROLE_LABELS = { directing: "Directed", acting: "Acted in", writing: "Written" };
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w342${f.poster_path}` : "/placeholder_poster.svg");
@@ -35,7 +36,7 @@ function Film({ film }) {
           {film.predicted != null
             ? <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 dark:text-indigo-300" title="The rating your own diary predicts"><Star className="h-3 w-3 fill-current" />{`For you ≈ ${stars(Math.round(film.predicted))}`}</span>
             : film.vote_count >= 40 ? <span className="text-slate-500">{`TMDB ${Number(film.vote_average).toFixed(1)}`}</span> : null}
-          <button type="button" disabled={saved} onClick={() => addToWatchlist(film)} aria-label={saved ? "On your watchlist" : "Save to watchlist"}
+          <button type="button" data-pop disabled={saved} onClick={() => addToWatchlist(film)} aria-label={saved ? "On your watchlist" : "Save to watchlist"}
             className="ml-auto text-slate-400 hover:text-indigo-600 disabled:text-emerald-600">{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}</button>
         </span>
       )}
@@ -71,7 +72,7 @@ export default function PersonPage() {
   }, [credits, role, space, watched]);
 
   if (error) return <main className="mx-auto max-w-6xl space-y-3 px-4 py-6"><p className="account-panel text-sm text-rose-600">{error}</p></main>;
-  if (!person || !ranked) return <main className="mx-auto max-w-6xl px-4 py-6"><p className="text-sm text-slate-500" role="status">Loading…</p></main>;
+  if (!person || !ranked) return <main className="mx-auto max-w-6xl space-y-8 px-4 pb-24 pt-14"><PageHeaderSkeleton portrait /><PosterGridSkeleton /></main>;
 
   const start = ranked.unseen.filter((f) => !f.obscure).slice(0, 3);
   const life = [person.birthday?.slice(0, 4), person.deathday?.slice(0, 4)].filter(Boolean).join("–");
@@ -111,20 +112,20 @@ export default function PersonPage() {
         <section className="space-y-3">
           <h2 className="section-title">Start here</h2>
           <p className="text-sm text-slate-500">The films of theirs you are most likely to love, from what your own ratings say.</p>
-          <ul className="grid grid-cols-3 gap-4 sm:max-w-xl">{start.map((f) => <Film key={f.id} film={f} />)}</ul>
+          <ul className="stagger grid grid-cols-3 gap-4 sm:max-w-xl">{start.map((f) => <Film key={f.id} film={f} />)}</ul>
         </section>
       )}
 
       <section className="space-y-3">
         <h2 className="section-title">{`Still to see (${ranked.unseen.length})`}</h2>
-        {ranked.unseen.length ? <ul className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.unseen.filter((f) => !start.includes(f)).map((f) => <Film key={f.id} film={f} />)}</ul>
+        {ranked.unseen.length ? <ul className="stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.unseen.filter((f) => !start.includes(f)).map((f) => <Film key={f.id} film={f} />)}</ul>
           : <p className="text-sm text-slate-500">You have seen every one. Impressive.</p>}
       </section>
 
       {ranked.seen.length > 0 && (
         <section className="space-y-3">
           <h2 className="section-title">{`Seen (${ranked.seen.length})`}</h2>
-          <ul className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.seen.map((f) => <Film key={f.id} film={f} />)}</ul>
+          <ul className="stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.seen.map((f) => <Film key={f.id} film={f} />)}</ul>
         </section>
       )}
       <p className="text-xs text-slate-500">Biography and filmography from TMDB. <Link to="/library/journeys" className="hover:underline">Directors you love have journeys too →</Link></p>

@@ -49,6 +49,7 @@ function StarSlot({ index, displayValue, hovered, onHover, onClick, readonly, si
           <button
             type="button"
             tabIndex={-1}
+            data-pop="parent"
             aria-label={`Rate ${half} stars`}
             className="absolute inset-0 right-1/2 cursor-pointer"
             onMouseEnter={() => onHover(half)}
@@ -57,6 +58,7 @@ function StarSlot({ index, displayValue, hovered, onHover, onClick, readonly, si
           <button
             type="button"
             tabIndex={-1}
+            data-pop="parent"
             aria-label={`Rate ${full} star${full !== 1 ? "s" : ""}`}
             className="absolute inset-0 left-1/2 cursor-pointer"
             onMouseEnter={() => onHover(full)}

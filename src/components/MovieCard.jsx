@@ -49,6 +49,7 @@ export default function MovieCard({ movie, showActions = true, dismissable = fal
       </button>
       {showActions && (
         <button
+          data-pop
           className={`film-save ${saved ? "film-saved" : ""}`}
           onClick={toggle}
           aria-pressed={saved}
