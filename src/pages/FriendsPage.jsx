@@ -86,7 +86,7 @@ export default function FriendsPage() {
   const people = useMemo(() => new Map(data.people.map(p => [p.id, p])), [data.people]);
 
   if (loading) return <main className="p-8">Loading…</main>;
-  if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><p className="eyebrow">BETTER TOGETHER</p><h1 className="text-2xl font-semibold">A shared love of film</h1><p className="my-4 text-slate-500">Follow friends, build a watchlist together and find a film for everyone.</p><Link className="account-button inline-block" to="/profile">Sign in to connect</Link></section></main>;
+  if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><p className="eyebrow">BETTER TOGETHER</p><h1 className="font-display text-2xl sm:text-3xl">A shared love of film</h1><p className="my-4 text-slate-500">Follow friends, build a watchlist together and find a film for everyone.</p><Link className="account-button inline-block" to="/profile">Sign in to connect</Link></section></main>;
 
   const select = id => setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 3 ? [...prev, id] : prev));
   const invite = `${window.location.origin}/friends/${user.id}`;
@@ -103,7 +103,7 @@ export default function FriendsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">YOUR CIRCLE</p>
-          <h1 className="text-3xl font-semibold">Cinema is better together.</h1>
+          <h1 className="font-display text-3xl sm:text-4xl">Cinema is better together.</h1>
           <p className="mt-2 text-sm text-slate-500">Activity and movie nights are shared between mutual followers who enable sharing in their profile.</p>
         </div>
         {mutual.length > 0 && (
@@ -161,13 +161,13 @@ export default function FriendsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <Link to="/tonight" className="account-panel group space-y-1 text-slate-900 transition hover:ring-2 hover:ring-indigo-300 dark:text-slate-100">
               <p className="eyebrow flex items-center gap-1.5"><Clapperboard className="h-3.5 w-3.5" /> MOVIE NIGHT</p>
-              <h2 className="text-xl font-semibold">One film. Everyone happy.</h2>
+              <h2 className="section-title">One film. Everyone happy.</h2>
               <p className="text-sm text-slate-500">Umbrify picks films for the whole group, everyone votes from their own phone, and the draw is fair.</p>
               <span className="text-sm font-medium text-indigo-600 group-hover:underline">Plan a movie night →</span>
             </Link>
             <Link to="/library/journeys" className="account-panel group space-y-1 text-slate-900 transition hover:ring-2 hover:ring-indigo-300 dark:text-slate-100">
               <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> CINEMA SEASON</p>
-              <h2 className="text-xl font-semibold">One film a week, together.</h2>
+              <h2 className="section-title">One film a week, together.</h2>
               <p className="text-sm text-slate-500">8 to 12 weeks introduced by your critic; each of you writes a note on every week's film.</p>
               <span className="text-sm font-medium text-indigo-600 group-hover:underline">Plan a season →</span>
             </Link>
@@ -175,7 +175,7 @@ export default function FriendsPage() {
 
           <section className="account-panel space-y-4">
             <div>
-              <h2 className="text-xl font-semibold">Quick picks for a group</h2>
+              <h2 className="section-title">Quick picks for a group</h2>
               <p className="text-sm text-slate-500">Choose up to three friends. Picks balance everyone's ratings and exclude films anyone has already watched.</p>
             </div>
             {!mutual.length && <p className="text-sm">Follow each other to plan a movie night.</p>}
@@ -204,7 +204,7 @@ export default function FriendsPage() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">Shared watchlists</h2>
+            <h2 className="section-title">Shared watchlists</h2>
             {!data.lists.length && <p className="text-sm text-slate-500">Create your first list with the friends above.</p>}
             {data.lists.map(list => (
               <div key={list.id} className="account-panel space-y-4">
@@ -232,7 +232,7 @@ export default function FriendsPage() {
       {tab === 'people' && (
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="account-panel space-y-4">
-            <h2 className="text-xl font-semibold">Find your people</h2>
+            <h2 className="section-title">Find your people</h2>
             <form className="flex items-end gap-2" onSubmit={e => {
               e.preventDefault();
               act(async () => setResults((await backend(`social?q=${encodeURIComponent(query)}`)).people));
@@ -249,7 +249,7 @@ export default function FriendsPage() {
             </div>
           </section>
           <section className="account-panel space-y-2">
-            <h2 className="text-xl font-semibold">Following & followers</h2>
+            <h2 className="section-title">Following & followers</h2>
             {!data.people.length && <p className="text-sm text-slate-500">Your circle starts with a follow.</p>}
             <ul>{data.people.map(p => <Person key={p.id} p={p} data={data} busy={busy} onToggle={toggleFollow} />)}</ul>
           </section>

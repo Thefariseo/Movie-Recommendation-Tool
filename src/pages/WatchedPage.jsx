@@ -122,7 +122,7 @@ export default function WatchedPage() {
             aria-label="Filter watched films by genre"
             value={genreFilter}
             onChange={(e) => setGenreFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
             <option value="all">All Genres</option>
             {genreOptions.map((g) => (
@@ -137,7 +137,7 @@ export default function WatchedPage() {
             aria-label="Sort watched films"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
             <option value="added-desc">Recently Added</option>
             <option value="added-asc">Oldest Added</option>

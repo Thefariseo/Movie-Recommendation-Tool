@@ -196,7 +196,7 @@ export default function IntroScreen({ onDone }) {
             key={i}
             variants={wordVariant}
             className="text-3xl font-light leading-snug tracking-wide text-white sm:text-4xl md:text-[2.75rem]"
-            style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+            style={{ fontFamily: "'Schibsted Grotesk', system-ui, sans-serif", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em" }}
           >
             {w}
           </motion.span>

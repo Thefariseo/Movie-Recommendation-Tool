@@ -30,7 +30,7 @@ export default function AccountPanel() {
   };
   if (auth.loading) return <section className="account-panel" aria-busy="true">Checking your account…</section>;
   return <section className="account-panel space-y-4">
-    <div><p className="eyebrow">YOUR CINEMA, EVERYWHERE</p><h2 className="text-xl font-semibold">{auth.user ? 'Your account' : 'Keep your collection with you'}</h2></div>
+    <div><p className="eyebrow">YOUR CINEMA, EVERYWHERE</p><h2 className="section-title">{auth.user ? 'Your account' : 'Keep your collection with you'}</h2></div>
     {auth.error && <p role="alert">{auth.error} <button className="text-indigo-500 underline" onClick={auth.reload}>Retry</button></p>}
     {!auth.configured ? <p className="text-sm text-slate-500">Accounts are not available yet. You can keep using Umbrify as a guest on this device.</p> : auth.user && mode !== 'password' ? <>
       <p className="text-sm">Signed in as <strong>{auth.user.email}</strong></p>

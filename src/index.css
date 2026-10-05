@@ -1,7 +1,7 @@
 /* --------------------------------------------------
    GLOBAL FONTS
    -------------------------------------------------- */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap");
 
 /* --------------------------------------------------
    TAILWIND DIRECTIVES
@@ -14,21 +14,25 @@
    THEME VARIABLES
    -------------------------------------------------- */
 :root {
-  --color-bg: 248 250 252; /* slate-50   */
-  --color-bg-card: 255 255 255; /* white      */
-  --color-fg: 15 23 42; /* slate-900  */
-  --color-fg-muted: 100 116 139; /* slate-500  */
-  --color-primary: 99 102 241; /* indigo-600 */
-  --color-primary-light: 165 180 252; /* indigo-300 */
-  --color-border: 226 232 240; /* slate-200  */
+  /* Paper white and charcoal, a deep cinema blue for what you act on. */
+  --color-bg: 255 255 255;
+  --color-bg-card: 255 255 255;
+  --color-fg: 50 50 50; /* #323232 */
+  --color-fg-muted: 125 125 125; /* #7d7d7d */
+  --color-primary: 0 20 137; /* #001489 */
+  --color-primary-light: 130 146 220;
+  --color-border: 234 234 234; /* #eaeaea */
+  --color-accent: 255 66 56; /* #ff4238 */
 }
 
 .dark {
-  --color-bg: 2 6 23; /* slate-950 — deep cinematic black */
-  --color-bg-card: 15 23 42; /* slate-900 */
-  --color-fg: 248 250 252; /* slate-50  */
-  --color-fg-muted: 148 163 184; /* slate-400 */
-  --color-border: 30 41 59; /* slate-800 */
+  /* A dark screening room: true black, neutral greys. */
+  --color-bg: 0 0 0;
+  --color-bg-card: 20 20 20;
+  --color-fg: 255 255 255;
+  --color-fg-muted: 155 155 155; /* #9b9b9b */
+  --color-primary: 151 165 227;
+  --color-border: 50 50 50; /* #323232 */
 }
 
 /* --------------------------------------------------
@@ -37,7 +41,7 @@
 @layer base {
   html {
     font-family:
-      "Inter",
+      "Schibsted Grotesk",
       ui-sans-serif,
       system-ui,
       -apple-system,
@@ -65,17 +69,19 @@
   h4,
   h5,
   h6 {
-    @apply font-semibold tracking-tight text-[rgb(var(--color-fg))];
+    @apply font-bold tracking-tight text-[rgb(var(--color-fg))];
   }
 
+  /* Links take the accent through a variable, so any component class
+     (navigation, brand, cards) can set its own colour over it. */
   a {
-    @apply text-indigo-600 dark:text-indigo-300;
+    color: rgb(var(--color-primary));
     transition:
       color 0.15s ease,
       opacity 0.15s ease;
   }
   a:hover {
-    @apply text-indigo-500 dark:text-indigo-200;
+    opacity: 0.8;
   }
 
   /* Image rendering */
@@ -156,10 +162,14 @@
 
   /* ---------- Display / cinematic heading ---------- */
   .font-display {
-    font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+    font-family: "Schibsted Grotesk", system-ui, sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
   }
-  .font-display-italic {
-    font-family: "Playfair Display", Georgia, serif;
+  .font-display-italic,
+  .font-editorial {
+    font-family: Newsreader, Georgia, serif;
     font-style: italic;
   }
 
@@ -302,6 +312,15 @@ select {
   transition-timing-function: ease;
 }
 
+/* Section titles in capitals, like the headings of a programme. */
+.section-title {
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
 /* Prevent transition on theme toggle (no flash) */
 .no-transition * {
   transition: none !important;
@@ -310,22 +329,22 @@ select {
 /* Account and community surfaces share the existing Umbrify palette. */
 @layer components {
   .account-panel {
-    @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6;
+    @apply rounded-sm border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6;
   }
   .account-label {
     @apply block text-sm font-medium;
   }
   .account-input {
-    @apply mt-1 block w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600;
+    @apply mt-1 block w-full rounded-none border border-slate-300 bg-transparent px-3 py-2.5 text-sm outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 dark:border-slate-700 dark:focus:border-indigo-300 dark:focus:ring-indigo-300;
   }
   .account-button {
-    @apply rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-none bg-indigo-600 px-5 py-2 text-[13px] font-bold uppercase tracking-[0.06em] text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .account-secondary {
-    @apply rounded-lg border border-slate-300 px-3 py-2 text-sm transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800;
+    @apply rounded-none border border-slate-300 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.05em] transition hover:border-slate-900 disabled:opacity-50 dark:border-slate-600 dark:hover:border-white;
   }
   .eyebrow {
-    @apply mb-2 text-[10px] font-semibold tracking-widest text-indigo-500;
+    @apply mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400;
   }
 }
 
@@ -334,7 +353,7 @@ select {
   --app-width: 1200px;
 }
 :focus-visible {
-  outline: 3px solid #818cf8;
+  outline: 2px solid #001aaf;
   outline-offset: 4px;
 }
 button,
@@ -378,28 +397,28 @@ summary {
   align-items: center;
   gap: 9px;
   color: rgb(var(--color-fg));
-  font:
-    700 25px "Playfair Display",
-    Georgia,
-    serif;
-  letter-spacing: -1px;
+  font: 900 24px "Schibsted Grotesk", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
 }
 .brand:hover {
   color: rgb(var(--color-fg));
 }
 .nav-destination {
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 10px 12px;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: rgb(var(--color-fg-muted));
 }
 .nav-selected {
-  background: rgb(99 102 241 / 0.09);
-  color: #4f46e5;
+  color: rgb(var(--color-fg));
+  box-shadow: inset 0 -2px 0 rgb(var(--color-fg));
 }
 .dark .nav-selected {
-  color: #c7d2fe;
+  color: #fff;
 }
 .header-search {
   flex: 1;
@@ -446,8 +465,8 @@ summary {
   border-radius: 12px;
 }
 .global-search:focus-within {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+  border-color: #5a6fd0;
+  box-shadow: 0 0 0 3px rgb(0 20 137 / 0.1);
 }
 .global-search input {
   width: 100%;
@@ -497,7 +516,7 @@ summary {
 }
 .search-result:hover,
 .search-active {
-  background: rgb(99 102 241 / 0.09);
+  background: rgb(0 20 137 / 0.09);
 }
 .search-result img {
   flex-shrink: 0;
@@ -520,12 +539,10 @@ summary {
   margin-bottom: 30px;
 }
 .page-heading h1 {
-  font:
-    600 clamp(28px, 3vw, 38px) / 1.2 "Playfair Display",
-    Georgia,
-    serif;
-  letter-spacing: -0.8px;
-  margin: 8px 0 10px;
+  font: 800 clamp(30px, 4.4vw, 56px) / 1 "Schibsted Grotesk", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.015em;
+  margin: 8px 0 14px;
 }
 .page-heading > p:last-child {
   color: rgb(var(--color-fg-muted));
@@ -537,12 +554,14 @@ summary {
   gap: 10px;
   align-items: center;
   padding: 12px 16px;
-  border: 1px solid rgb(var(--color-border));
-  border-radius: 12px;
+  border: 1px solid rgb(var(--color-fg));
+  border-radius: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   white-space: nowrap;
-  background: rgb(var(--color-bg-card));
+  background: transparent;
 }
 .section-navigation {
   display: flex;
@@ -569,13 +588,14 @@ summary {
   border-bottom: 2px solid transparent;
   color: rgb(var(--color-fg-muted));
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 .section-navigation .section-selected {
-  border-bottom-color: #6366f1;
+  border-bottom-color: rgb(var(--color-fg));
   color: rgb(var(--color-fg));
-  font-weight: 600;
 }
 .section-count {
   background: rgb(var(--color-border) / 0.55);
@@ -593,14 +613,14 @@ summary {
   padding: 36px;
   background: rgb(var(--color-bg-card));
   border: 1px solid rgb(var(--color-border));
-  border-radius: 18px;
+  border-radius: 2px;
 }
 .welcome-icon {
   display: inline-flex;
   padding: 10px;
-  background: rgb(99 102 241 / 0.09);
+  background: rgb(0 20 137 / 0.09);
   border-radius: 12px;
-  color: #818cf8;
+  color: #5a6fd0;
   margin-bottom: 18px;
 }
 .welcome-panel h2 {
@@ -629,7 +649,7 @@ summary {
   padding-left: 36px;
 }
 .welcome-note > svg {
-  color: #818cf8;
+  color: #5a6fd0;
   margin-bottom: 15px;
 }
 .welcome-note h3 {
@@ -731,8 +751,10 @@ summary {
   overflow: hidden;
   margin-top: 10px;
   font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
   color: rgb(var(--color-fg));
 }
 .film-year {
@@ -767,7 +789,7 @@ summary {
 }
 .film-save:hover,
 .film-saved {
-  background: #4f46e5;
+  background: #001489;
 }
 /* "Not for me" on recommendation cards: shown on hover, always on touch screens. */
 .film-dismiss {
@@ -835,7 +857,7 @@ summary {
   border-radius: 16px;
 }
 .collection-empty > svg {
-  color: #818cf8;
+  color: #5a6fd0;
   margin-bottom: 20px;
 }
 .collection-empty h3 {
@@ -987,7 +1009,10 @@ summary {
   line-height: 1.2;
   margin: 8px 0;
   overflow-wrap: anywhere;
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Schibsted Grotesk", system-ui, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
 }
 .user-avatar {
   width: 88px;
@@ -1109,7 +1134,7 @@ summary {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  accent-color: #6366f1;
+  accent-color: #001489;
 }
 .profile-save {
   display: flex;

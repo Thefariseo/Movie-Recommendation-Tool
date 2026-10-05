@@ -29,7 +29,7 @@ export default function ForYouSection() {
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold">Picked for you</h2>
+        <h2 className="section-title">Picked for you</h2>
         <button
           className="account-secondary"
           disabled={loading}

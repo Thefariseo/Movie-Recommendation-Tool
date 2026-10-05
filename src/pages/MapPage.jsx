@@ -220,7 +220,7 @@ export default function MapPage() {
       <section className="account-panel space-y-4">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Award className="h-3.5 w-3.5" /> MILESTONES</p>
-          <h2 className="text-xl font-semibold">{marks.filter((m) => m.earned).length} of {marks.length} earned</h2>
+          <h2 className="section-title">{marks.filter((m) => m.earned).length} of {marks.length} earned</h2>
         </div>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {marks.map((m) => (

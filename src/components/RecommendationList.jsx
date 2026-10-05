@@ -45,7 +45,7 @@ export default function RecommendationList({ title, type }) {
       aria-busy={loading}
     >
       <div className="catalogue-heading">
-        <h2>{title}</h2>
+        <h2 className="section-title">{title}</h2>
         <div className="flex gap-1">
           <button
             className="icon-control"

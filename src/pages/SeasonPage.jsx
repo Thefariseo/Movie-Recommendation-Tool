@@ -126,7 +126,7 @@ export default function SeasonPage() {
     <main className="mx-auto max-w-3xl space-y-6 p-4">
       <header className="space-y-3">
         <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {finished ? "CINEMA SEASON · COMPLETE" : `CINEMA SEASON · WEEK ${current + 1} OF ${n}`}</p>
-        <h1 className="text-3xl font-semibold" translate="no">{season.season.title}</h1>
+        <h1 className="font-display text-3xl sm:text-4xl" translate="no">{season.season.title}</h1>
         <p className="text-slate-600 dark:text-slate-300">{season.season.introduction}</p>
         {season.season.by === "critic" && <p className="inline-flex items-center gap-1 text-xs text-slate-500"><Feather className="h-3 w-3" /> Introduced by your critic</p>}
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-indigo-500" style={{ width: `${(100 * open) / n}%` }} /></div>

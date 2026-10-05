@@ -400,7 +400,7 @@ export default function JourneysPage() {
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="eyebrow flex items-center gap-1.5"><Compass className="h-3.5 w-3.5" /> YOUR TASTE MAP</p>
-            <h2 className="text-xl font-semibold">You have explored {view.visited.size} of {total} regions of cinema.</h2>
+            <h2 className="section-title">You have explored {view.visited.size} of {total} regions of cinema.</h2>
             <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded indigo, your frontier amber. Tap a territory to explore it.</p>
           </div>
           {growth.length > 1 && (

@@ -243,7 +243,7 @@ export default function CriticPage() {
     <main className="mx-auto max-w-xl p-6">
       <section className="account-panel">
         <p className="eyebrow">YOUR PERSONAL CRITIC</p>
-        <h1 className="text-2xl font-semibold">A critic who has read your whole diary.</h1>
+        <h1 className="font-display text-2xl sm:text-3xl">A critic who has read your whole diary.</h1>
         <p className="my-4 text-sm text-slate-500">Sign in and your critic learns your taste from your ratings, talks films with you and remembers what you told it.</p>
         <Link to="/profile" className="account-button inline-block">Sign in</Link>
       </section>
@@ -253,7 +253,7 @@ export default function CriticPage() {
     <main className="mx-auto max-w-xl p-6">
       <section className="account-panel">
         <p className="eyebrow">YOUR PERSONAL CRITIC</p>
-        <h1 className="text-2xl font-semibold">Your critic is not available yet.</h1>
+        <h1 className="font-display text-2xl sm:text-3xl">Your critic is not available yet.</h1>
         <p className="mt-4 text-sm text-slate-500">This Umbrify server has no language model configured. Your recommendations still work as usual.</p>
       </section>
     </main>
@@ -264,7 +264,7 @@ export default function CriticPage() {
       <header className="flex items-end justify-between gap-4">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Feather className="h-3.5 w-3.5" /> YOUR PERSONAL CRITIC</p>
-          <h1 className="text-2xl font-semibold">{interview ? "Let me get to know your taste." : "Talk films with someone who knows your diary."}</h1>
+          <h1 className="font-display text-2xl sm:text-3xl">{interview ? "Let me get to know your taste." : "Talk films with someone who knows your diary."}</h1>
         </div>
         {state?.messages?.length > 0 && <button className="account-secondary flex items-center gap-1.5" disabled={busy} onClick={reset}><RotateCcw className="h-3.5 w-3.5" /> Forget</button>}
       </header>
