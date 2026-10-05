@@ -31,6 +31,7 @@ import { useAuth } from "../contexts/AuthContext";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 import RecommendToFriend from "./friends/RecommendToFriend";
+import AddToList from "./lists/AddToList";
 import { Link } from "react-router-dom";
 
 function detectCountry() {
@@ -436,6 +437,7 @@ export default function MovieModal({ movie, onClose }) {
             </button>
           )}
 
+          <AddToList movie={movie} />
           <RecommendToFriend movie={movie} />
 
           {!alreadyWatched && (

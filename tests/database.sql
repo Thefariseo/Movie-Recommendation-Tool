@@ -283,5 +283,25 @@ do $$begin
  begin insert into public.follows values(auth.uid(),'33333333-3333-4333-8333-333333333333');raise exception 'Followed a hidden profile';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Film lists: public ones for anyone with the link, private ones for their owner alone.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.film_lists(id,owner,title,films,public) values('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',auth.uid(),'Ozu','[{"id":1,"title":"Tokyo Story"}]',true),('ffffffff-ffff-4fff-8fff-ffffffffffff',auth.uid(),'Secret','[]',false);
+do $$begin
+ begin insert into public.film_lists(owner,title) values('22222222-2222-4222-8222-222222222222','Forged');raise exception 'Made a list for someone else';exception when insufficient_privilege then null;end;
+end$$;
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=1 from public.film_lists),'a stranger sees only the public list');
+update public.film_lists set title='Hijacked';
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=0 from public.film_lists where title='Hijacked'),'only the owner changes a list');
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+set local role anon;
+select public.test_assert((select count(*)=1 from public.film_lists where title='Ozu') and (select count(*)=0 from public.film_lists where not public),'a visitor without an account reads public lists only');
+do $$begin
+ begin insert into public.film_lists(owner,title) values('11111111-1111-4111-8111-111111111111','Anon');raise exception 'A visitor made a list';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'
