@@ -12,6 +12,7 @@ import { changeList, listUrl, shareLink } from "../utils/lists";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { ratingPredictor } from "../../shared/predict.js";
 import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
+import FilmTitle from "../components/FilmTitle";
 
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w342${f.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Math.round(Number(r)) / 2}★`;
@@ -26,7 +27,7 @@ function Film({ film, rank, mine, seen, predicted, onRemove }) {
       <button type="button" onClick={show} className="relative block text-left" aria-label={`Open ${film.title}`}>
         <img src={poster(film)} alt="" loading="lazy" className="w-full object-cover" style={{ aspectRatio: "2 / 3" }} />
         <span className="absolute left-0 top-0 bg-black/75 px-2 py-0.5 text-xs font-semibold text-white">{rank}</span>
-        <span className="film-title" translate="no">{film.title}</span>
+        <span className="film-title" translate="no"><FilmTitle film={film} /></span>
       </button>
       <span className="text-xs text-slate-500">{film.year || ""}</span>
       {film.note && <span className="mt-1 font-serif text-sm italic text-slate-700 dark:text-slate-300" translate="no">{film.note}</span>}

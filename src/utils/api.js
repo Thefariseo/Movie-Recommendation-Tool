@@ -5,6 +5,7 @@
 import { viewerLanguage } from "./trailers";
 import { currentLanguage, tmdbLocale } from "../i18n/index.js";
 import { track } from "./activity";
+import { noteTitles } from "./titleStore";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -48,6 +49,9 @@ async function get(url, params = {}) {
     try {
       const data = await pending;
       remember(key, data);
+      // Answers in another language (a search matched in English) are not
+      // the interface's titles.
+      if (!params.language) noteTitles(data);
       return data;
     } finally {
       queue.splice(queue.indexOf(pending), 1);
@@ -65,6 +69,18 @@ async function get(url, params = {}) {
 
 export function searchMovies(query, page = 1) {
   return get("/search/movie", { query, page, include_adult: false });
+}
+
+/**
+ * Candidates for an imported entry: searched in English, the language
+ * Letterboxd and most CSV exports name films in, with and without its year
+ * (TMDB only finds some films under an English title when the year is given).
+ */
+export async function importCandidates(title, year) {
+  const ask = (params) => get("/search/movie", { query: title, include_adult: false, language: "en-US", ...params }).catch(() => ({ results: [] }));
+  const [withYear, without] = await Promise.all([year ? ask({ year }) : { results: [] }, ask({})]);
+  const seen = new Set();
+  return [...(withYear.results || []), ...(without.results || [])].filter((m) => !seen.has(m.id) && seen.add(m.id));
 }
 
 export function trendingMovies(timeWindow = "week") {
@@ -105,6 +121,27 @@ const detailParams = () => ({
 export function movieCore(id) {
   const full = cache.get(`/movie/${id}` + JSON.stringify(detailParams()));
   return full ? Promise.resolve(full) : get(`/movie/${id}`, { append_to_response: "credits,keywords" });
+}
+
+/**
+ * A film's title in the interface language: from details already fetched,
+ * else from its basic details (the lightest answer that has it).
+ */
+export async function movieTitle(id) {
+  for (const params of [detailParams(), { append_to_response: "credits,keywords" }, {}]) {
+    const hit = cache.get(`/movie/${id}` + JSON.stringify(params));
+    if (hit?.title) return hit.title;
+  }
+  return (await get(`/movie/${id}`)).title;
+}
+
+/**
+ * The title to save for a film found in English (an import): its title in the
+ * interface language, so a library reads in one language.
+ */
+export async function localTitle(film) {
+  if (currentLanguage() === "en") return film.title;
+  return movieTitle(film.id).catch(() => film.title);
 }
 
 /** Fetch TMDB keywords only (lighter call for bulk keyword profiling) */

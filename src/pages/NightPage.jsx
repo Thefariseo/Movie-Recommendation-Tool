@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useModal } from "../hooks/useModal";
 import { backend } from "../utils/backend";
 import { DRAWS } from "../../shared/tonight.js";
+import FilmTitle from "../components/FilmTitle";
 
 const CHOICES = [
   { vote: -1, label: "No", icon: ThumbsDown, tone: "hover:border-rose-400 hover:text-rose-600", on: "border-rose-500 bg-rose-500 text-white" },
@@ -87,7 +88,7 @@ function Ballot({ films, mine, onVote, busy, onOpen, onAll }) {
             <img className="w-full rounded-xl shadow-lg" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(film, "w342")} />
           </button>
           <div className="min-w-0 flex-1 space-y-2">
-            <h2 className="text-2xl font-semibold leading-tight" translate="no">{film.title} <span className="text-base font-normal text-slate-500">{film.release_date?.slice(0, 4)}</span></h2>
+            <h2 className="text-2xl font-semibold leading-tight" translate="no"><FilmTitle film={film} /> <span className="text-base font-normal text-slate-500">{film.release_date?.slice(0, 4)}</span></h2>
             {film._reason && <p className="text-sm text-slate-600 dark:text-slate-300">{film._reason}</p>}
             {film.providers?.length > 0 && <p className="text-xs text-slate-500">On {film.providers.map((p) => p.name).join(", ")}</p>}
             <button type="button" onClick={() => onOpen(film)} className="text-xs font-medium text-indigo-600 hover:underline">Plot, trailer and ratings</button>
@@ -203,7 +204,7 @@ export default function NightPage() {
           <img className="w-24 rounded-lg" alt="" src={poster(winner, "w342")} />
           <span>
             {draw && <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">{DRAWS[draw.mode]?.label}{winnerOdds != null && draw.mode !== "wildcard" ? ` · it had ${percent(winnerOdds)} odds` : ""}</span>}
-            <span className="block text-2xl font-semibold" translate="no">{winner.title}</span>
+            <span className="block text-2xl font-semibold" translate="no"><FilmTitle film={winner} /></span>
             {winner._reason && <span className="mt-1 block text-sm text-slate-500">{winner._reason}</span>}
           </span>
         </button>

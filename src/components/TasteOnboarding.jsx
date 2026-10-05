@@ -7,6 +7,7 @@ import { movieDetails } from "../utils/api";
 import { saveOnboarding } from "../utils/signals";
 import { skipOnboarding } from "../utils/onboarding";
 import { onboardingPool, nextPair, ROUNDS } from "../../shared/onboarding.js";
+import FilmTitle from "./FilmTitle";
 
 const poster = (d) => (d?.poster_path ? `https://image.tmdb.org/t/p/w342${d.poster_path}` : "/placeholder_poster.svg");
 
@@ -22,7 +23,7 @@ function Choice({ film, details, onPick, disabled }) {
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-center text-xs font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">This one</span>
       </span>
       <span className="px-1">
-        <span className="block truncate text-sm font-semibold" translate="no">{film.title}</span>
+        <span className="block truncate text-sm font-semibold" translate="no"><FilmTitle film={d || film} /></span>
         <span className="block text-xs text-slate-500">{film.year || d?.release_date?.slice(0, 4)}</span>
       </span>
     </button>

@@ -149,10 +149,6 @@ export default function Home() {
               type="trending"
             />
           )}
-          <Link to="/?view=browse" className="browse-more">
-            Explore trending, highly rated and upcoming films
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
         </div>
       )}
     </main>

@@ -9,6 +9,7 @@ import { movieDetails } from "../utils/api";
 import UserAvatar from "../components/UserAvatar";
 import { seasonWeek, weekOpens } from "../../shared/seasons.js";
 import RichText from "../components/RichText";
+import FilmTitle from "../components/FilmTitle";
 
 const poster = (w) => (w?.poster_path ? `https://image.tmdb.org/t/p/w185${w.poster_path}` : "/placeholder_poster.svg");
 const day = (d) => d.toLocaleDateString(document.documentElement.lang || undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -59,7 +60,7 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
         </button>
         <div className="min-w-0 space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{`Week ${k + 1}${current ? " · this week" : ""}`}</p>
-          <h3 className="text-lg font-semibold leading-tight" translate="no">{week.title} {week.year && <span className="font-normal text-slate-500">({week.year})</span>}</h3>
+          <h3 className="text-lg font-semibold leading-tight" translate="no"><FilmTitle film={week} /> {week.year && <span className="font-normal text-slate-500">({week.year})</span>}</h3>
           {seen && <p className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> You have watched it</p>}
           <p className="text-sm"><RichText>{week.intro}</RichText></p>
           {week.watch_for && <p className="flex gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Eye className="mt-0.5 h-4 w-4 shrink-0" /> <span><span className="font-medium">Watch for:</span> {week.watch_for}</span></p>}

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
 import { Upload } from "lucide-react";
 import useWatched from "@/hooks/useWatched";
-import { searchMovies } from "../utils/api";
+import { importCandidates, localTitle } from "../utils/api";
+import { bestMatch } from "../../shared/titleMatch.js";
 
 
 
@@ -44,15 +45,11 @@ export default function CSVImport() {
           const resolved = [];
           for (const row of rows) {
             if (!row.title) continue;
-            const res = await searchMovies(row.title, 1);
-            const match =
-              res.results.find(
-                (m) => String(m.release_date).startsWith(row.year)
-              ) || res.results[0];
+            const match = bestMatch(await importCandidates(row.title, row.year), row);
             if (match) {
               resolved.push({
                 id: match.id,
-                title: match.title,
+                title: await localTitle(match),
                 poster: match.poster_path,
                 genres: match.genre_ids,
                 year: Number(match.release_date?.slice(0, 4)),

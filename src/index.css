@@ -666,15 +666,6 @@ summary {
   font-size: 13px;
   font-weight: 600;
 }
-.browse-more {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  border-top: 1px solid rgb(var(--color-border));
-  padding: 24px 0;
-  font-size: 14px;
-}
 .discovery-details {
   border: 1px solid rgb(var(--color-border));
   border-radius: 14px;

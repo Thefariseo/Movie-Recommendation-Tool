@@ -8,6 +8,7 @@ import useWatched from "@/hooks/useWatched";
 import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 import { useModal } from "@/hooks/useModal";
+import FilmTitle from "./FilmTitle";
 
 export default function WatchedCard({ movie }) {
   const { removeWatched, updateRating } = useWatched();
@@ -63,7 +64,7 @@ export default function WatchedCard({ movie }) {
       </div>
 
       <div className="min-w-0 px-0.5">
-        <p className="truncate text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100" title={movie.title} translate="no">{movie.title}</p>
+        <p className="truncate text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100" title={movie.title} translate="no"><FilmTitle film={movie} /></p>
         {movie.year && <p className="text-[11px] text-slate-500">{movie.year}</p>}
       </div>
       <StarRating value={movie.rated} onChange={handleRating} size="sm" />
