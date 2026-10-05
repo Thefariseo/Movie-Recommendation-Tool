@@ -134,8 +134,8 @@ function Step({ num, label, done }) {
 }
 
 /* ================================================================ */
-export default function LetterboxdImport() {
-  const { bulkAdd } = useWatched();
+export default function LetterboxdImport({ onStart, onDone } = {}) {
+  const { bulkAdd, removeWatched, watched } = useWatched();
 
   /* ---- Mode ---- */
   const [mode, setMode] = useState("zip"); // "zip" | "csv"
@@ -154,6 +154,7 @@ export default function LetterboxdImport() {
   const [importedCount, setImportedCount] = useState(0);
   const [failedTitles, setFailedTitles]   = useState([]);
   const [newCount, setNewCount]   = useState(0);
+  const [fixedCount, setFixedCount] = useState(0);
 
   const abortRef   = useRef(null);
   const [csvDragging, setCsvDragging] = useState(false);
@@ -242,6 +243,7 @@ export default function LetterboxdImport() {
     const controller = new AbortController();
     abortRef.current = controller;
     setPhase("resolving");
+    onStart?.();
     setProgress({ current: 0, total: merged.length });
     setImportedCount(0);
     setFailedTitles([]);
@@ -249,6 +251,7 @@ export default function LetterboxdImport() {
     const batch = [];
     const { failed } = await resolveToTMDB({
       entries: merged,
+      owned: new Set(watched.map((m) => Number(m.id))),
       signal: controller.signal,
       onProgress: (cur, tot) => setProgress({ current: cur, total: tot }),
       onResult: (movie) => {
@@ -258,8 +261,15 @@ export default function LetterboxdImport() {
     });
 
     if (!controller.signal.aborted) {
-      if (!await bulkAdd(batch)) { setZipError("Could not save the import. Please retry."); setPhase("idle"); return; }
+      if (!await bulkAdd(batch.map(({ replaces, ...movie }) => movie))) { setZipError("Could not save the import. Please retry."); setPhase("idle"); return; }
+      // Films an earlier import matched wrongly give way to the right ones,
+      // unless the diary has them too.
+      const kept = new Set(batch.map((m) => m.id));
+      const wrong = [...new Set(batch.map((m) => m.replaces).filter((id) => id && !kept.has(id)))];
+      for (const id of wrong) await removeWatched(id);
+      setFixedCount(wrong.length);
       setNewCount(batch.length);
+      onDone?.(batch.length);
       setFailedTitles(failed);
       setPhase("done");
     }
@@ -541,6 +551,7 @@ export default function LetterboxdImport() {
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <CheckCircle className="h-5 w-5" />
                 <p className="font-semibold">{newCount} films imported successfully!</p>
+                {fixedCount > 0 && <p className="text-sm">{`${fixedCount} films matched wrongly by an earlier import were replaced with the right ones.`}</p>}
               </div>
 
               {failedTitles.length > 0 && (

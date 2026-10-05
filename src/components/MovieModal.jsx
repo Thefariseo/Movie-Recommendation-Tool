@@ -35,6 +35,7 @@ import AddToList from "./lists/AddToList";
 import { Link } from "react-router-dom";
 import Rail from "./Rail";
 import FilmTitle from "./FilmTitle";
+import WrongFilm from "./WrongFilm";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -416,6 +417,7 @@ export default function MovieModal({ movie, onClose }) {
             <StarRating value={watchedEntry?.rated} onChange={handleRating} size="md" />
           </div>
         )}
+        {alreadyWatched && <div className="mt-2"><WrongFilm movie={details || movie} rating={watchedEntry?.rated} /></div>}
 
         {/* ── Action buttons ── */}
         <div className="mt-5 flex flex-wrap gap-2">

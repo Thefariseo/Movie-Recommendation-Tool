@@ -1,3 +1,4 @@
+import { currentLanguage } from "../i18n/index.js";
 // Picking the right trailer from TMDB's video list, which comes in no useful
 // order: a film's first entry is as likely a TV spot, a Blu-ray advert or a
 // fan upload as its official trailer.
@@ -34,4 +35,4 @@ export function rankTrailers(videos, { language = "en", releaseDate = null } = {
 }
 
 /** The member's language, as TMDB's two-letter code. */
-export const viewerLanguage = () => ((typeof navigator !== "undefined" && navigator.language) || "en").slice(0, 2).toLowerCase();
+export const viewerLanguage = () => currentLanguage();

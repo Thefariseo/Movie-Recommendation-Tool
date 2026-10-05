@@ -85,7 +85,7 @@ export function translator(dictionary) {
   // genre in a region's name, an ending like " · 4.6/5 average rating").
   const slot = (value, depth) => {
     const key = space(value);
-    const hit = exact.get(key) ?? (depth < 2 && /[A-Za-z]/.test(key) ? one(key, depth + 1) : null);
+    const hit = exact.get(key) ?? (depth < 3 && /[A-Za-z]/.test(key) ? one(key, depth + 1) : null);
     if (hit != null) return value.match(/^\s*/)[0] + hit + value.match(/\s*$/)[0];
     return inside.reduce((v, [re, out]) => v.replace(re, out), value);
   };
@@ -220,6 +220,13 @@ export function translateDocument(tr, root = document.body) {
   return () => observer.disconnect();
 }
 
+// The active translator, for text the code sends somewhere rather than shows
+// (a suggestion sent to the critic must go in the language the member sees).
+let active = null;
+
+/** Text in the interface language. */
+export const t = (text) => (active ? active(text) : text);
+
 // Each dictionary is its own file, downloaded only by those who read that language.
 const DICTIONARIES = { it: () => import("./it.js") };
 
@@ -230,6 +237,7 @@ export async function startTranslation() {
   if (lang === "en") return;
   const { default: dictionary } = await DICTIONARIES[lang]();
   const tr = translator(dictionary);
+  active = tr;
   // Questions the browser asks on the page's behalf.
   const confirm = window.confirm.bind(window), alert = window.alert.bind(window);
   window.confirm = (message) => confirm(tr(message));

@@ -1,10 +1,11 @@
-import { nodeHandler, identify, body, HttpError, rateLimit } from '../server/http.js';
+import { nodeHandler, identify, body, HttpError, rateLimit, interfaceLanguage } from '../server/http.js';
 import { criticEnabled } from '../server/llm.js';
 import { createSeason, readSeason, mySeasons, saveSeasonNote, leaveSeason } from '../server/seasons.js';
 import { dossier, criticState, criticThread, criticDeleteThread, criticMessage, criticPortrait, criticExplain, criticReset, savedVerdict } from '../server/critic.js';
 // The personal critic. Every call that reaches the language model is rate
 // limited per member; reading the conversation and resetting it are not.
-const language = value => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value || '') ? value : 'en');
+// The critic writes in the interface language, unless the call names another.
+const language = value => (/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value || '') ? value : interfaceLanguage());
 export async function critic(ctx) {
   await identify(ctx);
   if (ctx.request.method === 'GET') {

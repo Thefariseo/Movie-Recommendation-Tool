@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, m as motion } from "framer-motion";
-import { Check, Shuffle, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, NotebookPen, Shuffle, Sparkles } from "lucide-react";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { loadTasteMap } from "../utils/tasteMap";
 import { movieDetails } from "../utils/api";
@@ -8,6 +8,9 @@ import { saveOnboarding } from "../utils/signals";
 import { skipOnboarding } from "../utils/onboarding";
 import { onboardingPool, nextPair, ROUNDS } from "../../shared/onboarding.js";
 import FilmTitle from "./FilmTitle";
+
+// The importer is a page of its own elsewhere; here it loads only when chosen.
+const LetterboxdImport = lazy(() => import("./LetterboxdImport"));
 
 const poster = (d) => (d?.poster_path ? `https://image.tmdb.org/t/p/w342${d.poster_path}` : "/placeholder_poster.svg");
 
@@ -42,6 +45,9 @@ export default function TasteOnboarding({ onDone, onSkip }) {
   const [details, setDetails] = useState({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  // How the newcomer starts: their Letterboxd diary, or quick choices between films.
+  const [mode, setMode] = useState("start");
+  const [imported, setImported] = useState(false);
 
   useEffect(() => {
     Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions, atlas.landmarks) }) : setFailed(true)));
@@ -79,6 +85,42 @@ export default function TasteOnboarding({ onDone, onSkip }) {
     onSkip?.();
   };
 
+  if (mode === "start" || mode === "import") return (
+    <section className="account-panel space-y-5 overflow-hidden" aria-label="Find your taste">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="eyebrow flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> WELCOME TO UMBRIFY</p>
+          <h2 className="text-2xl font-semibold">{imported ? "Your diary is in." : "Let us learn your taste."}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {imported ? "Your recommendations now start from the films you have seen and rated." : "Bring the films you have already rated, or make a few quick choices: your first picks follow from either."}
+          </p>
+        </div>
+        {!imported && <button type="button" onClick={skip} className="text-xs text-slate-500 underline-offset-2 hover:underline">Not now</button>}
+      </div>
+      {mode === "start" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => setMode("import")} className="account-panel flex flex-col items-start gap-2 text-left transition hover:border-indigo-600 dark:hover:border-indigo-300">
+            <NotebookPen className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
+            <span className="font-semibold">I keep a diary on Letterboxd</span>
+            <span className="text-sm text-slate-500">Import your films and ratings in a minute, from the export Letterboxd gives you.</span>
+          </button>
+          <button type="button" onClick={() => setMode("pairs")} className="account-panel flex flex-col items-start gap-2 text-left transition hover:border-indigo-600 dark:hover:border-indigo-300" disabled={failed}>
+            <Shuffle className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
+            <span className="font-semibold">Start from scratch</span>
+            <span className="text-sm text-slate-500">Seven quick choices between two well-known films. You do not need to have seen them.</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {!imported && <button type="button" onClick={() => setMode("start")} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"><ArrowLeft className="h-4 w-4" /> Back</button>}
+          <Suspense fallback={<div className="skeleton h-40" />}>
+            {/* The page is told when the import starts, so it keeps this panel when the films arrive. */}
+            <LetterboxdImport onStart={() => onDone?.()} onDone={() => setImported(true)} />
+          </Suspense>
+        </div>
+      )}
+    </section>
+  );
   if (failed) return null;
   return (
     <section className="account-panel space-y-5 overflow-hidden" aria-label="Find your taste">

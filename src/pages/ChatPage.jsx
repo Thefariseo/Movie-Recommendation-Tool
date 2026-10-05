@@ -6,6 +6,7 @@ import { GENRE_MAP } from "../utils/genres";
 import { MessageCircle, Send, Plus, ArrowLeft } from "lucide-react";
 import MovieCard from "../components/MovieCard";
 import RichText from "../components/RichText";
+import { t } from "../i18n/index.js";
 export default function ChatPage() {
   const { user, loading, chat: aiEnabled } = useAuth();
   const [sessions, setSessions] = useState([]);
@@ -222,12 +223,13 @@ export default function ChatPage() {
         {!session && (
           <div className="flex flex-wrap gap-2">
             {[
-              "Una commedia sotto 100 minuti",
-              "Una maratona di fantascienza",
-              "Qualcosa di romantico, senza violenza",
-            ].map((prompt) => (
+              "A comedy under 100 minutes",
+              "A science fiction marathon",
+              "Something romantic, without violence",
+            ].map(t).map((prompt) => (
               <button
                 key={prompt}
+                translate="no"
                 className="account-secondary text-left"
                 disabled={busy}
                 onClick={() => send(prompt)}
@@ -255,10 +257,11 @@ export default function ChatPage() {
         )}
         {session && !busy && (
           <div className="flex flex-wrap gap-2">
-            {["Più divertente", "Più profondo", "Altri film", "Ricomincia"].map(
+            {["Funnier", "Deeper", "Other films", "Start over"].map(t).map(
               (text) => (
                 <button
                   key={text}
+                  translate="no"
                   className="account-secondary"
                   onClick={() => send(text)}
                 >
@@ -309,7 +312,7 @@ export default function ChatPage() {
               }}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="No, troppo violento. Qualcosa di più leggero?"
+              placeholder="No, too violent. Something lighter?"
               required
             />
           </label>

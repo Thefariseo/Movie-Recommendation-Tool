@@ -6,6 +6,8 @@ const requestLanguage = new AsyncLocalStorage();
 const LANGUAGES = { it: 'it-IT', en: 'en-US' };
 /** TMDB's locale for the request being served (en-US outside a request). */
 export const tmdbLocale = () => requestLanguage.getStore() || 'en-US';
+/** The interface language the request was made in, as a two-letter code. */
+export const interfaceLanguage = () => tmdbLocale().slice(0, 2);
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);

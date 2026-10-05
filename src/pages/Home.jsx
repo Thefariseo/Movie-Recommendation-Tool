@@ -84,10 +84,6 @@ export default function Home() {
           {onboarding && (
             <Suspense fallback={<PicksSkeleton />}>
               <TasteOnboarding onSkip={() => setSkipped(true)} onDone={() => setFinished(true)} />
-              {!finished && <p className="text-sm text-slate-500">
-                Already keep a film diary?{" "}
-                <Link className="font-medium text-indigo-600 hover:underline" to="/library/watched?import=1">Import it from Letterboxd</Link>
-              </p>}
             </Suspense>
           )}
           {user ? (

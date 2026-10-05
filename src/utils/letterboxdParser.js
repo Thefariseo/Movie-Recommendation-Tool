@@ -4,7 +4,7 @@
 //          watched.csv  (Date,Name,Year,Letterboxd URI)
 // =====================================================
 import Papa from "papaparse";
-import { importCandidates, localTitle } from "./api";
+import { importCandidates, localTitle, searchMovies } from "./api";
 import { bestMatch } from "../../shared/titleMatch.js";
 
 /** Detect format by header presence of "Rating" column */
@@ -78,7 +78,22 @@ export function mergeEntries(ratingsEntries, watchedEntries) {
  * @param {AbortSignal} signal
  * @returns {{ resolved: number, failed: string[] }}
  */
-export async function resolveToTMDB({ entries, onProgress, onResult, signal }) {
+/**
+ * The film the import used to pick for an entry, before titleMatch: the first
+ * result of the entry's year (or a year off) among a search in the interface
+ * language, else the first result. Re-importing finds and replaces its
+ * mistakes (a making-of in place of Salò).
+ */
+export function legacyMatch(candidates, entry) {
+  const yearOf = (m) => parseInt((m.release_date || "").slice(0, 4), 10);
+  const tl = String(entry.title || "").toLowerCase();
+  return candidates.find((m) => yearOf(m) === entry.year)
+    || candidates.find((m) => Math.abs(yearOf(m) - (entry.year || 0)) <= 1)
+    || candidates.find((m) => (m.title || "").toLowerCase() === tl || (m.original_title || "").toLowerCase() === tl)
+    || candidates[0] || null;
+}
+
+export async function resolveToTMDB({ entries, onProgress, onResult, signal, owned = new Set() }) {
   const failed = [];
   let resolved = 0, done = 0, next = 0;
 
@@ -89,8 +104,16 @@ export async function resolveToTMDB({ entries, onProgress, onResult, signal }) {
       const entry = entries[next++];
       try {
         const match = bestMatch(await importCandidates(entry.title, entry.year), entry);
+        // A film not in the library yet may have been imported wrongly before:
+        // the film the old matching chose, when the member has it, is replaced.
+        let replaces = null;
+        if (match && owned.size && !owned.has(match.id)) {
+          const legacy = legacyMatch((await searchMovies(entry.title, 1).catch(() => null))?.results || [], entry);
+          if (legacy && legacy.id !== match.id && owned.has(legacy.id)) replaces = legacy.id;
+        }
         if (match) {
           onResult?.({
+            replaces,
             id: match.id,
             title: await localTitle(match),
             poster: match.poster_path,
