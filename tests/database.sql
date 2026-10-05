@@ -283,6 +283,16 @@ do $$begin
  begin insert into public.follows values(auth.uid(),'33333333-3333-4333-8333-333333333333');raise exception 'Followed a hidden profile';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Followers: a private member who follows someone is visible to them (name, photo), to no one else.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','44444444-4444-4444-8444-444444444444',true);
+insert into public.follows values(auth.uid(),'11111111-1111-4111-8111-111111111111');
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=1 from public.profiles where id='44444444-4444-4444-8444-444444444444'),'a member sees who follows them');
+select public.test_assert((select count(*)=0 from public.user_movies where user_id='44444444-4444-4444-8444-444444444444'),'a follower''s library stays private');
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=0 from public.profiles where id='44444444-4444-4444-8444-444444444444'),'others still do not see a private follower');
+reset role;
 -- Film lists: public ones for anyone with the link, private ones for their owner alone.
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);

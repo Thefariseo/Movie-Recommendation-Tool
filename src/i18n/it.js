@@ -988,6 +988,9 @@ export default {
   "Made for you; {0} would likely hate it.": "Fatto per te; a {0} probabilmente non piacerebbe.",
   "Save {0} to watchlist": "Salva {0} nella watchlist",
   "Remove {0} from watchlist": "Togli {0} dalla watchlist",
+  "A friend": "Un amico",
+  "a film": "un film",
+  "a film you watched": "un film che hai visto",
   // ── Cinematic persona ──
   "The Thoughtful Auteur": "L'autore riflessivo",
   "The Edge-of-Seat Devotee": "Il devoto della suspense",
