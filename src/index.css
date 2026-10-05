@@ -1009,6 +1009,12 @@ summary {
   height: 100%;
   object-fit: cover;
 }
+.user-avatar.bell-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+  box-shadow: none;
+}
 .user-avatar.nav-avatar {
   width: 28px;
   height: 28px;
