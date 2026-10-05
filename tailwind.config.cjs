@@ -22,10 +22,10 @@ module.exports = {
       screens: { xl: '1280px' }
     },
     extend: {
-      // A sturdy grotesque for everything, set in capitals for display, and
+      // A wide, even grotesque for everything, set in capitals for display, and
       // an editorial serif for long reads.
       fontFamily: {
-        sans: ['"Schibsted Grotesk"', ...defaultTheme.fontFamily.sans],
+        sans: ['"Albert Sans"', ...defaultTheme.fontFamily.sans],
         serif: ['Newsreader', 'Georgia', ...defaultTheme.fontFamily.serif]
       },
       // Sharp, editorial corners: cards and buttons are nearly square.

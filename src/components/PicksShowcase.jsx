@@ -52,7 +52,7 @@ function Hero({ movie }) {
         <div className="min-w-0 flex-1 space-y-3">
           <Role role={movie._role || { kind: "top", label: "Your top match" }} />
           <div>
-            <h3 className="text-3xl font-extrabold uppercase leading-none tracking-tight sm:text-5xl" style={{ color: "#fff" }} translate="no">{movie.title}</h3>
+            <h3 className="text-3xl font-semibold uppercase leading-none sm:text-5xl" style={{ color: "#fff" }} translate="no">{movie.title}</h3>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-slate-300">
               <span>{movie.release_date?.slice(0, 4)}</span>
               <FilmRatings movieId={movie.id} className="font-semibold text-slate-100" />
