@@ -24,19 +24,20 @@ create table public.season_notes (
   primary key (season_id, user_id, movie_id)
 );
 
+-- Parameters are named `target`: `season` is also a column of cinema_seasons.
 -- Membership checks run as definer so the note policies do not recurse into
 -- the seasons policy.
-create function public.in_season(season uuid) returns boolean
+create function public.in_season(target uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists(select 1 from public.cinema_seasons s where s.id = season and auth.uid() = any(s.members))
+  select exists(select 1 from public.cinema_seasons s where s.id = target and auth.uid() = any(s.members))
 $$;
 
 -- A member who is not the host may leave a season.
-create function public.leave_season(season uuid) returns void
+create function public.leave_season(target uuid) returns void
 language sql volatile security definer set search_path = '' as $$
   update public.cinema_seasons set members = array_remove(members, auth.uid())
-  where id = season and auth.uid() = any(members) and host <> auth.uid();
-  delete from public.season_notes where season_id = season and user_id = auth.uid();
+  where id = target and auth.uid() = any(members) and host <> auth.uid();
+  delete from public.season_notes where season_id = target and user_id = auth.uid();
 $$;
 
 alter table public.cinema_seasons enable row level security;

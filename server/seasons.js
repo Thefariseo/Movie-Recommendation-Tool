@@ -121,6 +121,6 @@ export async function leaveSeason(ctx, id) {
   const [row] = await db(`cinema_seasons?id=eq.${uuid(id)}&select=id,host`);
   if (!row) throw new HttpError(404, 'This season does not exist or you are not in it.');
   if (row.host === ctx.user.id) await db(`cinema_seasons?id=eq.${row.id}`, { method: 'DELETE' });
-  else await db('rpc/leave_season', { method: 'POST', body: { season: row.id } });
+  else await db('rpc/leave_season', { method: 'POST', body: { target: row.id } });
   return { ok: true };
 }
