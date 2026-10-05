@@ -15,6 +15,8 @@ import UserAvatar from "../components/UserAvatar";
 import { tasteOf, closeness, closenessLabel, regionTaste, divergences, disputed, friendOverview } from "../../shared/social.js";
 import { ratingPredictor } from "../../shared/predict.js";
 import { regionName } from "../../shared/journeys.js";
+import Rail from "../components/Rail";
+import { PageHeaderSkeleton, PosterGridSkeleton } from "../components/Skeletons";
 
 const poster = (m, size = "w185") => (m?.poster_path ? `https://image.tmdb.org/t/p/${size}${m.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Number(r) / 2}★`;
@@ -43,7 +45,7 @@ function Row({ icon: Icon, title, hint, films, render, empty }) {
         <h2 className="section-title flex items-center gap-1.5 !text-lg">{Icon && <Icon className="h-4 w-4 text-indigo-500" />}{title}</h2>
         {hint && <p className="text-sm text-slate-500">{hint}</p>}
       </div>
-      {films.length ? <ul className="flex gap-3 overflow-x-auto pb-2">{films.map(render)}</ul> : empty && <p className="text-sm text-slate-500">{empty}</p>}
+      {films.length ? <Rail as="ul" className="flex gap-3 overflow-x-auto pb-2">{films.map(render)}</Rail> : empty && <p className="text-sm text-slate-500">{empty}</p>}
     </section>
   );
 }
@@ -124,7 +126,7 @@ export default function FriendProfilePage() {
 
   if (!user && !authLoading) return <main className="mx-auto max-w-3xl p-4"><p className="account-panel text-sm">Sign in to see your friends. <Link className="font-medium text-indigo-600 hover:underline" to="/profile">Sign in</Link></p></main>;
   if (error) return <main className="mx-auto max-w-3xl space-y-3 p-4"><Link to="/friends" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"><ArrowLeft className="h-4 w-4" /> Friends</Link><p className="account-panel text-sm text-rose-600">{error}</p></main>;
-  if (!view) return <main className="mx-auto max-w-3xl p-4"><p className="text-sm text-slate-500" role="status">Loading…</p></main>;
+  if (!view) return <main className="mx-auto max-w-3xl space-y-8 p-4 pt-10"><PageHeaderSkeleton /><PosterGridSkeleton count={6} className="grid grid-cols-3 gap-3 sm:grid-cols-6" /></main>;
 
   const { person, relation } = view;
   const name = person.display_name || "A friend";

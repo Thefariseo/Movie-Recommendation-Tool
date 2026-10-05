@@ -905,6 +905,9 @@ export default {
   "You love {0}.": "Ami: {0}.",
   "Guided by {0} · {1}": "Con la guida di {0} · {1}",
 
+  "Loading": "Caricamento",
+  "Previous films": "Film precedenti",
+  "More films": "Altri film",
   // ── Cinematic persona ──
   "The Thoughtful Auteur": "L'autore riflessivo",
   "The Edge-of-Seat Devotee": "Il devoto della suspense",

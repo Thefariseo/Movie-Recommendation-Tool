@@ -5,6 +5,7 @@ import { backend } from "../utils/backend";
 import { GENRE_MAP } from "../utils/genres";
 import { MessageCircle, Send, Plus, ArrowLeft } from "lucide-react";
 import MovieCard from "../components/MovieCard";
+import RichText from "../components/RichText";
 export default function ChatPage() {
   const { user, loading, chat: aiEnabled } = useAuth();
   const [sessions, setSessions] = useState([]);
@@ -201,7 +202,7 @@ export default function ChatPage() {
               <span className="mb-1 block text-[10px] font-semibold uppercase opacity-60">
                 {m.role === "user" ? "You" : "Umbrify"}
               </span>
-              {m.content}
+              <RichText>{m.content}</RichText>
             </p>
           ))}
           <>

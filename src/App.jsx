@@ -11,7 +11,9 @@ import LibraryLayout from "./components/LibraryLayout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LibraryProvider } from "./contexts/LibraryContext";
 import Home from "./pages/Home";
-import Spinner from "./components/Spinner";
+import TopProgress, { PageLoading } from "./components/TopProgress";
+import useSmoothNavigation from "./hooks/useSmoothNavigation";
+import { fadeInImages, installTapFeedback } from "./utils/motion";
 
 // Discover ships with the app; every other page loads when it is first opened.
 const ChatPage = lazyPage(() => import("./pages/ChatPage"));
@@ -50,10 +52,10 @@ export default function App() {
 function AppContent() {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [pathname]);
+  useSmoothNavigation();
   useEffect(() => { preloadPagesWhenIdle(); }, []);
+  useEffect(() => fadeInImages(), []);
+  useEffect(() => installTapFeedback(), []);
   // Pages wait for the account to be known: rendered as a guest first, they
   // were thrown away and rebuilt a moment later (a flash, and their films
   // fetched twice). A slow answer does not hold the page for long.
@@ -77,10 +79,11 @@ function AppContent() {
           <WatchlistProvider>
             <ModalProvider>
                               <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
+                  <TopProgress />
                   <Navbar />
                   <div id="page-content" tabIndex={-1}>
-                    {!pagesReady ? <div className="page-wait"><Spinner /></div> : (
-                    <Suspense fallback={<div className="flex min-h-screen justify-center py-16"><Spinner /></div>}>
+                    {!pagesReady ? <PageLoading /> : (
+                    <Suspense fallback={<PageLoading />}>
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/library" element={<LibraryLayout />}>

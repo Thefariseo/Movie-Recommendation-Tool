@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import Rail from "./Rail";
 import MovieCard from "./MovieCard";
 import { trendingMovies, topRatedMovies, upcomingMovies } from "@/utils/api";
 const FETCHERS = {
@@ -12,7 +12,6 @@ export default function RecommendationList({ title, type }) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(false),
     [retry, setRetry] = useState(0);
-  const rail = useRef(null);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -31,13 +30,6 @@ export default function RecommendationList({ title, type }) {
       cancelled = true;
     };
   }, [type, retry]);
-  const scroll = (direction) =>
-    rail.current?.scrollBy({
-      left: direction * rail.current.clientWidth * 0.8,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
-    });
   return (
     <section
       className="catalogue-section"
@@ -46,22 +38,6 @@ export default function RecommendationList({ title, type }) {
     >
       <div className="catalogue-heading">
         <h2 className="section-title">{title}</h2>
-        <div className="flex gap-1">
-          <button
-            className="icon-control"
-            onClick={() => scroll(-1)}
-            aria-label={`Previous ${title} films`}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            className="icon-control"
-            onClick={() => scroll(1)}
-            aria-label={`More ${title} films`}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
       </div>
       {error ? (
         <div className="catalogue-message" role="status">
@@ -79,18 +55,17 @@ export default function RecommendationList({ title, type }) {
           ))}
         </div>
       ) : movies.length ? (
-        <div
-          ref={rail}
-          className="film-rail"
+        <Rail
+          className="film-rail stagger"
           tabIndex={0}
-          aria-label={`${title} films, scroll for more`}
+          label={`${title} films, scroll for more`}
         >
           {movies.slice(0, 12).map((m) => (
             <div className="rail-card" key={m.id}>
               <MovieCard movie={m} />
             </div>
           ))}
-        </div>
+        </Rail>
       ) : (
         <p className="catalogue-message">No films available right now.</p>
       )}

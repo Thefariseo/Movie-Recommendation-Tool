@@ -8,6 +8,7 @@ import { backend } from "../utils/backend";
 import { movieDetails } from "../utils/api";
 import UserAvatar from "../components/UserAvatar";
 import { seasonWeek, weekOpens } from "../../shared/seasons.js";
+import RichText from "../components/RichText";
 
 const poster = (w) => (w?.poster_path ? `https://image.tmdb.org/t/p/w185${w.poster_path}` : "/placeholder_poster.svg");
 const day = (d) => d.toLocaleDateString(document.documentElement.lang || undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -60,7 +61,7 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{`Week ${k + 1}${current ? " · this week" : ""}`}</p>
           <h3 className="text-lg font-semibold leading-tight" translate="no">{week.title} {week.year && <span className="font-normal text-slate-500">({week.year})</span>}</h3>
           {seen && <p className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> You have watched it</p>}
-          <p className="text-sm">{week.intro}</p>
+          <p className="text-sm"><RichText>{week.intro}</RichText></p>
           {week.watch_for && <p className="flex gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Eye className="mt-0.5 h-4 w-4 shrink-0" /> <span><span className="font-medium">Watch for:</span> {week.watch_for}</span></p>}
         </div>
       </div>
@@ -79,7 +80,7 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
                 <UserAvatar user={people.get(id)} name={name(id)} className="bell-avatar" />
                 <span>
                   <span className="font-medium">{name(id)}</span>{rated?.rating ? <span className="text-slate-500"> · {rated.rating}/10</span> : rated ? <span className="text-slate-500"> · watched</span> : null}
-                  {note && <span className="block text-slate-700 dark:text-slate-300">{note.note}</span>}
+                  {note && <span className="block text-slate-700 dark:text-slate-300"><RichText>{note.note}</RichText></span>}
                 </span>
               </li>
             );
@@ -127,7 +128,7 @@ export default function SeasonPage() {
       <header className="space-y-3">
         <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {finished ? "CINEMA SEASON · COMPLETE" : `CINEMA SEASON · WEEK ${current + 1} OF ${n}`}</p>
         <h1 className="font-display text-3xl sm:text-4xl" translate="no">{season.season.title}</h1>
-        <p className="text-slate-600 dark:text-slate-300">{season.season.introduction}</p>
+        <p className="text-slate-600 dark:text-slate-300"><RichText>{season.season.introduction}</RichText></p>
         {season.season.by === "critic" && <p className="inline-flex items-center gap-1 text-xs text-slate-500"><Feather className="h-3 w-3" /> Introduced by your critic</p>}
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-indigo-500" style={{ width: `${(100 * open) / n}%` }} /></div>
         <ul className="flex flex-wrap gap-3" aria-label="Who follows the season">

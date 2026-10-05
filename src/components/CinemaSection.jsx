@@ -8,6 +8,7 @@ import { movieDetails, nowPlayingMovies, upcomingInRegion } from "../utils/api";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { ratingPredictor } from "../../shared/predict.js";
 import { rankForMember } from "../../shared/cinema.js";
+import { PosterGridSkeleton } from "./Skeletons";
 
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w342${f.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Math.round(Number(r)) / 2}★`;
@@ -41,7 +42,7 @@ function Film({ film, upcoming }) {
       )}
       <span className="mt-auto flex items-center gap-3 pt-2 text-xs">
         {!upcoming && <a href={showtimes} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-slate-600 hover:underline dark:text-slate-300"><MapPin className="h-3 w-3" /> Showtimes</a>}
-        <button type="button" disabled={saved} onClick={() => addToWatchlist(film)} className="ml-auto inline-flex items-center gap-1 text-slate-500 hover:text-indigo-600 disabled:text-emerald-600">
+        <button type="button" data-pop disabled={saved} onClick={() => addToWatchlist(film)} className="ml-auto inline-flex items-center gap-1 text-slate-500 hover:text-indigo-600 disabled:text-emerald-600">
           {saved ? <><Check className="h-3.5 w-3.5" /> Saved</> : <><Plus className="h-3.5 w-3.5" /> Save</>}
         </button>
       </span>
@@ -97,10 +98,10 @@ export default function CinemaSection() {
         </div>
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      {!films && !error && <p className="text-sm text-slate-500" role="status">Loading…</p>}
+      {!films && !error && <PosterGridSkeleton className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6" />}
       {films && !films.length && <p className="text-sm text-slate-500">Nothing listed here right now.</p>}
       {films && films.length > 0 && (
-        <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
+        <ul className="stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
           {films.map((f) => <Film key={f.id} film={f} upcoming={tab === "soon"} />)}
         </ul>
       )}

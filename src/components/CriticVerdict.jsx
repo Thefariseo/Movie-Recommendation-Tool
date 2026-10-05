@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Feather, RefreshCw } from "lucide-react";
 import { backend } from "../utils/backend";
 import { reloadSignals } from "../utils/signals";
+import RichText from "./RichText";
 
 const VERDICT = { love: "Made for you", like: "Likely a good fit", mixed: "Could go either way", skip: "Probably not for you" };
 
@@ -54,8 +55,8 @@ export default function CriticVerdict({ movieId }) {
           <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} /> Ask again
         </button>
       </div>
-      <p className="mt-1 font-semibold">{verdict.headline}</p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{verdict.analysis}</p>
+      <p className="mt-1 font-semibold"><RichText>{verdict.headline}</RichText></p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300"><RichText>{verdict.analysis}</RichText></p>
       {verdict.verdict === "skip" && <p className="mt-2 text-[11px] text-slate-500">Umbrify won't recommend it to you.</p>}
       {error && <p role="alert" className="mt-2 text-xs text-red-500">{error}</p>}
     </div>

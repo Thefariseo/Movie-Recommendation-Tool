@@ -9,6 +9,8 @@ import MovieCard from "../components/MovieCard";
 import { movieDetails } from "../utils/api";
 import { reloadSignals } from "../utils/signals";
 import { ruleLabel } from "../../shared/rules.js";
+import RichText from "../components/RichText";
+import Rail from "../components/Rail";
 
 const language = () => (navigator.language || "en").split("-")[0];
 
@@ -24,7 +26,7 @@ function QuickRate({ movie }) {
   return (
     <div className="flex items-center gap-1" role="group" aria-label={`Rate ${movie.title}`}>
       {[1, 2, 3, 4, 5].map((s) => (
-        <button key={s} type="button" onClick={() => rate(s)} aria-label={`${s} stars`} className="p-0.5">
+        <button key={s} type="button" data-pop onClick={() => rate(s)} aria-label={`${s} stars`} className="p-0.5">
           <Star className={`h-4 w-4 ${current >= s * 2 ? "fill-amber-400 text-amber-400" : "text-slate-300 dark:text-slate-600"}`} />
         </button>
       ))}
@@ -47,15 +49,15 @@ function ReplyFilms({ message }) {
   if (!films.length) return null;
   const rateable = message.mode === "interview";
   return (
-    <div className="mr-8 flex gap-3 overflow-x-auto pb-1">
+    <div className="mr-8"><Rail className="flex gap-3 overflow-x-auto pb-1">
       {films.map((f) => (
         <div key={f.id} className="w-28 shrink-0 space-y-1.5 sm:w-32">
           <MovieCard movie={f} />
           {(rateable || f._seen) && <QuickRate movie={f} />}
-          {f._why && <p className="line-clamp-3 text-[11px] leading-snug text-slate-500">{f._why}</p>}
+          {f._why && <p className="line-clamp-3 text-[11px] leading-snug text-slate-500"><RichText>{f._why}</RichText></p>}
         </div>
       ))}
-    </div>
+    </Rail></div>
   );
 }
 
@@ -65,7 +67,7 @@ function Bubble({ message, animate }) {
     <motion.div initial={animate ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="space-y-2">
       <p className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${mine ? "ml-10 rounded-br-md bg-indigo-600 text-white" : "mr-10 rounded-bl-md bg-slate-100 dark:bg-slate-800"}`}>
         {!mine && <span className="mb-1 block text-[10px] font-semibold uppercase opacity-60">Your critic</span>}
-        {message.content}
+        <RichText>{message.content}</RichText>
       </p>
       {!mine && <ReplyFilms message={message} />}
     </motion.div>
@@ -104,24 +106,24 @@ function Portrait({ portrait, onRefresh, busy }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="eyebrow">YOUR TASTE, AS YOUR CRITIC READS IT</p>
-          <h2 className="mt-1 text-xl font-semibold leading-snug">{portrait.headline}</h2>
+          <h2 className="mt-1 text-xl font-semibold leading-snug"><RichText>{portrait.headline}</RichText></h2>
         </div>
         <button className="account-secondary shrink-0" disabled={busy} onClick={onRefresh}>Rewrite</button>
       </div>
-      {portrait.portrait.split(/\n+/).map((p, i) => <p key={i} className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{p}</p>)}
+      {portrait.portrait.split(/\n+/).map((p, i) => <p key={i} className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"><RichText>{p}</RichText></p>)}
       <ul className="grid gap-3 sm:grid-cols-2">
         {portrait.traits.map((t) => (
           <li key={t.trait} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
             <p className="text-sm font-semibold">{t.trait}</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">{t.evidence}</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500"><RichText>{t.evidence}</RichText></p>
           </li>
         ))}
       </ul>
-      <p className="text-sm"><span className="font-semibold">Blind spot: </span>{portrait.blind_spot}</p>
+      <p className="text-sm"><span className="font-semibold">Blind spot: </span><RichText>{portrait.blind_spot}</RichText></p>
       {portrait.try_next?.movie && (
         <div className="flex items-center gap-4">
           <div className="w-28 shrink-0"><MovieCard movie={portrait.try_next.movie} /></div>
-          <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold">Start here: </span>{portrait.try_next.why}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold">Start here: </span><RichText>{portrait.try_next.why}</RichText></p>
         </div>
       )}
     </section>
