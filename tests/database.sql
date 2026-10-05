@@ -249,5 +249,39 @@ do $$begin
  begin insert into public.push_subscriptions(user_id,endpoint,p256dh,auth) values('11111111-1111-4111-8111-111111111111','https://push.test/2',repeat('k',60),repeat('a',16));raise exception 'Subscribed someone else';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Friends: a film recommended only to a mutual friend, reactions only where the film can be seen.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.film_recommendations(sender,recipient,movie_id,movie,note) values(auth.uid(),'22222222-2222-4222-8222-222222222222',7,'{"id":7,"title":"Ran"}','See it');
+do $$begin
+ begin insert into public.film_recommendations(sender,recipient,movie_id,movie) values(auth.uid(),'33333333-3333-4333-8333-333333333333',7,'{"id":7}');raise exception 'Recommended to a stranger';exception when insufficient_privilege then null;end;
+ begin insert into public.film_recommendations(sender,recipient,movie_id,movie) values('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111',8,'{"id":8}');raise exception 'Recommended as someone else';exception when insufficient_privilege then null;end;
+end$$;
+insert into public.activity_reactions(owner,movie_id,reactor,emoji) values('22222222-2222-4222-8222-222222222222',7,auth.uid(),'fire');
+do $$begin
+ begin insert into public.activity_reactions(owner,movie_id,reactor,emoji) values('33333333-3333-4333-8333-333333333333',7,auth.uid(),'fire');raise exception 'Reacted to a stranger';exception when insufficient_privilege then null;end;
+end$$;
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+select public.test_assert((select count(*)=1 from public.film_recommendations where seen_at is null),'the friend receives the film');
+update public.film_recommendations set seen_at=now();
+select public.test_assert((select count(*)=1 from public.film_recommendations where seen_at is not null),'the recipient marks it seen');
+do $$begin
+ begin update public.film_recommendations set note='Forged';raise exception 'Rewrote a note';exception when insufficient_privilege then null;end;
+end$$;
+select public.test_assert((select count(*)=1 from public.activity_reactions),'the owner sees reactions to their film');
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=0 from public.film_recommendations) and (select count(*)=0 from public.activity_reactions),'strangers see neither');
+reset role;
+-- Following back works without a discoverable profile.
+update public.profiles set discoverable=false where id='33333333-3333-4333-8333-333333333333';
+insert into public.follows values('33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111') on conflict do nothing;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.follows values(auth.uid(),'33333333-3333-4333-8333-333333333333');
+select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+do $$begin
+ begin insert into public.follows values(auth.uid(),'33333333-3333-4333-8333-333333333333');raise exception 'Followed a hidden profile';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

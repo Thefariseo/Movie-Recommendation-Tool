@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, m as motion } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, BookOpen, Brain, Check, Clock, Ghost, Heart, Infinity as NoLimit,
@@ -91,7 +91,9 @@ export default function TonightPage() {
   const [services, setServices] = useState(readServices);
   const [catalogue, setCatalogue] = useState([]);
   const [friends, setFriends] = useState(null);
-  const [chosen, setChosen] = useState([]);
+  // A friend's page opens this with them already invited.
+  const [params] = useSearchParams();
+  const [chosen, setChosen] = useState(() => (/^[0-9a-f-]{36}$/i.test(params.get("with") || "") ? [params.get("with")] : []));
   const [nights, setNights] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

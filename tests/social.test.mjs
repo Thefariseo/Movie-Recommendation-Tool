@@ -65,3 +65,16 @@ test('circle picks follow the closest friend, and say who and how close', () => 
   assert.ok(!picks.some((p) => me.some((m) => m.id === p.id)));
   assert.match(circleReason(picks[0]), /^Carlo \(\d+% match\) gave it [\d.]+★/);
 });
+
+test('a friend\'s overview: films both loved, their favourites the member has not seen, films both want', async () => {
+  const { friendOverview } = await import('../shared/social.js');
+  const mine = [{ id: 1, title: 'Ran', rated: 10 }, { id: 2, title: 'Heat', rated: 9 }, { id: 3, title: 'Cats', rated: 2 }];
+  const theirs = [{ id: 1, title: 'Ran', rated: 9 }, { id: 3, title: 'Cats', rated: 9 }, { id: 4, title: 'Ikiru', rated: 8 }, { id: 5, title: 'Up', rated: 10 }, { id: 6, title: 'Saw', rated: 4 }];
+  const predict = (id) => (id === 4 ? { rating: 9.5, support: 1 } : id === 5 ? { rating: 4, support: 1 } : null);
+  const o = friendOverview(mine, theirs, [{ id: 7 }, { id: 8 }], [{ id: 8, title: 'Ozu' }], predict);
+  assert.deepEqual(o.bothLoved.map((f) => f.title), ['Ran'], 'Cats is not loved by both');
+  assert.deepEqual(o.favourites.map((f) => f.title), ['Ikiru', 'Up'], 'what the member\'s diary predicts outranks their own enthusiasm');
+  assert.equal(o.favourites[0].predicted, 9.5);
+  assert.deepEqual(o.bothWant.map((f) => f.title), ['Ozu']);
+  assert.deepEqual(o.stats, { rated: 5, mean: 8, loved: 4, watchlist: 1 });
+});

@@ -19,6 +19,7 @@ const CriticPage = lazyPage(() => import("./pages/CriticPage"));
 const TonightPage = lazyPage(() => import("./pages/TonightPage"));
 const NightPage = lazyPage(() => import("./pages/NightPage"));
 const SeasonPage = lazyPage(() => import("./pages/SeasonPage"));
+const FriendProfilePage = lazyPage(() => import("./pages/FriendProfilePage"));
 const AuthCallback = lazyPage(() => import("./pages/AuthCallback"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
 const FriendsPage = lazyPage(() => import("./pages/FriendsPage"));
@@ -92,6 +93,7 @@ function AppContent() {
                         element={<Navigate to="/library/stats" replace />}
                       />
                       <Route path="/friends" element={<FriendsPage />} />
+                      <Route path="/friends/:id" element={<FriendProfilePage />} />
                       <Route path="/chat" element={<ChatPage />} />
                       <Route path="/critic" element={<CriticPage />} />
                       <Route path="/tonight" element={<TonightPage />} />
