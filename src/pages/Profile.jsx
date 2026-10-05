@@ -12,6 +12,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLibrary } from "../contexts/LibraryContext";
 import { backend } from "../utils/backend";
 import AccountPanel from "../components/AccountPanel";
+import LanguagePicker from "../components/LanguagePicker";
 import IntegrationsPanel from "../components/IntegrationsPanel";
 import ProfileFriends from "../components/ProfileFriends";
 import UserAvatar from "../components/UserAvatar";
@@ -281,6 +282,13 @@ export default function Profile() {
             </Link>
           </section>
           {auth.user && <AccountPanel />}
+          <section className="account-panel flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Interface language</h3>
+              <p className="text-sm text-slate-500">Explanations written by Umbrify and your critic may stay in English.</p>
+            </div>
+            <LanguagePicker className="rounded-lg border border-slate-200 px-3 py-1.5 dark:border-slate-700" />
+          </section>
           <IntegrationsPanel />
           <details className="account-panel profile-maintenance">
             <summary>Library management</summary>

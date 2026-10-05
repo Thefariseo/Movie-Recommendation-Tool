@@ -3,6 +3,7 @@
 // =====================================================
 import React, { Suspense, useEffect } from "react";
 import { lazyPage } from "./utils/lazyPage";
+import LanguagePicker from "./components/LanguagePicker";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
 import Navbar from "./components/Navbar";
@@ -113,6 +114,8 @@ function AppContent() {
                     <a className="hover:underline" href="/terms">
                       Terms
                     </a>
+                    <span aria-hidden="true"> · </span>
+                    <LanguagePicker />
                   </footer>
                   <Analytics />
                   <SpeedInsights />

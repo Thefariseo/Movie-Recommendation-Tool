@@ -63,7 +63,7 @@ export default function WatchedCard({ movie }) {
       </div>
 
       <div className="min-w-0 px-0.5">
-        <p className="truncate text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100" title={movie.title}>{movie.title}</p>
+        <p className="truncate text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100" title={movie.title} translate="no">{movie.title}</p>
         {movie.year && <p className="text-[11px] text-slate-500">{movie.year}</p>}
       </div>
       <StarRating value={movie.rated} onChange={handleRating} size="sm" />

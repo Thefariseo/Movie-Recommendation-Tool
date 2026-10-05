@@ -22,7 +22,7 @@ function Choice({ film, details, onPick, disabled }) {
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-center text-xs font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">This one</span>
       </span>
       <span className="px-1">
-        <span className="block truncate text-sm font-semibold">{film.title}</span>
+        <span className="block truncate text-sm font-semibold" translate="no">{film.title}</span>
         <span className="block text-xs text-slate-500">{film.year || d?.release_date?.slice(0, 4)}</span>
       </span>
     </button>

@@ -10,7 +10,7 @@ import UserAvatar from "../components/UserAvatar";
 import { seasonWeek, weekOpens } from "../../shared/seasons.js";
 
 const poster = (w) => (w?.poster_path ? `https://image.tmdb.org/t/p/w185${w.poster_path}` : "/placeholder_poster.svg");
-const day = (d) => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+const day = (d) => d.toLocaleDateString(document.documentElement.lang || undefined, { weekday: "short", day: "numeric", month: "short" });
 
 function Note({ mine, onSave }) {
   const [text, setText] = useState(mine || "");
@@ -46,7 +46,7 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
     return (
       <li className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 p-3 text-sm text-slate-500 dark:border-slate-700">
         <Lock className="h-4 w-4 shrink-0" />
-        <span><span className="font-semibold">Week {k + 1}</span> opens {day(opens)}</span>
+        <span>{`Week ${k + 1} opens ${day(opens)}`}</span>
       </li>
     );
   }
@@ -57,8 +57,8 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
           <img src={poster(week)} alt="" className="w-full rounded-lg object-cover shadow" style={{ aspectRatio: "2 / 3" }} />
         </button>
         <div className="min-w-0 space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Week {k + 1}{current ? " · this week" : ""}</p>
-          <h3 className="text-lg font-semibold leading-tight">{week.title} {week.year && <span className="font-normal text-slate-500">({week.year})</span>}</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{`Week ${k + 1}${current ? " · this week" : ""}`}</p>
+          <h3 className="text-lg font-semibold leading-tight" translate="no">{week.title} {week.year && <span className="font-normal text-slate-500">({week.year})</span>}</h3>
           {seen && <p className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> You have watched it</p>}
           <p className="text-sm">{week.intro}</p>
           {week.watch_for && <p className="flex gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Eye className="mt-0.5 h-4 w-4 shrink-0" /> <span><span className="font-medium">Watch for:</span> {week.watch_for}</span></p>}
@@ -125,8 +125,8 @@ export default function SeasonPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4">
       <header className="space-y-3">
-        <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> CINEMA SEASON · {finished ? "COMPLETE" : `WEEK ${current + 1} OF ${n}`}</p>
-        <h1 className="text-3xl font-semibold">{season.season.title}</h1>
+        <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {finished ? "CINEMA SEASON · COMPLETE" : `CINEMA SEASON · WEEK ${current + 1} OF ${n}`}</p>
+        <h1 className="text-3xl font-semibold" translate="no">{season.season.title}</h1>
         <p className="text-slate-600 dark:text-slate-300">{season.season.introduction}</p>
         {season.season.by === "critic" && <p className="inline-flex items-center gap-1 text-xs text-slate-500"><Feather className="h-3 w-3" /> Introduced by your critic</p>}
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-indigo-500" style={{ width: `${(100 * open) / n}%` }} /></div>
@@ -134,7 +134,7 @@ export default function SeasonPage() {
           {season.members.map((m) => (
             <li key={m} className="flex items-center gap-2 text-sm">
               <UserAvatar user={people.get(m)} name={people.get(m)?.display_name} className="bell-avatar" />
-              <span>{m === user.id ? "You" : people.get(m)?.display_name || "A friend"}<span className="block text-xs text-slate-500">{(data.progress[m] || []).length}/{n} watched</span></span>
+              <span>{m === user.id ? "You" : people.get(m)?.display_name || "A friend"}<span className="block text-xs text-slate-500">{`${(data.progress[m] || []).length}/${n} watched`}</span></span>
             </li>
           ))}
         </ul>

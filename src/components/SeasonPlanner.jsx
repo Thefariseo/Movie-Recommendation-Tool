@@ -22,9 +22,9 @@ export function SeasonList({ seasons }) {
             <img src={poster(film)} alt="" className="h-24 w-16 shrink-0 rounded-md object-cover" />
             <span className="min-w-0">
               <span className="block text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{finished ? "Season complete" : `Week ${current + 1} of ${s.season.weeks.length}`}</span>
-              <span className="block truncate font-semibold">{s.season.title}</span>
-              <span className="block truncate text-sm text-slate-500">{finished ? `${s.season.weeks.length} films` : `This week: ${film.title}`}</span>
-              {s.members.length > 1 && <span className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500"><Users className="h-3 w-3" /> with {s.members.length - 1} friend{s.members.length > 2 ? "s" : ""}</span>}
+              <span className="block truncate font-semibold" translate="no">{s.season.title}</span>
+              <span className="block truncate text-sm text-slate-500">{finished ? `${s.season.weeks.length} films` : <>{"This week: "}<span translate="no">{film.title}</span></>}</span>
+              {s.members.length > 1 && <span className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500"><Users className="h-3 w-3" /> {`with ${s.members.length - 1} friend${s.members.length > 2 ? "s" : ""}`}</span>}
             </span>
           </Link>
         );
@@ -119,7 +119,7 @@ export default function SeasonPlanner({ model, member, watched, exclude, signedI
                 <li key={s.id} className="w-20 shrink-0">
                   <img src={poster(details[s.id])} alt="" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} />
                   <span className="mt-1 block text-[10px] font-semibold uppercase text-slate-400">Week {k + 1}</span>
-                  <span className="block truncate text-[11px] font-medium">{details[s.id]?.title || "…"}</span>
+                  <span className="block truncate text-[11px] font-medium" translate="no">{details[s.id]?.title || "…"}</span>
                 </li>
               ))}
             </ol>
