@@ -154,7 +154,7 @@ export default function NightPage() {
     }
   };
 
-  if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><h1 className="text-xl font-semibold">Sign in to vote on this movie night.</h1><Link className="account-button mt-4 inline-block" to="/profile">Sign in</Link></section></main>;
+  if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><h1 className="font-display text-xl">Sign in to vote on this movie night.</h1><Link className="account-button mt-4 inline-block" to="/profile">Sign in</Link></section></main>;
   if (!state) return <main className="mx-auto max-w-xl p-6">{error ? <p role="alert" className="text-sm text-red-500">{error}</p> : <p className="text-sm text-slate-500">Loading the ballot…</p>}</main>;
 
   const { night, votes, people, ranking, odds = {} } = state;
@@ -180,7 +180,7 @@ export default function NightPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> MOVIE NIGHT</p>
-          <h1 className="text-2xl font-semibold">{decided ? "Tonight you are watching…" : "Vote for tonight's film"}</h1>
+          <h1 className="font-display text-2xl sm:text-3xl">{decided ? "Tonight you are watching…" : "Vote for tonight's film"}</h1>
           <p className="mt-1 text-sm text-slate-500">{night.members.map((m) => `${name(m)}${voted.has(m) ? " ✓" : ""}`).join(" · ")}</p>
         </div>
         {!decided && (

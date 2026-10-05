@@ -180,7 +180,7 @@ export default function StatsPage() {
           className="relative overflow-hidden px-6 py-7 sm:px-8"
           style={{
             background:
-              "radial-gradient(ellipse 80% 70% at 5% 50%, rgba(99,102,241,0.14) 0%, transparent 60%)," +
+              "radial-gradient(ellipse 80% 70% at 5% 50%, rgba(0,20,137,0.12) 0%, transparent 60%)," +
               "radial-gradient(ellipse 55% 55% at 95% 50%, rgba(139,92,246,0.08) 0%, transparent 55%)",
           }}
         >

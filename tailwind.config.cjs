@@ -22,14 +22,55 @@ module.exports = {
       screens: { xl: '1280px' }
     },
     extend: {
+      // A wide, even grotesque for everything, set in capitals for display, and
+      // an editorial serif for long reads.
       fontFamily: {
-        sans: ['Inter', ...defaultTheme.fontFamily.sans]
+        sans: ['"Albert Sans"', ...defaultTheme.fontFamily.sans],
+        serif: ['Newsreader', 'Georgia', ...defaultTheme.fontFamily.serif]
+      },
+      // Sharp, editorial corners: cards and buttons are nearly square.
+      borderRadius: {
+        sm: '1px',
+        DEFAULT: '2px',
+        md: '2px',
+        lg: '3px',
+        xl: '3px',
+        '2xl': '4px',
+        '3xl': '6px'
       },
       colors: {
         brand: {
-          DEFAULT: '#6366f1',
-          light:   '#a5b4fc',
-          dark:    '#4f46e5'
+          DEFAULT: '#001489',
+          light:   '#8292dc',
+          dark:    '#00106d'
+        },
+        // The accent is a deep cinema blue; the existing indigo classes take it on.
+        indigo: {
+          50: '#eef0fb',
+          100: '#dde2f6',
+          200: '#bac3ec',
+          300: '#97a5e3',
+          400: '#5a6fd0',
+          500: '#001aaf',
+          600: '#001489',
+          700: '#00106d',
+          800: '#000c52',
+          900: '#000838',
+          950: '#00041f'
+        },
+        // Pure neutral greys, without the blue cast of slate.
+        slate: {
+          50: '#f7f7f7',
+          100: '#efefef',
+          200: '#e6e6e6',
+          300: '#c8c8c8',
+          400: '#9b9b9b',
+          500: '#7d7d7d',
+          600: '#5f5f5f',
+          700: '#3f3f3f',
+          800: '#2a2a2a',
+          900: '#181818',
+          950: '#0a0a0a'
         }
       },
       boxShadow: {

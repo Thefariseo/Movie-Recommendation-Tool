@@ -159,7 +159,7 @@ export default function TonightPage() {
       <main className="mx-auto max-w-xl px-4 pb-24 pt-10">
         <section className="account-panel space-y-3 text-center">
           <Moon className="mx-auto h-8 w-8 text-indigo-500" />
-          <h1 className="text-2xl font-semibold">One film. Your friends. A shared movie night.</h1>
+          <h1 className="font-display text-2xl sm:text-3xl">One film. Your friends. A shared movie night.</h1>
           <p className="text-sm text-slate-500">Answer a few questions, Umbrify picks films for the whole group, and everyone votes from their own phone.</p>
           <Link to="/profile" className="account-button inline-block">Sign in to start</Link>
         </section>
@@ -180,7 +180,7 @@ export default function TonightPage() {
     <main className="mx-auto max-w-2xl space-y-5 px-4 pb-24 pt-6">
       <header className="space-y-1">
         <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> TONIGHT WITH FRIENDS</p>
-        <h1 className="text-2xl font-semibold">One film. Your friends. A shared movie night.</h1>
+        <h1 className="font-display text-2xl sm:text-3xl">One film. Your friends. A shared movie night.</h1>
       </header>
 
       {nights.length > 0 && (
@@ -213,7 +213,7 @@ export default function TonightPage() {
             initial={{ opacity: 0, x: 32 * direction }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -32 * direction }}
             transition={{ duration: 0.18 }} className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold">{current.title}</h2>
+              <h2 className="section-title">{current.title}</h2>
               <p className="text-sm text-slate-500">{current.hint}</p>
             </div>
 

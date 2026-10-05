@@ -146,7 +146,7 @@ export default function TasteCircle({ circle, watched, followed, onFollow }) {
     <section className="account-panel space-y-5">
       <div>
         <p className="eyebrow flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> YOUR TASTE CIRCLE</p>
-        <h2 className="text-xl font-semibold">How close your tastes are</h2>
+        <h2 className="section-title">How close your tastes are</h2>
         <p className="text-sm text-slate-500">Each friend is placed on the same map of 16,000 films as you, from their own ratings. The match compares the films each of you is most drawn to.</p>
         {!me && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">Rate at least two films you loved (7/10 or more) to see how close you are.</p>}
       </div>

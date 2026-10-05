@@ -92,7 +92,7 @@ export default function ChatPage() {
       <main className="mx-auto max-w-xl p-6">
         <section className="account-panel">
           <p className="eyebrow">LET’S FIND YOUR NEXT FILM</p>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="font-display text-2xl sm:text-3xl">
             Tell me what you're in the mood for.
           </h1>
           <p className="my-4 text-sm text-slate-500">
@@ -176,7 +176,7 @@ export default function ChatPage() {
       <section className="account-panel chat-room space-y-5">
         <div>
           <p className="eyebrow">THE SCREENING ROOM</p>
-          <h1 className="text-2xl font-semibold">What feels right tonight?</h1>
+          <h1 className="font-display text-2xl sm:text-3xl">What feels right tonight?</h1>
           <p className="mt-2 text-sm text-slate-500">
             Tell us the mood, genre or time you have. Refine the picks as you
             go.

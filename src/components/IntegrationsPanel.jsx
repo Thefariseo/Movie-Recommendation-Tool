@@ -49,7 +49,7 @@ export default function IntegrationsPanel() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  return <section className="account-panel space-y-5"><div><p className="eyebrow">YOUR FILMS, CONNECTED</p><h2 className="text-xl font-semibold">Connected services</h2></div>
+  return <section className="account-panel space-y-5"><div><p className="eyebrow">YOUR FILMS, CONNECTED</p><h2 className="section-title">Connected services</h2></div>
     <div className="space-y-3"><h3 className="font-semibold">Trakt</h3><p className="text-sm text-slate-500">Import watched films, ratings and your watchlist. Export adds watchlist entries and updates ratings; it never removes anything on Trakt.</p>
       {!user ? <Link to="/profile" className="text-sm text-indigo-500">Sign in to connect Trakt</Link> : trakt?.enabled ? <div className="flex flex-wrap gap-2">{!trakt.connected ? <button className="account-button" disabled={busy} onClick={() => act('connect')}>Connect Trakt</button> : <><button className="account-button" disabled={busy} onClick={() => act('import')}>Import from Trakt</button><button className="account-secondary" disabled={busy} onClick={() => {
             if (window.confirm('Send your Umbrify ratings and watchlist to Trakt? Matching Trakt ratings will be updated.')) act('export');

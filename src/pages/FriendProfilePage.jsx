@@ -40,7 +40,7 @@ function Row({ icon: Icon, title, hint, films, render, empty }) {
   return (
     <section className="space-y-2">
       <div>
-        <h2 className="flex items-center gap-1.5 text-lg font-semibold">{Icon && <Icon className="h-4 w-4 text-indigo-500" />}{title}</h2>
+        <h2 className="section-title flex items-center gap-1.5 !text-lg">{Icon && <Icon className="h-4 w-4 text-indigo-500" />}{title}</h2>
         {hint && <p className="text-sm text-slate-500">{hint}</p>}
       </div>
       {films.length ? <ul className="flex gap-3 overflow-x-auto pb-2">{films.map(render)}</ul> : empty && <p className="text-sm text-slate-500">{empty}</p>}
@@ -137,7 +137,7 @@ export default function FriendProfilePage() {
       <header className="account-panel flex flex-wrap items-center gap-5">
         <UserAvatar user={person} name={name} className="profile-avatar" />
         <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="text-3xl font-semibold" translate="no">{name}</h1>
+          <h1 className="font-display text-3xl sm:text-4xl" translate="no">{name}</h1>
           <p className="text-sm text-slate-500">{relationText}</p>
           {view.shares && (
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
@@ -198,7 +198,7 @@ export default function FriendProfilePage() {
 
           {(taste?.fight?.theirs || taste?.fight?.yours) && (
             <section className="space-y-2">
-              <h2 className="flex items-center gap-1.5 text-lg font-semibold"><Swords className="h-4 w-4 text-indigo-500" />{`The films you would argue about`}</h2>
+              <h2 className="section-title flex items-center gap-1.5 !text-lg"><Swords className="h-4 w-4 text-indigo-500" />{`The films you would argue about`}</h2>
               <ul className="flex gap-3">
                 {taste.fight.theirs && disputes[taste.fight.theirs.id] && <Film film={disputes[taste.fight.theirs.id]} caption={`${name} would love it; it is far from your taste.`} />}
                 {taste.fight.yours && disputes[taste.fight.yours.id] && <Film film={disputes[taste.fight.yours.id]} caption={`You would love it; it is far from ${name}'s.`} />}
@@ -220,7 +220,7 @@ export default function FriendProfilePage() {
             <section className="grid gap-4 sm:grid-cols-2">
               {[[`${name} sent you`, view.received], [`You sent ${name}`, view.sent]].map(([title, list]) => list.length > 0 && (
                 <div key={title} className="space-y-2">
-                  <h2 className="text-lg font-semibold">{title}</h2>
+                  <h2 className="section-title !text-lg">{title}</h2>
                   <ul className="space-y-2">
                     {list.slice(0, 6).map((r) => (
                       <li key={r.id} className="flex items-center gap-2 text-sm">

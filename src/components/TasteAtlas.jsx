@@ -4,7 +4,7 @@ import { territoryName } from "../../shared/atlas.js";
 // Colours of the territories, light and dark.
 const FILL = {
   conquered: ["rgba(79,70,229,0.62)", "rgba(129,140,248,0.62)"],
-  settled: ["rgba(129,140,248,0.34)", "rgba(99,102,241,0.34)"],
+  settled: ["rgba(90,111,208,0.32)", "rgba(0,20,137,0.32)"],
   frontier: ["rgba(245,158,11,0.30)", "rgba(245,158,11,0.26)"],
   unexplored: ["rgba(148,163,184,0.16)", "rgba(100,116,139,0.20)"],
 };
