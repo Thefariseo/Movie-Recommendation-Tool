@@ -3,13 +3,15 @@
 // Centralised TMDB API client with lightweight in-memory cache.
 // =====================================================
 import { viewerLanguage } from "./trailers";
+import { currentLanguage, tmdbLocale } from "../i18n/index.js";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 
 /** One TMDB GET with the key and language every request carries. */
 export async function tmdbGet(url, params = {}, { signal } = {}) {
-  const query = new URLSearchParams({ api_key: API_KEY, language: "en-US" });
+  // Titles, plots and genres come in the interface language.
+  const query = new URLSearchParams({ api_key: API_KEY, language: tmdbLocale() });
   for (const [k, v] of Object.entries(params)) if (v != null) query.set(k, String(v));
   const response = await fetch(`${BASE_URL}${url}?${query}`, { signal });
   if (!response.ok) throw new Error(`TMDB ${response.status}`);
@@ -80,8 +82,12 @@ export function upcomingMovies(page = 1) {
  * Full movie details: videos, credits, keywords, recommendations.
  * Keywords are used for nanogenre/mood matching (Nanocrowd-style approach).
  */
-export function movieDetails(id) {
-  return get(`/movie/${id}`, detailParams());
+export async function movieDetails(id) {
+  const details = await get(`/movie/${id}`, detailParams());
+  // A film without a plot in the interface language keeps the English one.
+  if (details?.overview || currentLanguage() === "en") return details;
+  const english = await get(`/movie/${id}`, { language: "en-US" }).catch(() => null);
+  return english?.overview ? { ...details, overview: english.overview } : details;
 }
 
 const detailParams = () => ({
@@ -132,6 +138,19 @@ export function searchPeople(query) {
 
 export function personMovieCredits(personId) {
   return get(`/person/${personId}/movie_credits`);
+}
+
+/** A person's biography, photo and best-known department. */
+export function personDetails(personId) {
+  return get(`/person/${personId}`);
+}
+
+/** Films in cinemas now, or soon, in a region. */
+export function nowPlayingMovies(region = "US", page = 1) {
+  return get("/movie/now_playing", { region, page });
+}
+export function upcomingInRegion(region = "US", page = 1) {
+  return get("/movie/upcoming", { region, page });
 }
 
 /**

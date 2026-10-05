@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { backend, setBackendAccount } from '../utils/backend';
+import { followCountry } from '../i18n/index.js';
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({
@@ -19,6 +20,8 @@ export function AuthProvider({
       const result = await backend('auth');
       if (id === requestId.current) {
         setBackendAccount(result.user?.id || null);
+        // Without a language chosen, the interface speaks the profile country's.
+        if (result.profile?.country) followCountry(result.profile.country);
         setState({
           ...result,
           loading: false,

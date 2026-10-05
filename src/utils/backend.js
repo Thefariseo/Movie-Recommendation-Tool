@@ -1,3 +1,4 @@
+import { currentLanguage } from '../i18n/index.js';
 let accountId = null;
 export function setBackendAccount(id) {
   accountId = id;
@@ -11,6 +12,8 @@ export async function backend(path, data, {
     credentials: 'same-origin',
     signal,
     headers: {
+      // Films and explanations come back in the interface language.
+      'X-Umbrify-Lang': currentLanguage(),
       ...(!publicAuth && account ? {
         'X-Umbrify-Account': account
       } : {}),

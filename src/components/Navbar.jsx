@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 import NotificationBell, { InstallButton } from "./NotificationBell";
+import LanguagePicker from "./LanguagePicker";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
   { path: "/tonight", label: "Tonight", icon: Clapperboard },
@@ -75,6 +76,7 @@ export default function Navbar() {
             <SearchBar />
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <LanguagePicker compact className="hidden px-1 text-[rgb(var(--color-fg-muted))] md:inline-flex" />
             {user ? <NotificationBell userId={user.id} /> : <InstallButton />}
             <button
               onClick={toggle}

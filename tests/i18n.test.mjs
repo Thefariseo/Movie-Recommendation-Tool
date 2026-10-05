@@ -32,3 +32,12 @@ test('every pattern names its slots in the translation, and no key is a bare slo
     assert.match(en.replace(/\{\d\}/g, ''), /[A-Za-z]/, en);
   }
 });
+
+test('each request fetches films in the language it was made in', async () => {
+  const { execute, tmdbLocale } = await import('../server/http.js');
+  const seen = [];
+  const ask = (lang) => execute(new Request('https://umbrify.test/api/x', { headers: lang ? { 'X-Umbrify-Lang': lang } : {} }), async () => { seen.push(tmdbLocale()); return {}; });
+  await Promise.all([ask('it'), ask('en'), ask('xx'), ask(null)]);
+  assert.deepEqual(seen, ['it-IT', 'en-US', 'en-US', 'en-US']);
+  assert.equal(tmdbLocale(), 'en-US', 'outside a request');
+});
