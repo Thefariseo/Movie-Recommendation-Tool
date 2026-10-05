@@ -703,7 +703,7 @@ export async function getRecommendations({
     .filter(({ raw }) => !raw.adult && (!raw.release_date || raw.release_date <= new Date().toISOString().slice(0, 10)))
     .filter(({ raw }) => (raw.vote_count   || 0) >= voteCountFloor)
     .filter(({ raw }) => criticAverage(raw) >= 5.0)
-    .map(({ id, raw, source, dirScore, dirName, dirId, actorScore, actorName, actorId, ruleName }) => {
+    .map(({ id, raw, source, dirScore, dirName, actorScore, actorName, ruleName }) => {
       const genreIds    = raw.genre_ids || raw.genres?.map(g => g.id ?? g) || [];
       const movieYear   = parseInt((raw.release_date || "").slice(0, 4), 10) || 2000;
       const movieDecade = decade(movieYear);

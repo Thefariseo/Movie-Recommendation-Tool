@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Upload } from "lucide-react";
 import useWatched from "@/hooks/useWatched";
 import { searchMovies } from "../utils/api";

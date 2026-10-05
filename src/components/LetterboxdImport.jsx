@@ -13,7 +13,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { m as motion, AnimatePresence } from "framer-motion";
 import {
   Upload, Star, Eye, CheckCircle, X, Loader2, FileText,
-  ExternalLink, Archive, ChevronRight, ArrowRight,
+  ExternalLink, Archive, ArrowRight,
 } from "lucide-react";
 import useWatched from "@/hooks/useWatched";
 import {
@@ -135,7 +135,7 @@ function Step({ num, label, done }) {
 
 /* ================================================================ */
 export default function LetterboxdImport() {
-  const { bulkAdd, watched } = useWatched();
+  const { bulkAdd } = useWatched();
 
   /* ---- Mode ---- */
   const [mode, setMode] = useState("zip"); // "zip" | "csv"
