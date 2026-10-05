@@ -15,13 +15,14 @@ import { hasSeeds } from "../../shared/onboarding.js";
 // so the in-browser recommender is only downloaded when a guest needs it.
 const ForYouSection = lazyPage(() => import("../components/ForYouSection"));
 const TasteOnboarding = lazyPage(() => import("../components/TasteOnboarding"));
+const CinemaSection = lazyPage(() => import("../components/CinemaSection"));
 
 export default function Home() {
   const { user } = useAuth(),
     { watched } = useWatched(),
     { watchlist } = useWatchlist();
   const [params] = useSearchParams();
-  const view = params.get("view") === "browse" ? "browse" : "foryou";
+  const view = ["browse", "cinema"].includes(params.get("view")) ? params.get("view") : "foryou";
   const seeded = hasSeeds(useSignals(user?.id));
   const [skipped, setSkipped] = useState(onboardingSkipped);
   // Kept on screen once done, to show the choices the new picks follow.
@@ -52,6 +53,13 @@ export default function Home() {
           For you
         </Link>
         <Link
+          to="/?view=cinema"
+          aria-current={view === "cinema" ? "page" : undefined}
+          className={view === "cinema" ? "section-selected" : ""}
+        >
+          In cinemas
+        </Link>
+        <Link
           to="/?view=browse"
           aria-current={view === "browse" ? "page" : undefined}
           className={view === "browse" ? "section-selected" : ""}
@@ -59,7 +67,13 @@ export default function Home() {
           Browse films
         </Link>
       </nav>
-      {view === "browse" ? (
+      {view === "cinema" ? (
+        <div className="pt-7">
+          <Suspense fallback={<PicksSkeleton />}>
+            <CinemaSection />
+          </Suspense>
+        </div>
+      ) : view === "browse" ? (
         <div className="space-y-10 pt-7">
           <RecommendationList title="Trending this week" type="trending" />
           <RecommendationList title="Highly rated" type="top_rated" />

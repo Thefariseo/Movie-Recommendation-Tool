@@ -141,8 +141,12 @@ export function personMovieCredits(personId) {
 }
 
 /** A person's biography, photo and best-known department. */
-export function personDetails(personId) {
-  return get(`/person/${personId}`);
+export async function personDetails(personId) {
+  const person = await get(`/person/${personId}`);
+  // A biography missing in the interface language comes in English.
+  if (person?.biography || currentLanguage() === "en") return person;
+  const english = await get(`/person/${personId}`, { language: "en-US" }).catch(() => null);
+  return english?.biography ? { ...person, biography: english.biography } : person;
 }
 
 /** Films in cinemas now, or soon, in a region. */
