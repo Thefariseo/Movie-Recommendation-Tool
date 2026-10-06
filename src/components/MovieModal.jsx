@@ -153,7 +153,7 @@ export default function MovieModal({ movie, onClose }) {
       exit={{ scale: 0.94, opacity: 0, y: 24 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
       onClick={(e) => e.stopPropagation()}
-      className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+      className="film-sheet relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
     >
       {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>

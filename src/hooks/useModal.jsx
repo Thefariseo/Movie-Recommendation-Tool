@@ -75,7 +75,7 @@ function ModalRoot({ movie, onClose }) {
       onClick={onClose}
     >
       {/* Centre vertically; scrollable on small screens */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="film-sheet-wrap flex min-h-full items-center justify-center p-4">
         <Suspense fallback={<div className="h-64 w-full max-w-2xl animate-pulse rounded-2xl bg-white/10" role="status" aria-label="Opening the film" />}>
           <MovieModal movie={movie} onClose={onClose} />
         </Suspense>

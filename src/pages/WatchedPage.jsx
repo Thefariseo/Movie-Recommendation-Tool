@@ -21,6 +21,9 @@ export default function WatchedPage() {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("added-desc");
   const [genreFilter, setGenreFilter] = useState("all");
+  // Films seen but not rated yet: rating them is what sharpens the picks.
+  const [toRate, setToRate] = useState(false);
+  const unrated = useMemo(() => watched.filter((m) => !Number(m.rated)).length, [watched]);
 
   /* Collect unique genres present in the catalogue */
   const genreOptions = useMemo(() => {
@@ -40,6 +43,7 @@ export default function WatchedPage() {
       arr = arr.filter((m) => m.title.toLowerCase().includes(q));
     }
 
+    if (toRate) arr = arr.filter((m) => !Number(m.rated));
     if (genreFilter !== "all") {
       const gId = Number(genreFilter);
       arr = arr.filter((m) => m.genres?.includes(gId));
@@ -74,7 +78,7 @@ export default function WatchedPage() {
     }
 
     return arr;
-  }, [watched, query, sortBy, genreFilter]);
+  }, [watched, query, sortBy, genreFilter, toRate]);
 
   return (
     <main className="library-content">
@@ -103,9 +107,9 @@ export default function WatchedPage() {
 
       {/* Filters row */}
       {watched.length > 0 && (
-        <div className="mb-6 mt-4 flex flex-wrap gap-3">
+        <div className="mb-6 mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
           {/* Title search */}
-          <div className="relative min-w-[180px] flex-1">
+          <div className="relative col-span-2 min-w-[180px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               aria-label="Search watched films"
@@ -117,6 +121,12 @@ export default function WatchedPage() {
             />
           </div>
 
+          {unrated > 0 && (
+            <button type="button" aria-pressed={toRate} onClick={() => setToRate((v) => !v)}
+              className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm sm:col-span-1 ${toRate ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 dark:border-slate-700"}`}>
+              {`To rate · ${unrated}`}
+            </button>
+          )}
           {/* Genre filter */}
           <select
             aria-label="Filter watched films by genre"
