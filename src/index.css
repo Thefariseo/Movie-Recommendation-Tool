@@ -923,13 +923,54 @@ summary {
   .library-layout {
     padding: 28px 20px 36px;
   }
+  /* Phones: the page's own content first, not its introduction. */
+  .discover-page,
+  .library-layout {
+    padding-top: 18px;
+  }
   .discovery-heading {
     display: block;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
+  }
+  .page-heading .eyebrow,
+  .page-heading > p:last-child {
+    display: none;
+  }
+  .page-heading h1 {
+    margin: 0;
+    font-size: 30px;
   }
   .choose-link {
-    margin-top: 18px;
-    padding: 10px 13px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .section-navigation {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgb(var(--color-bg));
+  }
+  /* The film sheet rises from the bottom and fills the screen. */
+  .film-sheet-wrap {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .film-sheet {
+    border-radius: 18px 18px 0 0;
+    min-height: 92vh;
+  }
+  .library-layout > .page-heading {
+    margin-bottom: 10px;
+  }
+  .library-content {
+    padding-top: 16px;
+  }
+  .collection-heading p {
+    display: none;
+  }
+  .collection-heading h2 {
+    font-size: 20px;
   }
   .welcome-panel {
     display: block;

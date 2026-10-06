@@ -38,8 +38,8 @@ export default function RateFilm({ movie, details }) {
   const unwatch = async () => { if (await removeWatched(movie.id)) addToast("Removed from Watched", "info"); };
 
   return (
-    <section aria-label="Your rating" className={`mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border p-4 ${rated ? "border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20" : "border-slate-200 dark:border-slate-700"}`}>
-      <div className="min-w-0 flex-1">
+    <section aria-label="Your rating" className={`mt-5 flex flex-col items-center gap-3 rounded-xl border p-4 text-center sm:flex-row sm:flex-wrap sm:gap-x-5 sm:text-left ${rated ? "border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20" : "border-slate-200 dark:border-slate-700"}`}>
+      <div className="min-w-0 sm:flex-1">
         <p className="font-semibold text-slate-900 dark:text-slate-50">
           {rated ? feeling(rated) : seen ? "You have seen it: how was it?" : "Seen it? Rate it"}
         </p>
@@ -50,7 +50,7 @@ export default function RateFilm({ movie, details }) {
         </p>
       </div>
       <StarRating value={rated} onChange={rate} size="xl" />
-      <div className="w-full text-xs text-slate-500 sm:w-auto">
+      <div className="text-xs text-slate-500">
         {seen
           ? <button type="button" onClick={unwatch} className="underline-offset-2 hover:underline">Remove from watched</button>
           : <button type="button" onClick={markOnly} className="underline-offset-2 hover:underline">Seen it, no rating</button>}
