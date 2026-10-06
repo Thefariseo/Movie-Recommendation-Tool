@@ -19,7 +19,12 @@ export default function FilmLook({ movie }) {
       <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400"><Palette className="h-3 w-3" /> The look</p>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex overflow-hidden rounded-md" aria-hidden="true">{look.palette.map((c) => <span key={c} className="h-6 w-8" style={{ background: c }} />)}</div>
-        {names.length > 0 && <span className="text-xs text-slate-600 dark:text-slate-300">{names.join(" · ")}</span>}
+        {names.length > 0 && (
+          // One element per trait, so each is translated on its own.
+          <span className="text-xs text-slate-600 dark:text-slate-300">
+            {names.map((n, i) => <React.Fragment key={n}>{i > 0 && " · "}<span>{n}</span></React.Fragment>)}
+          </span>
+        )}
       </div>
     </div>
   );
