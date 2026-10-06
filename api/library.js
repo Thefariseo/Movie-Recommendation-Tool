@@ -1,6 +1,59 @@
-import { nodeHandler, identify, database, allRows, body, HttpError } from '../server/http.js';
+import { timingSafeEqual } from 'node:crypto';
+import { nodeHandler, identify, database, allRows, body, HttpError, rateLimit } from '../server/http.js';
 import { normalizeMovie } from '../shared/library.js';
+import { fetchDiary, syncMember, syncEveryone, SYNC_EVERY, USERNAME } from '../server/letterboxd.js';
+
+const STATUS = 'username,synced_at,last_added,last_rated,last_error';
+const cronAllowed = request => {
+  const secret = process.env.CRON_SECRET;
+  const sent = Buffer.from(request.headers.get('authorization') || '');
+  const wanted = Buffer.from(`Bearer ${secret}`);
+  return !!secret && sent.length === wanted.length && timingSafeEqual(sent, wanted);
+};
+
+// The Letterboxd diary sync lives here, beside the library it writes to.
+async function letterboxd(ctx, action) {
+  if (action === 'letterboxd-cron') {
+    if (!cronAllowed(ctx.request)) throw new HttpError(401, 'Not allowed.');
+    return syncEveryone();
+  }
+  await identify(ctx);
+  const admin = database(null, true);
+  const [link] = await admin(`letterboxd_links?user_id=eq.${ctx.user.id}&select=user_id,${STATUS},cursor`);
+  const status = row => row ? { linked: true, username: row.username, synced_at: row.synced_at, last_added: row.last_added, last_rated: row.last_rated, error: row.last_error } : { linked: false };
+  if (ctx.request.method === 'GET') return status(link);
+  const input = await body(ctx);
+  if (action === 'letterboxd') {
+    const username = String(input.username || '').trim().replace(/^@/, '');
+    if (!username) {
+      await admin(`letterboxd_links?user_id=eq.${ctx.user.id}`, { method: 'DELETE' });
+      return { linked: false };
+    }
+    if (!USERNAME.test(username)) throw new HttpError(400, 'Enter your Letterboxd username.');
+    await rateLimit(ctx, 'letterboxd');
+    // Read the diary first: an unknown username is refused before anything is saved.
+    const diary = await fetchDiary(username);
+    const [row] = await admin('letterboxd_links?on_conflict=user_id', {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=representation',
+      body: { user_id: ctx.user.id, username, cursor: null, synced_at: null, last_added: 0, last_rated: 0, last_error: null, locked_until: null }
+    });
+    const result = await syncMember(row, { db: admin, diary });
+    const [after] = await admin(`letterboxd_links?user_id=eq.${ctx.user.id}&select=${STATUS}`);
+    return { ...status(after), ...result };
+  }
+  if (action !== 'letterboxd-sync') throw new HttpError(400, 'Unknown action.');
+  if (!link) return { linked: false };
+  if (input.force === true) await rateLimit(ctx, 'letterboxd');
+  else if (link.synced_at && Date.now() - Date.parse(link.synced_at) < SYNC_EVERY) return { ...status(link), skipped: true };
+  const result = await syncMember(link, { db: admin });
+  const [after] = await admin(`letterboxd_links?user_id=eq.${ctx.user.id}&select=${STATUS}`);
+  return { ...status(after), ...result };
+}
+
 export async function library(ctx) {
+  const action = ctx.url.searchParams.get('action');
+  if (action?.startsWith('letterboxd')) return letterboxd(ctx, action);
   await identify(ctx);
   const db = database(ctx.token);
   if (ctx.request.method === 'GET') return {

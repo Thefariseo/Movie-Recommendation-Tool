@@ -313,5 +313,36 @@ do $$begin
  begin insert into public.film_lists(owner,title) values('11111111-1111-4111-8111-111111111111','Anon');raise exception 'A visitor made a list';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Letterboxd diary sync: only the server applies it, it adds and rates, and it
+-- never removes; a film removed here returns only when logged again afterwards.
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+insert into public.letterboxd_links(user_id,username) values('33333333-3333-4333-8333-333333333333','cinephile');
+insert into public.user_movies(user_id,movie_id,kind,movie,rating,version,deleted,updated_at) values
+  ('33333333-3333-4333-8333-333333333333',901,'watched','{"title":"Kept"}',4,3,false,now()),
+  ('33333333-3333-4333-8333-333333333333',902,'watched','{"title":"Removed"}',null,2,true,'2026-10-03');
+select public.test_assert(public.apply_letterboxd('33333333-3333-4333-8333-333333333333','[
+  {"movie_id":900,"rating":9,"watched_at":"2026-10-05","movie":{"id":900,"title":"New"}},
+  {"movie_id":901,"rating":8,"watched_at":"2026-10-05","movie":{"id":901,"title":"Kept"}},
+  {"movie_id":902,"rating":7,"watched_at":"2026-10-01","movie":{"id":902,"title":"Removed"}}
+]')='{"added":1,"rated":1}'::jsonb,'letterboxd adds new films and updates ratings');
+select public.test_assert((select rating=9 and version=1 and not deleted from public.user_movies where user_id='33333333-3333-4333-8333-333333333333' and movie_id=900 and kind='watched'),'letterboxd film added with its rating');
+select public.test_assert((select rating=8 and version=4 from public.user_movies where user_id='33333333-3333-4333-8333-333333333333' and movie_id=901),'letterboxd rating bumps the version');
+select public.test_assert((select deleted from public.user_movies where user_id='33333333-3333-4333-8333-333333333333' and movie_id=902),'an older diary entry cannot bring back a removed film');
+select public.apply_letterboxd('33333333-3333-4333-8333-333333333333','[{"movie_id":902,"rating":null,"watched_at":"2026-10-06","movie":{"id":902,"title":"Removed"}},{"movie_id":901,"rating":null,"watched_at":"2026-10-06","movie":{"id":901,"title":"Kept"}}]');
+select public.test_assert((select not deleted from public.user_movies where user_id='33333333-3333-4333-8333-333333333333' and movie_id=902),'logging a removed film again brings it back');
+select public.test_assert((select rating=8 from public.user_movies where user_id='33333333-3333-4333-8333-333333333333' and movie_id=901),'an unrated diary entry keeps the rating');
+select public.test_assert(public.lock_letterboxd('33333333-3333-4333-8333-333333333333') and not public.lock_letterboxd('33333333-3333-4333-8333-333333333333'),'one letterboxd sync at a time');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select public.test_assert((select count(*)=1 from public.letterboxd_links),'a member reads their own link');
+do $$begin
+ begin perform public.apply_letterboxd('33333333-3333-4333-8333-333333333333','[]');raise exception 'A member applied a diary';exception when insufficient_privilege then null;end;
+ begin update public.letterboxd_links set username='other';raise exception 'A member changed the link directly';exception when insufficient_privilege then null;end;
+end$$;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select public.test_assert((select count(*)=0 from public.letterboxd_links),'another member cannot see the link');
+select public.test_assert(public.consume_limit('letterboxd',100,1),'letterboxd has its own rate limit');
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

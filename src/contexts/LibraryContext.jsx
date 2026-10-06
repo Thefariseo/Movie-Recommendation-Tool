@@ -80,6 +80,30 @@ export function LibraryProvider({
       window.removeEventListener('storage', onStorage);
     };
   }, [refresh, user?.id]);
+  // A linked Letterboxd diary is read on a visit, at most every few hours (the
+  // server keeps the same pace), once the page has settled.
+  useEffect(() => {
+    if (!user) return undefined;
+    const key = `umbrify_letterboxd_check:${user.id}`;
+    let last = 0;
+    try {
+      last = Number(localStorage.getItem(key)) || 0;
+    } catch {/* private mode: the server's own pace still applies */}
+    if (Date.now() - last < 3 * 3600 * 1000) return undefined;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(key, String(Date.now()));
+      } catch {/* see above */}
+      backend('library?action=letterboxd-sync', {}, {
+        account: user.id
+      }).then(r => {
+        if (!r.added && !r.rated) return;
+        refresh();
+        addToast(r.added ? `${r.added} new films from your Letterboxd diary` : `${r.rated} ratings updated from Letterboxd`, 'success');
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [refresh, user?.id, addToast]);
   const run = useCallback((kind, operation, values) => {
     setPending(n => n + 1);
     const task = queue.current.then(async () => {

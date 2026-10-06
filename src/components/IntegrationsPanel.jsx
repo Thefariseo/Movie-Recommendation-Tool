@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLibrary } from '../contexts/LibraryContext';
 import { backend } from '../utils/backend';
 import { letterboxdCSV } from '../../shared/export';
+import LetterboxdSync from './LetterboxdSync';
 export default function IntegrationsPanel() {
   const {
     user
@@ -54,7 +55,7 @@ export default function IntegrationsPanel() {
       {!user ? <Link to="/profile" className="text-sm text-indigo-500">Sign in to connect Trakt</Link> : trakt?.enabled ? <div className="flex flex-wrap gap-2">{!trakt.connected ? <button className="account-button" disabled={busy} onClick={() => act('connect')}>Connect Trakt</button> : <><button className="account-button" disabled={busy} onClick={() => act('import')}>Import from Trakt</button><button className="account-secondary" disabled={busy} onClick={() => {
             if (window.confirm('Send your Umbrify ratings and watchlist to Trakt? Matching Trakt ratings will be updated.')) act('export');
           }}>Export to Trakt</button><button className="account-secondary" disabled={busy} onClick={() => act('disconnect')}>Disconnect</button></>}</div> : <p className="text-sm text-slate-500">Trakt connection is not available yet.</p>}
-    </div><div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700"><h3 className="font-semibold">Letterboxd</h3><p className="text-sm text-slate-500">Import your Letterboxd export from the Watched page, or download files to import on Letterboxd. Automatic account sync is not available.</p><div className="flex flex-wrap gap-2"><Link className="account-secondary" to="/watched">Import from Letterboxd</Link><button className="account-secondary" onClick={() => download(watched, 'umbrify-watched-letterboxd.csv')}>Export watched & ratings</button><button className="account-secondary" onClick={() => download(watchlist, 'umbrify-watchlist-letterboxd.csv')}>Export watchlist</button></div><a className="text-xs text-indigo-500 underline" href="https://letterboxd.com/import/" target="_blank" rel="noreferrer">Open Letterboxd's import page</a></div>
+    </div><div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700"><h3 className="font-semibold">Letterboxd</h3><LetterboxdSync /><p className="text-sm text-slate-500">For your whole history, import your Letterboxd export from the Watched page. You can also download files to import on Letterboxd.</p><div className="flex flex-wrap gap-2"><Link className="account-secondary" to="/watched">Import from Letterboxd</Link><button className="account-secondary" onClick={() => download(watched, 'umbrify-watched-letterboxd.csv')}>Export watched & ratings</button><button className="account-secondary" onClick={() => download(watchlist, 'umbrify-watchlist-letterboxd.csv')}>Export watchlist</button></div><a className="text-xs text-indigo-500 underline" href="https://letterboxd.com/import/" target="_blank" rel="noreferrer">Open Letterboxd's import page</a></div>
     {busy && <p role="status">Syncing… Keep this page open.</p>}{message && <p role="status" className="text-sm">{message}</p>}
   </section>;
 }

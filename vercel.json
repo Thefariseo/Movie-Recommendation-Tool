@@ -98,6 +98,15 @@
     },
     "api/tonight.js": {
       "maxDuration": 60
+    },
+    "api/library.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/library?action=letterboxd-cron",
+      "schedule": "17 4 * * *"
+    }
+  ]
 }

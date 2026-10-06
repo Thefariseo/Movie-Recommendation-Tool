@@ -16,6 +16,7 @@ import {
   ExternalLink, Archive, ArrowRight,
 } from "lucide-react";
 import useWatched from "@/hooks/useWatched";
+import LetterboxdSync from "./LetterboxdSync";
 import {
   parseLetterboxdCSV,
   mergeEntries,
@@ -564,6 +565,10 @@ export default function LetterboxdImport({ onStart, onDone } = {}) {
                   </ul>
                 </details>
               )}
+
+              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                <LetterboxdSync />
+              </div>
 
               <button onClick={reset} className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
                 Import another file

@@ -4,7 +4,7 @@ import { Bell, BellRing, Download } from "lucide-react";
 import UserAvatar from "./UserAvatar";
 import { useNotifications, useInstall, pushSupported, currentPush, enablePush, disablePush } from "../utils/notifications";
 
-const ago = (at) => {
+export const ago = (at) => {
   const s = Math.max(0, (Date.now() - new Date(at).getTime()) / 1000);
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
   if (s < 86400) return `${Math.round(s / 3600)} h ago`;
