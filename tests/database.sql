@@ -344,5 +344,26 @@ select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111'
 select public.test_assert((select count(*)=0 from public.letterboxd_links),'another member cannot see the link');
 select public.test_assert(public.consume_limit('letterboxd',100,1),'letterboxd has its own rate limit');
 reset role;
+-- The site-wide allowance for language-model calls stops at its cap, and only the server claims it.
+reset role;
+select public.test_assert(public.claim_ai_budget(2) and public.claim_ai_budget(2) and not public.claim_ai_budget(2),'the AI allowance stops at the cap');
+select public.test_assert((select used=2 from public.ai_budget where day=current_date),'a refused call is not counted');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $$begin
+ begin perform public.claim_ai_budget(1000);raise exception 'A member claimed AI budget';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+-- The cache of Letterboxd film pages is the server's alone.
+insert into public.letterboxd_films(link,tmdb_id) values('https://boxd.it/237s',5336);
+do $$begin
+ begin insert into public.letterboxd_films(link) values('https://evil.test/x');raise exception 'A foreign link was cached';exception when check_violation then null;end;
+end$$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+do $$begin
+ begin perform 1 from public.letterboxd_films;raise exception 'A member read the film cache';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

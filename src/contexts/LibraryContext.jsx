@@ -39,17 +39,36 @@ export function LibraryProvider({
     ref.current = mergeRows(ref.current, incoming);
     setRows(ref.current);
   }, []);
+  // Polls ask only for rows changed since the newest one seen, with a few
+  // minutes of overlap for writes still committing (versions make repeats
+  // harmless); a full read now and then is the safety net.
+  const cursor = useRef({
+    user: null,
+    since: null,
+    full: 0
+  });
   const refresh = useCallback(async () => {
     if (!user) {
       setReady(!authLoading);
       return;
     }
+    if (cursor.current.user !== user.id) cursor.current = {
+      user: user.id,
+      since: null,
+      full: 0
+    };
+    const c = cursor.current;
+    if (c.since && typeof document !== 'undefined' && document.hidden) return;
+    const full = !c.since || Date.now() - c.full > 30 * 60 * 1000;
     try {
-      const result = await backend('library', undefined, {
+      const result = await backend(full ? 'library' : `library?since=${encodeURIComponent(c.since)}`, undefined, {
         account: user.id
       });
-      if (alive.current) {
+      if (alive.current && cursor.current === c) {
         accept(result.rows);
+        const newest = result.rows.reduce((m, r) => Math.max(m, Date.parse(r.updated_at) || 0), Date.parse(c.since) || 0);
+        if (newest) c.since = new Date(newest).toISOString();
+        if (full) c.full = Date.now();
         setReady(true);
         setError(null);
       }

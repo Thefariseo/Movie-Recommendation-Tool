@@ -28,6 +28,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Every main page in a real browser, against fixtures (no keys, no network).
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
       - run: npm run test:db
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/umbrify_test

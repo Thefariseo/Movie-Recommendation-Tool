@@ -1,8 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { nodeHandler, identify, database, allRows, body, HttpError, rateLimit } from '../server/http.js';
 import { normalizeMovie } from '../shared/library.js';
-import { fetchDiary, syncMember, syncEveryone, SYNC_EVERY, USERNAME } from '../server/letterboxd.js';
+import { fetchDiary, syncMember, syncEveryone, resolveFilms, SYNC_EVERY, USERNAME } from '../server/letterboxd.js';
+import { authLimit } from '../server/authLimits.js';
 
+const SINCE_OVERLAP = 3 * 60 * 1000;
 const STATUS = 'username,synced_at,last_added,last_rated,last_error';
 const cronAllowed = request => {
   const secret = process.env.CRON_SECRET;
@@ -16,6 +18,14 @@ async function letterboxd(ctx, action) {
   if (action === 'letterboxd-cron') {
     if (!cronAllowed(ctx.request)) throw new HttpError(401, 'Not allowed.');
     return syncEveryone();
+  }
+  if (action === 'letterboxd-films') {
+    // Guests import too, so this is limited per address rather than per member.
+    if (ctx.request.method !== 'POST') throw new HttpError(405, 'Method not allowed.');
+    const input = await body(ctx);
+    if (!Array.isArray(input.links) || input.links.length > 25) throw new HttpError(400, 'Send up to 25 Letterboxd links.');
+    await authLimit(ctx, 'films');
+    return { films: await resolveFilms(input.links) };
   }
   await identify(ctx);
   const admin = database(null, true);
@@ -56,9 +66,20 @@ export async function library(ctx) {
   if (action?.startsWith('letterboxd')) return letterboxd(ctx, action);
   await identify(ctx);
   const db = database(ctx.token);
-  if (ctx.request.method === 'GET') return {
-    rows: await allRows(db, `user_movies?user_id=eq.${ctx.user.id}&order=movie_id,kind`)
-  };
+  if (ctx.request.method === 'GET') {
+    // A device that has the library asks only for what changed since the newest
+    // row it holds, reaching back a little for writes that were still committing.
+    const since = ctx.url.searchParams.get('since');
+    if (since == null) return {
+      rows: await allRows(db, `user_movies?user_id=eq.${ctx.user.id}&order=movie_id,kind`)
+    };
+    const at = Date.parse(since);
+    if (!Number.isFinite(at)) throw new HttpError(400, 'Invalid library cursor.');
+    const from = new Date(at - SINCE_OVERLAP).toISOString();
+    return {
+      rows: await allRows(db, `user_movies?user_id=eq.${ctx.user.id}&updated_at=gte.${encodeURIComponent(from)}&order=updated_at`)
+    };
+  }
   const input = await body(ctx);
   if (!Array.isArray(input.changes) || input.changes.length > 500) throw new HttpError(400, 'Invalid library changes.');
   const changes = input.changes.map(c => {

@@ -4,8 +4,9 @@
 //          watched.csv  (Date,Name,Year,Letterboxd URI)
 // =====================================================
 import Papa from "papaparse";
-import { importCandidates, localTitle, searchMovies } from "./api";
-import { bestMatch } from "../../shared/titleMatch.js";
+import { importCandidates, localTitle, searchMovies, movieCore } from "./api";
+import { backend } from "./backend";
+import { bestMatch, certain } from "../../shared/titleMatch.js";
 
 /** Detect format by header presence of "Rating" column */
 export function detectFormat(headers) {
@@ -93,45 +94,73 @@ export function legacyMatch(candidates, entry) {
     || candidates[0] || null;
 }
 
-export async function resolveToTMDB({ entries, onProgress, onResult, signal, owned = new Set() }) {
+export async function resolveToTMDB({ entries, onProgress, onResult, signal, owned = new Set(), exact = exactFilms }) {
   const failed = [];
+  const doubtful = [];
   let resolved = 0, done = 0, next = 0;
 
+  const emit = async (entry, match) => {
+    try {
+      if (!match) {
+        failed.push(entry.title);
+        return;
+      }
+      // A film not in the library yet may have been imported wrongly before:
+      // the film the old matching chose, when the member has it, is replaced.
+      let replaces = null;
+      if (owned.size && !owned.has(match.id)) {
+        const legacy = legacyMatch((await searchMovies(entry.title, 1).catch(() => null))?.results || [], entry);
+        if (legacy && legacy.id !== match.id && owned.has(legacy.id)) replaces = legacy.id;
+      }
+      onResult?.({
+        replaces,
+        id: match.id,
+        title: await localTitle(match),
+        poster: match.poster_path,
+        genres: match.genre_ids || (match.genres || []).map((g) => g.id),
+        year: parseInt((match.release_date || "").slice(0, 4), 10) || entry.year,
+        rated: entry.rating, // 1-10 or null
+      });
+      resolved++;
+    } catch {
+      failed.push(entry.title);
+    } finally {
+      onProgress?.(++done, entries.length);
+    }
+  };
+
   // A few entries at a time: each asks TMDB twice, and the client keeps six
-  // requests in flight.
+  // requests in flight. An entry whose title and year leave a doubt waits for
+  // its Letterboxd page to say which film it is.
   const worker = async () => {
     while (next < entries.length && !signal?.aborted) {
       const entry = entries[next++];
+      let candidates = [];
       try {
-        const match = bestMatch(await importCandidates(entry.title, entry.year), entry);
-        // A film not in the library yet may have been imported wrongly before:
-        // the film the old matching chose, when the member has it, is replaced.
-        let replaces = null;
-        if (match && owned.size && !owned.has(match.id)) {
-          const legacy = legacyMatch((await searchMovies(entry.title, 1).catch(() => null))?.results || [], entry);
-          if (legacy && legacy.id !== match.id && owned.has(legacy.id)) replaces = legacy.id;
-        }
-        if (match) {
-          onResult?.({
-            replaces,
-            id: match.id,
-            title: await localTitle(match),
-            poster: match.poster_path,
-            genres: match.genre_ids || [],
-            year: parseInt((match.release_date || "").slice(0, 4), 10) || entry.year,
-            rated: entry.rating, // 1-10 or null
-          });
-          resolved++;
-        } else {
-          failed.push(entry.title);
-        }
-      } catch {
-        failed.push(entry.title);
-      }
-      onProgress?.(++done, entries.length);
+        candidates = await importCandidates(entry.title, entry.year);
+      } catch {/* the Letterboxd page may still know */}
+      const match = bestMatch(candidates, entry);
+      if (entry.uri && !certain(match, candidates, entry)) doubtful.push({ entry, match });
+      else await emit(entry, match);
     }
   };
   await Promise.all([worker(), worker(), worker()]);
 
+  for (let i = 0; i < doubtful.length && !signal?.aborted; i += 25) {
+    const group = doubtful.slice(i, i + 25);
+    const films = await exact(group.map((d) => d.entry.uri)).catch(() => ({}));
+    await Promise.all(group.map(async ({ entry, match }) => {
+      const id = films[entry.uri];
+      if (!id || id === match?.id) return emit(entry, match);
+      const film = await movieCore(id).catch(() => null);
+      return emit(entry, film?.id ? film : match);
+    }));
+  }
+
   return { resolved, failed };
+}
+
+/** TMDB ids for Letterboxd film links, read by the server from each film's page. */
+export async function exactFilms(links) {
+  return (await backend("library?action=letterboxd-films", { links })).films || {};
 }

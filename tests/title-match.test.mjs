@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bestMatch } from '../shared/titleMatch.js';
+import { bestMatch, certain } from '../shared/titleMatch.js';
 
 const film = (id, title, original_title, release_date, vote_count) => ({ id, title, original_title, release_date, vote_count });
 
@@ -36,4 +36,23 @@ test('the year separates remakes, and nothing is invented from no results', () =
   assert.equal(bestMatch(both, { title: 'Suspiria', year: 2018 }).id, 361292);
   assert.equal(bestMatch([], { title: 'Anything', year: 2000 }), null);
   assert.equal(bestMatch(both, { title: '', year: 2000 }), null);
+});
+
+test('a match is certain only with the exact title and year and no close rival', () => {
+  const salo = [
+    film(1523709, 'Backstage on the Set of Salò, or the 120 Days of Sodom', 'Backstage sul set di Salò', '1975-12-10', 0),
+    film(5336, 'Salò, or the 120 Days of Sodom', 'Salò o le 120 giornate di Sodoma', '1976-01-10', 2378),
+  ];
+  const entry = { title: 'Salò, or the 120 Days of Sodom', year: 1975 };
+  // A year apart: the Letterboxd page is asked.
+  assert.equal(certain(bestMatch(salo, entry), salo, entry), false);
+  const suspiria = [film(11906, 'Suspiria', 'Suspiria', '1977-02-01', 3275), film(361292, 'Suspiria', 'Suspiria', '2018-10-26', 2847)];
+  assert.equal(certain(bestMatch(suspiria, { title: 'Suspiria', year: 2018 }), suspiria, { title: 'Suspiria', year: 2018 }), true);
+  // Two films of the same name in the same year: only Letterboxd can tell.
+  const twins = [film(1, 'Crash', 'Crash', '2004-09-10', 4000), film(2, 'Crash', 'Crash', '2004-03-01', 3)];
+  assert.equal(certain(bestMatch(twins, { title: 'Crash', year: 2004 }), twins, { title: 'Crash', year: 2004 }), false);
+  // Found under another title (Caro diario for "Dear Diary"): asked too.
+  const diary = [film(25403, 'Caro diario', 'Caro diario', '1993-11-12', 529)];
+  assert.equal(certain(bestMatch(diary, { title: 'Dear Diary', year: 1993 }), diary, { title: 'Dear Diary', year: 1993 }), false);
+  assert.equal(certain(null, [], entry), false);
 });

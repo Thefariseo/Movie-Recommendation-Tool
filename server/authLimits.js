@@ -8,7 +8,9 @@ import { database, HttpError } from './http.js';
 export const AUTH_LIMITS = {
   login: [['ip', 20, 900], ['email', 10, 900]],
   signup: [['ip', 5, 3600]],
-  recover: [['ip', 5, 3600], ['email', 3, 3600]]
+  recover: [['ip', 5, 3600], ['email', 3, 3600]],
+  // Exact films for a Letterboxd import, 25 links a call: about 2,000 films in ten minutes.
+  films: [['ip', 80, 600]]
 };
 const hash = value => createHash('sha256').update(value).digest('hex');
 

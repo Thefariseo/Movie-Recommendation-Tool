@@ -412,3 +412,19 @@ test('without the service role, or when the counter fails, sign-in still works',
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
   assert.equal((await execute(request('auth?action=login', { email: 'me@example.com', password: 'long-password' }), auth)).status, 200);
 });
+test('a device with the library asks only for rows changed since its newest one, with some overlap', async () => {
+  const urls = [];
+  globalThis.fetch = async url => {
+    urls.push(String(url));
+    if (String(url).endsWith('/user')) return json({ id });
+    return json([]);
+  };
+  const full = await execute(request('library', undefined, { Cookie: 'umbrify_access=valid' }), library);
+  assert.equal(full.status, 200);
+  assert.match(urls.at(-1), /user_movies\?user_id=eq\.[^&]+&order=movie_id,kind/);
+  const delta = await execute(request('library?since=2026-10-06T12:00:00.000Z', undefined, { Cookie: 'umbrify_access=valid' }), library);
+  assert.equal(delta.status, 200);
+  assert.match(decodeURIComponent(urls.at(-1)), /updated_at=gte\.2026-10-06T11:57:00\.000Z&order=updated_at/);
+  const bad = await execute(request('library?since=yesterday', undefined, { Cookie: 'umbrify_access=valid' }), library);
+  assert.equal(bad.status, 400);
+});

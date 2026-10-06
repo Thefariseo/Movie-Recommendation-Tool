@@ -7,6 +7,7 @@
 //    given in the instructions and the answer is made to fit it afterwards.
 // Every caller treats member text as data.
 import { remote, HttpError } from './http.js';
+import { requireAiCall } from './aiBudget.js';
 
 const compatible = () => Boolean(process.env.CRITIC_API_URL && process.env.CRITIC_API_KEY && process.env.CRITIC_MODEL);
 export const criticModel = () => (compatible() ? process.env.CRITIC_MODEL : process.env.OPENAI_CRITIC_MODEL || process.env.OPENAI_CHAT_MODEL);
@@ -65,6 +66,7 @@ export async function structured(options) {
 
 async function call({ instructions, input, name, schema, maxTokens = 1500, timeout = 45000 }) {
   if (!criticEnabled()) throw new HttpError(503, 'The critic is not configured on this server yet.');
+  await requireAiCall();
   const content = typeof input === 'string' ? input : JSON.stringify(input);
   if (compatible()) {
     const base = process.env.CRITIC_API_URL.replace(/\/+$/, '');
