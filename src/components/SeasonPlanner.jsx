@@ -5,9 +5,10 @@ import { backend } from "../utils/backend";
 import { movieDetails } from "../utils/api";
 import { planJourneys, regionName } from "../../shared/journeys.js";
 import { WEEKS, MAX_MEMBERS, seasonWeek } from "../../shared/seasons.js";
+import { currentLanguage } from "../i18n/index.js";
 
 const poster = (d) => (d?.poster_path ? `https://image.tmdb.org/t/p/w154${d.poster_path}` : "/placeholder_poster.svg");
-const language = () => (navigator.language || "en").split("-")[0];
+const language = () => currentLanguage();
 
 /** The member's seasons, each with the week it is at. */
 export function SeasonList({ seasons }) {

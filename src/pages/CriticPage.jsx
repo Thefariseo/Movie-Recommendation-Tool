@@ -11,8 +11,9 @@ import { reloadSignals } from "../utils/signals";
 import { ruleLabel } from "../../shared/rules.js";
 import RichText from "../components/RichText";
 import Rail from "../components/Rail";
+import { currentLanguage, t } from "../i18n/index.js";
 
-const language = () => (navigator.language || "en").split("-")[0];
+const language = () => currentLanguage();
 
 // One-tap rating for films the critic asks about during the interview.
 function QuickRate({ movie }) {
@@ -308,8 +309,8 @@ export default function CriticPage() {
         </div>
         {!state?.messages?.length && !pending && (
           <div className="flex flex-wrap gap-2">
-            {(interview ? ["Ciao! Fammi qualche domanda sui miei gusti.", "Interview me about my taste."] : ["Cosa dicono di me i miei voti?", "Something like my favourites, but braver", "Perché ho odiato il mio film peggiore?"]).map((p) => (
-              <button key={p} className="account-secondary text-left" disabled={busy} onClick={() => send(p)}>{p}</button>
+            {(interview ? ["Hi! Ask me a few questions about my taste.", "Interview me about my taste."] : ["What do my ratings say about me?", "Something like my favourites, but braver", "Why did I hate my worst film?"]).map(t).map((p) => (
+              <button key={p} className="account-secondary text-left" translate="no" disabled={busy} onClick={() => send(p)}>{p}</button>
             ))}
           </div>
         )}
@@ -318,7 +319,7 @@ export default function CriticPage() {
           <label className="sr-only" htmlFor="critic-message">{interview ? "Your answer" : "Your message"}</label>
           <textarea id="critic-message" className="account-input flex-1 resize-none" rows={Math.min(5, message.split("\n").length)} maxLength={1000} value={message}
             onChange={(e) => setMessage(e.target.value)} onKeyDown={onKey}
-            placeholder={interview ? "Il mio film preferito è…" : "Troppo lento. Qualcosa con più ritmo?"} />
+            placeholder={interview ? "My favourite film is…" : "Too slow. Something with more pace?"} />
           <button className="account-button flex h-11 items-center gap-1.5" disabled={busy || !message.trim()} aria-label="Send">
             <Send className="h-4 w-4" /><span className="hidden sm:inline">Send</span>
           </button>

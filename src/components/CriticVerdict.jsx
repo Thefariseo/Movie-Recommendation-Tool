@@ -3,6 +3,7 @@ import { Feather, RefreshCw } from "lucide-react";
 import { backend } from "../utils/backend";
 import { reloadSignals } from "../utils/signals";
 import RichText from "./RichText";
+import { currentLanguage } from "../i18n/index.js";
 
 const VERDICT = { love: "Made for you", like: "Likely a good fit", mixed: "Could go either way", skip: "Probably not for you" };
 
@@ -20,7 +21,8 @@ export default function CriticVerdict({ movieId }) {
     setError("");
     setChecked(false);
     backend(`critic?verdict=${movieId}`)
-      .then((r) => live && setVerdict(r.verdict))
+      // A verdict written in another language is asked again, not shown.
+      .then((r) => live && setVerdict(r.verdict && (!r.verdict.language || r.verdict.language === currentLanguage()) ? r.verdict : null))
       .catch(() => {})
       .finally(() => live && setChecked(true));
     return () => { live = false; };
@@ -29,7 +31,7 @@ export default function CriticVerdict({ movieId }) {
     setBusy(true);
     setError("");
     try {
-      setVerdict(await backend("critic", { action: "explain", movie_id: movieId, refresh, language: (navigator.language || "en").split("-")[0] }));
+      setVerdict(await backend("critic", { action: "explain", movie_id: movieId, refresh, language: currentLanguage() }));
       // A "skip" now keeps the film out of recommendations; let them know.
       reloadSignals();
     } catch (e) {

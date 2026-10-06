@@ -2,7 +2,7 @@
 // grounded in what Umbrify already knows (their ratings, the signed evidence
 // about directors and themes, the taste space's picks) and keeps a running
 // conversation and a few notes about the member, so it remembers.
-import { database, allRows, HttpError, uuid } from './http.js';
+import { database, allRows, HttpError, uuid, interfaceLanguage } from './http.js';
 import { structured } from './llm.js';
 import { watchedMovies, memberEvidence, recommendations, tmdb } from './recommendations.js';
 import { loadTasteSpace } from './tasteSpace.js';
@@ -106,7 +106,7 @@ const MESSAGE_SCHEMA = {
 };
 
 const CHAT = `${GROUNDING}
-You are in a conversation. Reply in the language of the member's latest message, in at most about 120 words unless they ask for more.
+You are in a conversation. Reply in the language of the member's latest message (in "interface_language" when unsure), in at most about 120 words unless they ask for more.
 When you recommend, put each film (at most 4) in "films" with its original title as TMDB lists it, its original release year and a one-sentence reason tied to their diary; mention them in the reply too. Never suggest a film in the reply without also listing it in "films": the member only sees posters for the films listed there.
 Accept objections ("too slow", "I hated that one") and adjust: the next suggestions must respect them.
 Whenever you say the member would probably dislike a specific film they have not seen, also list it in "warned_against" (title and year): Umbrify will stop recommending it. Leave it empty otherwise.
@@ -116,7 +116,7 @@ Set interview_complete to false.`;
 
 const INTERVIEW = `${GROUNDING}
 The member is new or has rated few films, so you are interviewing them to learn their taste. Ask one short, concrete question at a time (a film they love and why, one they could not stand, what they want from a film tonight, a director or country they are drawn to). React briefly to each answer, like a curious critic.
-Reply in the language of the member's latest message (Italian if they have written nothing yet and the dossier gives no hint).
+Reply in the language of the member's latest message (in "interface_language", the language they use Umbrify in, if they have written nothing yet).
 In "films", list well-known films they have probably seen, based on what they told you (at most 6), so they can rate them in one tap; "why" says why their rating of it would be telling. Leave it empty until you have learned something.
 List in "warned_against" any unseen film you say they would probably dislike (else leave it empty).
 After four or five answers, set interview_complete to true, sum up their taste in two sentences and recommend (in "films") up to 4 unseen films that fit.
@@ -302,7 +302,7 @@ export async function criticMessage(ctx, text, { mode = 'chat', thread: threadId
     instructions: mode === 'interview' ? INTERVIEW : CHAT,
     // Room for the reply, the films, the notes and the taste rules together.
     maxTokens: 2400,
-    input: { dossier: summary, your_notes: row.notes, your_rules: (row.rules || []).map(r => ({ kind: r.kind, name: r.name, stance: r.stance })), conversation, message: text, ...extra }
+    input: { interface_language: interfaceLanguage(), dossier: summary, your_notes: row.notes, your_rules: (row.rules || []).map(r => ({ kind: r.kind, name: r.name, stance: r.stance })), conversation, message: text, ...extra }
   });
   const { space, member } = await placed(watched);
   let answer = await ask({});
