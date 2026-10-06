@@ -7,7 +7,6 @@ import { m as motion, AnimatePresence } from "framer-motion";
 import {
   Check,
   Plus,
-  Eye,
   EyeOff,
   ExternalLink,
   Clock,
@@ -28,7 +27,6 @@ import TrailerPlayer from "./TrailerPlayer";
 import { dismissFilm, undismissFilm, useSignals } from "../utils/signals";
 import { rankTrailers, viewerLanguage } from "../utils/trailers";
 import { useAuth } from "../contexts/AuthContext";
-import StarRating from "./StarRating";
 import { useToast } from "@/contexts/ToastContext";
 import RecommendToFriend from "./friends/RecommendToFriend";
 import AddToList from "./lists/AddToList";
@@ -36,6 +34,7 @@ import { Link } from "react-router-dom";
 import Rail from "./Rail";
 import FilmTitle from "./FilmTitle";
 import WrongFilm from "./WrongFilm";
+import RateFilm from "./RateFilm";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -64,7 +63,7 @@ export default function MovieModal({ movie, onClose }) {
   const {profile, user} = useAuth();
   const country = profile?.country || detectCountry();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
-  const { isWatched, addWatched, removeWatched, updateRating, watched } = useWatched();
+  const { isWatched, watched } = useWatched();
   const { addToast } = useToast();
   const signals = useSignals(user?.id);
   const dismissed = signals.get(Number(movie.id))?.sources.has("dismissed");
@@ -125,27 +124,7 @@ export default function MovieModal({ movie, onClose }) {
     }
   };
 
-  const toggleWatched = async () => {
-    if (alreadyWatched) {
-      if (!await removeWatched(movie.id)) return;
-      addToast("Removed from Watched", "info");
-    } else {
-      const saved = await addWatched({
-        id:     movie.id,
-        title:  movie.title,
-        poster: movie.poster_path ?? null,
-        genres: movie.genre_ids ?? details?.genres?.map((g) => g.id) ?? [],
-        year:   parseInt((movie.release_date || details?.release_date || "").slice(0, 4), 10) || null,
-      });
-      if (!saved) return;
-      addToast("Marked as Watched ✓");
-    }
-  };
 
-  const handleRating = async (rating) => {
-    if (!await updateRating(movie.id, rating)) return;
-    addToast(`Rating saved: ${rating / 2}/5 ✓`);
-  };
 
   /* ---- Derived ---- */
   const genres   = details?.genres ?? [];
@@ -313,6 +292,9 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         </div>
 
+        {/* ── The member's rating: the first thing to do with a film they have seen ── */}
+        <RateFilm movie={movie} details={details} />
+
         {/* ── Why Umbrify picked it: every sign that agrees, and what goes against it ── */}
         {movie._signs?.length > 0 ? (
           <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
@@ -408,28 +390,10 @@ export default function MovieModal({ movie, onClose }) {
           </div>
         )}
 
-        {/* ── User rating ── */}
-        {alreadyWatched && (
-          <div className="mt-5 flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              Your rating
-            </span>
-            <StarRating value={watchedEntry?.rated} onChange={handleRating} size="md" />
-          </div>
-        )}
         {alreadyWatched && <div className="mt-2"><WrongFilm movie={details || movie} rating={watchedEntry?.rated} /></div>}
 
         {/* ── Action buttons ── */}
         <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            data-pop
-            onClick={toggleWatched}
-            className="btn-primary flex items-center gap-1.5 text-sm"
-          >
-            {alreadyWatched ? <Check className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            {alreadyWatched ? "Watched" : "Mark as watched"}
-          </button>
-
           <button
             data-pop
             onClick={toggleWatchlist}

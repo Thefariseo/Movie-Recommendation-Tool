@@ -24,6 +24,7 @@ function StarSlot({ index, displayValue, hovered, onHover, onClick, readonly, si
   const isHalfFilled = !isFullFilled && active >= half;
 
   const cls =
+    size === "xl" ? "h-9 w-9" :
     size === "lg" ? "h-6 w-6" :
     size === "md" ? "h-5 w-5" :
                    "h-4 w-4";
