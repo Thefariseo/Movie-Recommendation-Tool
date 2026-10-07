@@ -140,6 +140,11 @@ export function movieCore(id) {
   return full ? Promise.resolve(full) : get(`/movie/${id}`, { append_to_response: "credits,keywords" });
 }
 
+/** A film's credits and keywords if already downloaded, without asking for them. */
+export function cachedCore(id) {
+  return cache.get(`/movie/${id}` + JSON.stringify(detailParams())) || cache.get(`/movie/${id}` + JSON.stringify({ append_to_response: "credits,keywords" })) || null;
+}
+
 /**
  * A film's title in the interface language: from details already fetched,
  * else from its basic details (the lightest answer that has it).
