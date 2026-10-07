@@ -20,6 +20,9 @@ export function prefetchFilm(id, poster = null) {
   movieDetails(film).catch(() => warmed.delete(film));
 }
 
+/** The same, for a card (an element with data-film-id). */
+export const prefetchCard = (el) => prefetchFilm(el.dataset.filmId, posterOf(el));
+
 export function installFilmPrefetch(root = document) {
   const saveData = typeof navigator !== "undefined" && navigator.connection?.saveData;
   const target = (e) => e.target.closest?.("[data-film-id]");

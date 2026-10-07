@@ -169,9 +169,12 @@ export default function MovieModal({ movie, curtain = false, onClose }) {
       exit={{ scale: 0.94, opacity: 0, y: 24 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
       onClick={(e) => e.stopPropagation()}
+      data-film={movie.id}
       className={`film-sheet relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900${accents ? " film-sheet-tinted" : ""}`}
       style={accents || undefined}
     >
+      {/* On a phone: the sheet can be drawn down to close it (src/hooks/useSheetGestures.js). */}
+      <span className="sheet-grabber" aria-hidden="true" />
       {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>
         {showingTrailer && (

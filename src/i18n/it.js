@@ -108,6 +108,11 @@ export default {
   // ── Picks ──
   "Picked for you": "Scelti per te",
   "Other picks": "Altri consigli",
+  "Pull for other picks": "Tira giù per altri consigli",
+  "Release for other picks": "Rilascia per altri consigli",
+  "Finding other picks…": "Cerco altri consigli…",
+  "Previous film": "Film precedente",
+  "Next film": "Film successivo",
   "No matches for these preferences. Expand Filters to adjust your choices.": "Nessun risultato con queste preferenze. Apri i Filtri per modificarle.",
   "Based on your film tastes on this device.": "In base ai tuoi gusti salvati su questo dispositivo.",
   "Picks could not be loaded. Try again.": "Non è stato possibile caricare i consigli. Riprova.",

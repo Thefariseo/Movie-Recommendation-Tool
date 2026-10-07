@@ -1774,6 +1774,130 @@ body::before {
 }
 
 /* --------------------------------------------------
+   UNDER THE FINGER
+   A film's sheet can be drawn down to close and swiped to the next film
+   (src/hooks/useSheetGestures.js); the picks can be drawn down for others
+   (src/hooks/usePullToRefresh.js).
+   -------------------------------------------------- */
+.sheet-grabber {
+  display: none;
+}
+@media (max-width: 767px) {
+  .sheet-grabber {
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    z-index: 30;
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin-left: -19px;
+    border-radius: 2px;
+    background: rgb(255 255 255 / 0.8);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+    pointer-events: none;
+  }
+}
+/* With a pointer, arrows either side of the sheet move along the row. */
+.sheet-step {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 860px) {
+  .sheet-step {
+    position: fixed;
+    top: 50%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 9999px;
+    color: #fff;
+    background: rgb(255 255 255 / 0.12);
+    backdrop-filter: blur(6px);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+  .sheet-step:hover {
+    background: rgb(255 255 255 / 0.24);
+  }
+  .sheet-step:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  .sheet-step-back {
+    left: calc(50% - 336px - 72px);
+  }
+  .sheet-step-next {
+    right: calc(50% - 336px - 72px);
+  }
+  .sheet-step-back:hover {
+    transform: translateX(-3px);
+  }
+  .sheet-step-next:hover {
+    transform: translateX(3px);
+  }
+}
+
+/* The picks drawn down from the top: they move only while drawn (a moved
+   box would hold any fixed panel inside it), and glide back when let go. */
+.pull-host {
+  --pull: 0px;
+  --pull-turn: 0;
+  position: relative;
+}
+.pull-host.pull-active {
+  transform: translate3d(0, var(--pull), 0);
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.08);
+}
+.pull-host.pulling {
+  transition: none;
+}
+.pull-reel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  height: var(--pull);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  color: rgb(var(--accent-600));
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: var(--pull-turn);
+  pointer-events: none;
+}
+.pull-reel-idle {
+  visibility: hidden;
+}
+.pull-reel-wheel {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  /* It turns as the finger draws it, a little more than once. */
+  transform: rotate(calc(var(--pull-turn) * 400deg)) scale(calc(0.7 + var(--pull-turn) * 0.3));
+}
+.pull-reel-ready .pull-reel-wheel {
+  color: rgb(var(--accent-500));
+}
+.pull-reel-loading .pull-reel-wheel {
+  animation: reelSpin 0.8s linear infinite;
+}
+@keyframes reelSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.pull-reel span {
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------
    MOTION FOLLOWING THE SCROLL
    Driven by the browser's scroll timelines, off the page's own thread;
    browsers without them, and those who asked for less motion, see the page
