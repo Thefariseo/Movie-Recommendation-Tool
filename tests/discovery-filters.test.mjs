@@ -1,6 +1,6 @@
 import test, {afterEach} from 'node:test';
 import assert from 'node:assert/strict';
-import { discoveryConstraints, matchesDiscovery } from '../shared/discovery.js';
+import { discoveryConstraints, matchesDiscovery, fitsMood } from '../shared/discovery.js';
 import { recommendations } from '../server/recommendations.js';
 import { createNight } from '../server/tonight.js';
 import { filmLook } from '../server/visual.js';
@@ -43,6 +43,21 @@ test('Discover director, actor, decade and origin constrain cloud candidates tog
   const discover=queries.find(u=>u.pathname.endsWith('/discover/movie'));
   assert.equal(discover.searchParams.get('with_origin_country'),'IT');
   assert.equal(discover.searchParams.get('primary_release_date.gte'),'1990-01-01');
+});
+test('a mood takes films mainly of its kind, so a crime comedy is not both light and tense',()=>{
+  const wolf={genre_ids:[80,18,35]}, lebowski={genre_ids:[35,80]}, fargo={genre_ids:[80,18,53]}, shrek={genres:[{id:16},{id:35},{id:10751}]};
+  assert(fitsMood(fargo,'tense')); assert(!fitsMood(fargo,'light'));
+  assert(fitsMood(lebowski,'light')); assert(!fitsMood(lebowski,'tense'));
+  assert(!fitsMood(wolf,'light')); assert(fitsMood(shrek,'light')); assert(!fitsMood(shrek,'tense'));
+  assert(fitsMood(wolf,'')); assert.equal(discoveryConstraints({mood:'tense'}).mood,'tense');
+});
+test('cloud picks for a mood keep only films that suit it, and ask Discover to leave out the rest',async()=>{
+  const queries=fixture();
+  const light=await recommendations(ctx,[],discoveryConstraints({mood:'light'}));
+  assert(light.movies.length>0);
+  assert.equal(queries.find(u=>u.pathname.endsWith('/discover/movie')).searchParams.get('without_genres'),'27,53,10752');
+  const tense=await recommendations(ctx,[],discoveryConstraints({mood:'tense'}));
+  assert.equal(tense.movies.length,0);
 });
 test('group watchlist filter includes either friend’s saved films and excludes unrelated films',async()=>{
   fixture();

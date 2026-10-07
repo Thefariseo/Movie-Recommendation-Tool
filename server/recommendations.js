@@ -5,7 +5,7 @@ import { tmdb } from './tmdb.js';
 import { attachRatings } from './ratings.js';
 import { tasteEvidence, evidenceSample, peerReason, languageAffinity, directorsOf } from '../shared/evidence.js';
 import { placeMember, affinities, becauseOf, peerStrength, similarity } from '../shared/tasteSpace.js';
-import { matchesDiscovery } from '../shared/discovery.js';
+import { matchesDiscovery, fitsMood, MOOD_AVOID } from '../shared/discovery.js';
 import { passesFilters } from '../shared/tonight.js';
 import { loadTasteSpace, loadTasteMap } from './tasteSpace.js';
 import { ratingPredictor, spaceCandidates } from '../shared/predict.js';
@@ -232,7 +232,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
     'vote_count.gte': '50',
     include_adult: 'false',
     'primary_release_date.lte': constraints.decade ? `${constraints.decade + 9}-12-31` : new Date().toISOString().slice(0, 10),
-    ...(constraints.avoid_genres?.length ? { without_genres: constraints.avoid_genres.join(',') } : {}),
+    ...(constraints.avoid_genres?.length || constraints.mood ? { without_genres: [...new Set([...(constraints.avoid_genres || []), ...(MOOD_AVOID[constraints.mood] || [])])].join(',') } : {}),
     ...((genres.length && (!constraints.director_id && !constraints.actor_id || constraints.genre_ids?.length)) ? {
       with_genres: genres.join('|')
     } : {}),
@@ -295,6 +295,8 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   if (nightFilters) movies = movies.filter(m => passesFilters(m, nightFilters));
   if (constraints.genre_ids?.length) movies = movies.filter(m => (m.genre_ids || []).some(id => constraints.genre_ids.includes(id)));
   if (constraints.avoid_genres?.length) movies = movies.filter(m => !(m.genre_ids || []).some(id => constraints.avoid_genres.includes(id)));
+  // A mood asks for films mainly of its kind, not any film tagged with it.
+  if (constraints.mood) movies = movies.filter(m => fitsMood(m, constraints.mood));
   // List results carry no credits or keywords, so the shortlist is fetched in
   // full and judged on them: a director the member rates low counts against a
   // film, a theme from films they loved counts for it.
@@ -354,6 +356,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
       const genres = genreIds(m);
       if (constraints.genre_ids?.length && !genres.some(g => constraints.genre_ids.includes(g))) return false;
       if (constraints.avoid_genres?.some(g => genres.includes(g))) return false;
+      if (!fitsMood(m, constraints.mood)) return false;
       if (constraints.max_runtime && (!m.runtime || m.runtime > constraints.max_runtime)) return false;
       const keywords = m.keywords?.keywords || [];
       const text = `${m.overview || ''} ${keywords.map(k => k.name).join(' ')}`.toLowerCase();

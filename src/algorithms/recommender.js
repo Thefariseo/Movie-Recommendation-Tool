@@ -23,6 +23,7 @@ import { blocked, signalOf, jitter, withoutRecent } from "../../shared/signals.j
 import { ruleMatch, ruleLabel, STANCES } from "../../shared/rules.js";
 import { judge } from "../../shared/judge.js";
 import { GENRE_MAP } from "../utils/genres";
+import { MOOD_GENRES, MOOD_AVOID, fitsMood } from "../../shared/discovery.js";
 
 // The curated labels' films live in their own small module, which the page
 // imports without pulling in the recommender itself.
@@ -75,19 +76,8 @@ export const CINEPHILE_DIRECTORS = [
   { id: 143035, name: "Edward Yang"               },
 ];
 
-/* ------------------------------------------------------------------ */
-/* Mood → genre mapping (STRICT: film must match ≥1 listed genre)     */
-/* ------------------------------------------------------------------ */
-export const MOOD_GENRES = {
-  light:       [35, 16],        // Comedy, Animation
-  tense:       [53, 80],        // Thriller, Crime
-  mindbending: [878, 9648],     // Sci-Fi, Mystery
-  deep:        [18, 99, 36],    // Drama, Documentary, History
-  epic:        [28, 12, 14],    // Action, Adventure, Fantasy
-  romantic:    [10749],         // Romance ONLY
-  dark:        [27, 53],        // Horror, Thriller
-  artsy:       [18, 99],        // Drama, Documentary
-};
+// Moods: their genres, and what goes against them (shared/discovery.js).
+export { MOOD_GENRES };
 
 /* ------------------------------------------------------------------ */
 /* Genre specificity multipliers                                        */
@@ -335,6 +325,8 @@ export async function getRecommendations({
   const moodGenres = prefs.mood ? (MOOD_GENRES[prefs.mood] || []) : [];
   const effectiveGenres = moodGenres.length > 0 ? moodGenres :
                           (prefs.genres?.length > 0 ? prefs.genres : []);
+  // Discover leaves out what goes against the mood.
+  const moodAvoid = moodGenres.length > 0 ? { without_genres: MOOD_AVOID[prefs.mood].join(",") } : {};
 
   /* ================================================================= */
   /* 7. Candidate pool                                                   */
@@ -385,6 +377,7 @@ export async function getRecommendations({
     const baseDiscoverParams = {
       "with_origin_country": prefs.country,
       "vote_count.gte":      15,
+      ...moodAvoid,
     };
 
     // Use genre filter if active; otherwise let TMDB return anything for country
@@ -415,7 +408,7 @@ export async function getRecommendations({
 
   } else {
     /* ── Standard path (no country, no person filter) ── */
-    const discoverParams = {};
+    const discoverParams = { ...moodAvoid };
 
     const genresToDiscover = effectiveGenres.length > 0 ? effectiveGenres : favGenres.slice(0, 3);
     if (genresToDiscover.length > 0)
@@ -749,6 +742,8 @@ export async function getRecommendations({
       effectiveGenres.some((g) => gIds.includes(g))
     );
   }
+  // A mood asks for films mainly of its kind, not any film tagged with it.
+  if (moodGenres.length > 0) results = results.filter(({ genreIds: gIds }) => fitsMood({ genre_ids: gIds }, prefs.mood));
 
   /* ================================================================= */
   /* 10. Second stage: the shortlist, judged on its real credits        */

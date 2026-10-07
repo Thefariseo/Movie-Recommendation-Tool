@@ -69,6 +69,33 @@ export const MOOD_GENRES = {
   dark: [27, 53],
   artsy: [18, 99],
 };
+// What goes against each mood. TMDB tags most films with several genres, so a
+// crime comedy is both "light" and "tense" by its tags alone: a film fits a
+// mood when one of the mood's genres is among its first two (TMDB lists the
+// main ones first) and none of these is among its genres.
+export const MOOD_AVOID = {
+  light: [27, 53, 10752],
+  tense: [35, 16, 10751],
+  mindbending: [16, 10751],
+  deep: [35, 16, 10751, 28, 27],
+  epic: [99],
+  romantic: [27, 53],
+  dark: [35, 16, 10751],
+  artsy: [28, 16, 10751, 27],
+};
+const genreList = (movie) =>
+  (movie.genre_ids || movie.genres || [])
+    .map((g) => Number(g?.id ?? g))
+    .filter(Number.isSafeInteger);
+/** Whether a film suits a mood (any film suits no mood). */
+export function fitsMood(movie, mood) {
+  if (!mood || !Object.hasOwn(MOOD_GENRES, mood)) return true;
+  const genres = genreList(movie);
+  return (
+    genres.slice(0, 2).some((g) => MOOD_GENRES[mood].includes(g)) &&
+    !genres.some((g) => MOOD_AVOID[mood].includes(g))
+  );
+}
 export const DEFAULT_DISCOVERY = {
   genre_ids: [],
   mood: "",
@@ -87,7 +114,7 @@ export function discoveryConstraints(input = {}) {
     genre_ids: Array.isArray(input.genre_ids)
       ? [...new Set(input.genre_ids.filter((g) => GENRES.includes(g)))]
       : [],
-    ...(mood ? { genre_ids: MOOD_GENRES[mood] } : {}),
+    ...(mood ? { genre_ids: MOOD_GENRES[mood], mood } : {}),
     decade: DECADES.some((d) => d.id === input.decade && d.id !== "all")
       ? Number(input.decade.slice(0, 4))
       : null,
