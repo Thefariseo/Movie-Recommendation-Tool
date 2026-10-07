@@ -7,6 +7,9 @@ import {
   ArrowUpRight,
   Globe2,
   ShieldCheck,
+  Users,
+  Feather,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLibrary } from "../contexts/LibraryContext";
@@ -112,6 +115,7 @@ export default function Profile() {
         <p role="status">Loading your profile…</p>
       </main>
     );
+  if (!auth.user && auth.configured) return <GuestProfile library={library} rated={rated.length} />;
   return (
     <main className="profile-page">
       <header className="profile-hero">
@@ -318,6 +322,79 @@ export default function Profile() {
             </div>
           </details>
         </aside>
+      </div>
+    </main>
+  );
+}
+
+// What an account adds, for a guest deciding whether to make one.
+const BENEFITS = [
+  [Film, "Your diary on every device", "Ratings, watchlist and lists, on your phone and your computer."],
+  [Users, "Movie nights with friends", "Everyone votes from their own phone, and the draw is fair."],
+  [Feather, "Your personal critic", "Talk films with a critic who has read your diary."],
+  [RefreshCw, "Letterboxd in sync", "New entries in your Letterboxd diary arrive on their own."],
+];
+
+/**
+ * A guest's profile is the way into an account: what it adds, what of theirs
+ * it keeps, and the sign-in or sign-up form, with nothing empty to look at.
+ */
+function GuestProfile({ library, rated }) {
+  const saved = library.watchlist.length;
+  return (
+    <main className="profile-page">
+      <div className="guest-profile">
+        <section className="guest-profile-intro">
+          <p className="eyebrow">YOUR CINEMA, EVERYWHERE</p>
+          <h1>Keep your taste with you</h1>
+          <p className="guest-profile-lede">A free account keeps your diary safe and opens everything Umbrify does with friends.</p>
+          <ul className="guest-benefits">
+            {BENEFITS.map(([Icon, title, text]) => (
+              <li key={title}>
+                <Icon size={20} aria-hidden="true" />
+                <span>
+                  <strong>{title}</strong>
+                  <small>{text}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {(rated > 0 || saved > 0) && (
+            <p className="guest-profile-device">
+              <span>On this device:</span>{" "}
+              {[rated && (rated === 1 ? "one rating" : `${rated} ratings`), saved && (saved === 1 ? "one saved film" : `${saved} saved films`)].filter(Boolean).flatMap((part, i) => (i ? [" · ", <span key={i}>{part}</span>] : [<span key={i}>{part}</span>]))}
+              <span>. They come with you when you create your account.</span>
+            </p>
+          )}
+        </section>
+        <AccountPanel />
+      </div>
+      <div className="guest-profile-more">
+        <section className="account-panel flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Interface language</h3>
+            <p className="text-sm text-slate-500">Explanations written by Umbrify and your critic may stay in English.</p>
+          </div>
+          <LanguagePicker className="rounded-lg border border-slate-200 px-3 py-1.5 dark:border-slate-700" />
+        </section>
+        <details className="account-panel profile-maintenance">
+          <summary>Library management</summary>
+          <p>Guest changes are saved on this device only.</p>
+          <div className="flex flex-wrap gap-3">
+            {["watchlist", "watched"].map((kind) => (
+              <button
+                key={kind}
+                className="account-secondary text-red-500"
+                disabled={!library.ready || !!library.pending}
+                onClick={() => {
+                  if (window.confirm(`Clear your entire ${kind} list?`)) library.run(kind, "clear");
+                }}
+              >
+                Clear {kind}
+              </button>
+            ))}
+          </div>
+        </details>
       </div>
     </main>
   );

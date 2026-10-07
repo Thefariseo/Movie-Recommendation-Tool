@@ -4,7 +4,7 @@
 import { database, HttpError, uuid } from './http.js';
 import { recommendations, tmdb } from './recommendations.js';
 import { randomInt } from 'node:crypto';
-import { MOODS, TIMES, VOTES, DRAWS, compromise, fairnessWeights, tally, passesFilters, avoidedGenres, drawOdds, drawWinner } from '../shared/tonight.js';
+import { MOODS, TIMES, VOTES, DRAWS, compromise, fairnessWeights, tally, passesFilters, avoidedGenres, drawOdds, drawWinner, nightExpired, nightExpiresAt, votesBySession } from '../shared/tonight.js';
 
 import { LOOKS } from '../shared/visual.js';
 import { filmLook } from './visual.js';
@@ -92,23 +92,30 @@ export async function readNight(ctx, id) {
   const [night] = await db(`tonight_sessions?id=eq.${uuid(id)}`);
   if (!night) throw new HttpError(404, 'This movie night does not exist or you are not invited.');
   const [votes, people] = await Promise.all([
-    db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote`),
+    db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote,updated_at`),
     db(`profiles?id=in.(${night.members.join(',')})&select=id,display_name,avatar_url`)
   ]);
   // Wild cards stay hidden until one is drawn.
-  const shown = { ...night, films: night.films.filter(f => !f.reserve || Number(f.id) === Number(night.winner)), wildcards: night.films.filter(f => f.reserve).length };
+  const shown = { ...night, films: night.films.filter(f => !f.reserve || Number(f.id) === Number(night.winner)), wildcards: night.films.filter(f => f.reserve).length, ...(night.status === 'open' ? { expires_at: nightExpiresAt(night, votes)?.toISOString() ?? null, expired: nightExpired(night, votes) } : {}) };
   return { night: shown, votes, people, ranking: tally(night.films, votes, night.weights), odds: Object.fromEntries(Object.keys(DRAWS).filter(mode => mode !== 'wildcard').map(mode => [mode, drawOdds(mode, night.films, votes, night.weights)])) };
 }
 
 export async function myNights(ctx) {
-  return { nights: await database(ctx.token)(`tonight_sessions?members=cs.{${ctx.user.id}}&select=id,host,members,status,winner,created_at,films&order=created_at.desc&limit=10`) };
+  const db = database(ctx.token);
+  const nights = await db(`tonight_sessions?members=cs.{${ctx.user.id}}&select=id,host,members,status,winner,created_at,films&order=created_at.desc&limit=10`);
+  // A night nobody answered for two days is no longer listed.
+  const open = nights.filter(n => n.status === 'open');
+  const votes = votesBySession(open.length ? await db(`tonight_votes?session_id=in.(${open.map(n => n.id).join(',')})&select=session_id,updated_at&limit=500`) : []);
+  return { nights: nights.filter(n => !nightExpired(n, votes.get(n.id))) };
 }
+const EXPIRED = 'This movie night expired: nobody answered for two days.';
 
 export async function vote(ctx, id, movieId, value) {
   if (!VOTES.includes(value) && value !== 0) throw new HttpError(400, 'Vote -1, 1 or 2, or 0 to clear.');
   const db = database(ctx.token);
   const { night } = await readNight(ctx, id);
   if (night.status !== 'open') throw new HttpError(409, 'This movie night has already been decided.');
+  if (night.expired) throw new HttpError(410, EXPIRED);
   if (!night.films.some(f => f.id === Number(movieId) && !f.reserve)) throw new HttpError(400, 'That film is not on tonight’s ballot.');
   const key = `session_id=eq.${night.id}&user_id=eq.${ctx.user.id}&movie_id=eq.${Number(movieId)}`;
   if (value === 0) await db(`tonight_votes?${key}`, { method: 'DELETE' });
@@ -124,7 +131,8 @@ export async function decide(ctx, id, mode = 'best') {
   if (!night) throw new HttpError(404, 'This movie night does not exist or you are not invited.');
   if (night.host !== ctx.user.id) throw new HttpError(403, 'Only the host decides.');
   if (night.status !== 'open') throw new HttpError(409, 'This movie night has already been decided.');
-  const votes = await db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote`);
+  const votes = await db(`tonight_votes?session_id=eq.${night.id}&select=user_id,movie_id,vote,updated_at`);
+  if (nightExpired(night, votes)) throw new HttpError(410, EXPIRED);
   if (DRAWS[mode].needsVotes && !votes.length) throw new HttpError(400, 'Wait for at least one vote, or leave it to chance.');
   const odds = drawOdds(mode, night.films, votes, night.weights);
   if (!odds.length) throw new HttpError(400, 'There is nothing to draw from.');

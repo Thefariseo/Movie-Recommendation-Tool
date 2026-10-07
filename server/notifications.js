@@ -8,6 +8,7 @@
 import webpush from 'web-push';
 import { database, HttpError } from './http.js';
 import { seasonWeek, weekOpens } from '../shared/seasons.js';
+import { nightExpired, votesBySession } from '../shared/tonight.js';
 
 const DAY = 86_400_000;
 const EMOJI = { heart: '❤️', fire: '🔥', wow: '😮', laugh: '😂', sad: '😢', agree: '👍' };
@@ -31,15 +32,18 @@ export async function readNotifications(ctx) {
   // Each season's film of the week, when the member has not watched it yet.
   const weekly = seasons.map((s) => ({ s, k: seasonWeek(s).current, w: s.season.weeks[seasonWeek(s).current] })).filter(({ s }) => !seasonWeek(s).finished);
   const seenWeekly = weekly.length ? new Set((await db(`user_movies?user_id=eq.${me}&kind=eq.watched&deleted=eq.false&movie_id=in.(${weekly.map(({ w }) => w.id).join(',')})&select=movie_id`)).map((r) => Number(r.movie_id))) : new Set();
-  const open = nights.filter((n) => n.status === 'open' && n.host !== me);
+  const waiting = nights.filter((n) => n.status === 'open' && n.host !== me);
   const [votes, loved] = await Promise.all([
-    open.length ? db(`tonight_votes?user_id=eq.${me}&session_id=in.(${open.map((n) => n.id).join(',')})&select=session_id&limit=200`) : [],
+    waiting.length ? db(`tonight_votes?session_id=in.(${waiting.map((n) => n.id).join(',')})&select=session_id,user_id,updated_at&limit=500`) : [],
     following.length ? db(`user_movies?user_id=in.(${following.map((f) => f.followed_id).slice(0, 200).join(',')})&kind=eq.watched&deleted=eq.false&rating=gte.9&updated_at=gte.${since(14)}&select=user_id,movie_id,movie,rating,updated_at&order=updated_at.desc&limit=12`) : []
   ]);
   const ids = new Set([...nights.flatMap((n) => [n.host, ...n.members]), ...followers.map((f) => f.follower_id), ...loved.map((l) => l.user_id), ...picks.map((r) => r.sender), ...reactions.map((r) => r.reactor)]);
   ids.delete(me);
   const people = new Map(ids.size ? (await db(`profiles?id=in.(${[...ids].join(',')})&select=id,display_name,avatar_url`)).map((p) => [p.id, p]) : []);
-  const voted = new Set(votes.map((v) => v.session_id));
+  const voted = new Set(votes.filter((v) => v.user_id === me).map((v) => v.session_id));
+  // A night nobody answered for two days has expired: it no longer asks for a vote.
+  const bySession = votesBySession(votes);
+  const open = waiting.filter((n) => !nightExpired(n, bySession.get(n.id)));
   const followed = new Set(following.map((f) => f.followed_id));
   const items = [];
   for (const n of open) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import GuestPreview, { NightExample } from "../components/GuestPreview";
 import {
   ArrowRight, BookOpen, Brain, Check, Clock, Ghost, Heart, Infinity as NoLimit,
   Moon, Mountain, Smile, Sparkles, Timer, Tv, Users, Zap,
@@ -163,18 +164,13 @@ export default function TonightPage() {
     options.rent && "Rentals too",
   ].filter(Boolean);
 
-  if (!user) {
-    return (
-      <main className="mx-auto max-w-xl px-4 pb-24 pt-10">
-        <section className="account-panel space-y-3 text-center">
-          <Moon className="mx-auto h-8 w-8 text-indigo-500" />
-          <h1 className="font-display text-2xl sm:text-3xl">One film. Your friends. A shared movie night.</h1>
-          <p className="text-sm text-slate-500">Answer a few questions, Umbrify picks films for the whole group, and everyone votes from their own phone.</p>
-          <Link to="/profile" className="account-button inline-block">Sign in to start</Link>
-        </section>
-      </main>
-    );
-  }
+  if (!user) return (
+    <GuestPreview eyebrow="TONIGHT WITH FRIENDS" title="One film. Your friends. A shared movie night."
+      text="Answer a few questions, Umbrify picks films for the whole group, and everyone votes from their own phone."
+      points={["Films everyone in the group will like, none they have seen", "Votes from each phone, live", "A fair draw: whoever compromised last time counts a little more"]}>
+      <NightExample />
+    </GuestPreview>
+  );
 
   const noFriends = friends !== null && friends.length === 0;
   // Each part its own words, so each is translated.

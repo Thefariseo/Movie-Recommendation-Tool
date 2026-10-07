@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, CalendarDays, Clapperboard, Copy, Inbox as InboxIcon, Link2, ListPlus, Search, Sparkles, Users } from 'lucide-react';
+import GuestPreview, { FriendsExample } from "../components/GuestPreview";
 import { useAuth } from '../contexts/AuthContext';
 import { useLibrary } from '../contexts/LibraryContext';
 import { backend } from '../utils/backend';
@@ -87,7 +88,13 @@ export default function FriendsPage() {
   const people = useMemo(() => new Map(data.people.map(p => [p.id, p])), [data.people]);
 
   if (loading) return <main className="mx-auto max-w-6xl space-y-8 px-4 pt-10"><PageHeaderSkeleton /><PosterGridSkeleton count={6} /></main>;
-  if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><p className="eyebrow">BETTER TOGETHER</p><h1 className="font-display text-2xl sm:text-3xl">A shared love of film</h1><p className="my-4 text-slate-500">Follow friends, build a watchlist together and find a film for everyone.</p><Link className="account-button inline-block" to="/profile">Sign in to connect</Link></section></main>;
+  if (!user) return (
+    <GuestPreview eyebrow="BETTER TOGETHER" title="A shared love of film"
+      text="Follow friends, see how close your tastes are, and find a film for everyone."
+      points={["How close your taste is to each friend's", "What they loved lately, and films they send you", "Movie nights and cinema seasons together"]}>
+      <FriendsExample />
+    </GuestPreview>
+  );
 
   const select = id => setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 3 ? [...prev, id] : prev));
   const invite = `${window.location.origin}/friends/${user.id}`;

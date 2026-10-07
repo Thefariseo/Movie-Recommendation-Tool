@@ -1,6 +1,8 @@
 import React, { Suspense, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Bookmark, Star } from "lucide-react";
+import KnownFilms from "../components/KnownFilms";
+import SaveProgress from "../components/SaveProgress";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "@/hooks/useWatched";
 import useWatchlist from "@/hooks/useWatchlist";
@@ -29,12 +31,21 @@ export default function Home() {
   // Kept on screen once done, to show the choices the new picks follow.
   const [finished, setFinished] = useState(false);
   // A newcomer with nothing rated first makes a few quick choices.
-  const onboarding = finished || (!watched.some((m) => Number(m.rated) > 0) && !seeded && !skipped);
+  const rated = watched.filter((m) => Number(m.rated) > 0).length;
+  const onboarding = finished || (!rated && !seeded && !skipped);
   const hasTaste = watched.length > 0 || watchlist.length > 0 || seeded;
+  // Until those choices are made, the welcome and then each pair are all the
+  // page shows.
+  const [stage, setStage] = useState("start");
+  const focus = onboarding && view === "foryou" && stage !== "done";
+  // Rating films one has seen sharpens every pick: until Umbrify knows the
+  // member's taste, films nearly everyone has seen wait to be rated.
+  const fewRatings = rated < 10;
   // The page glows in the colours of the film in the middle of the screen.
   useAmbientGlow();
   return (
     <main className="discover-page">
+      {!focus && (<>
       <div className="discovery-heading">
         <div className="page-heading">
           <p className="eyebrow">A GOOD FILM STARTS HERE</p>
@@ -73,6 +84,7 @@ export default function Home() {
           Browse films
         </Link>
       </nav>
+      </>)}
       {view === "cinema" ? (
         <div className="pt-7">
           <Suspense fallback={<PicksSkeleton />}>
@@ -86,13 +98,13 @@ export default function Home() {
           <RecommendationList title="Coming soon" type="upcoming" />
         </div>
       ) : (
-        <div className="space-y-8 pt-7">
+        <div className={`space-y-8 ${focus ? "" : "pt-7"}`}>
           {onboarding && (
             <Suspense fallback={<PicksSkeleton />}>
-              <TasteOnboarding onSkip={() => setSkipped(true)} onDone={() => setFinished(true)} />
+              <TasteOnboarding onSkip={() => setSkipped(true)} onDone={() => setFinished(true)} onStage={setStage} />
             </Suspense>
           )}
-          {user ? (
+          {focus ? null : user ? (
             <CommunityPicks />
           ) : hasTaste ? (
             <Suspense fallback={<PicksSkeleton />}>
@@ -109,21 +121,14 @@ export default function Home() {
                   <br />A better next watch.
                 </h2>
                 <p>
-                  Search a film you love and give it a rating. Your
-                  recommendations grow with every film you log.
+                  Rate a few films you have seen. Your recommendations grow
+                  with every film you log.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    className="account-button"
-                    onClick={() =>
-                      document
-                        .querySelector('[aria-label="Search all films"]')
-                        ?.focus()
-                    }
-                  >
-                    Find a film to rate
+                  <Link className="account-button" to="/rate">
+                    Rate 10 films you know
                     <ArrowRight size={16} aria-hidden="true" />
-                  </button>
+                  </Link>
                   <Link
                     className="account-secondary"
                     to="/library/watched?import=1"
@@ -145,12 +150,8 @@ export default function Home() {
               </div>
             </section>
           )}
-          {!hasTaste && (
-            <RecommendationList
-              title="Start with something popular"
-              type="trending"
-            />
-          )}
+          {!focus && <SaveProgress />}
+          {!focus && fewRatings && <KnownFilms />}
         </div>
       )}
     </main>

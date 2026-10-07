@@ -189,6 +189,18 @@ export default function NightPage() {
   if (!user) return <main className="mx-auto max-w-xl p-6"><section className="account-panel"><h1 className="font-display text-xl">Sign in to vote on this movie night.</h1><Link className="account-button mt-4 inline-block" to="/profile">Sign in</Link></section></main>;
   if (!state) return <main className="mx-auto max-w-xl p-6">{error ? <p role="alert" className="text-sm text-red-500">{error}</p> : <p className="text-sm text-slate-500">Loading the ballot…</p>}</main>;
 
+  // Nobody answered for two days: the night is over, and a new one can start.
+  if (state.night.expired) return (
+    <main className="mx-auto max-w-xl p-6">
+      <section className="account-panel space-y-3">
+        <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> MOVIE NIGHT</p>
+        <h1 className="font-display text-xl">This movie night has expired</h1>
+        <p className="text-sm text-slate-500">Nobody answered for two days, so the ballot closed.</p>
+        <Link className="account-button inline-block" to="/tonight">Plan a new movie night</Link>
+      </section>
+    </main>
+  );
+
   const { night, votes, people, ranking, odds = {} } = state;
   const person = (uid) => people.find((p) => p.id === uid);
   const name = (uid) => person(uid)?.display_name || "Someone";

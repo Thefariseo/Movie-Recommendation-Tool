@@ -5,7 +5,11 @@ import { backend } from '../utils/backend';
 export default function AccountPanel() {
   const auth = useAuth();
   const library = useLibrary();
-  const [mode, setMode] = useState(new URLSearchParams(location.search).has('recovery') ? 'password' : 'login');
+  // "Create a free account" links arrive with ?mode=signup.
+  const [mode, setMode] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.has('recovery') ? 'password' : params.get('mode') === 'signup' ? 'signup' : 'login';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -30,7 +34,7 @@ export default function AccountPanel() {
   };
   if (auth.loading) return <section className="account-panel" aria-busy="true">Checking your account…</section>;
   return <section className="account-panel space-y-4">
-    <div><p className="eyebrow">YOUR CINEMA, EVERYWHERE</p><h2 className="section-title">{auth.user ? 'Your account' : 'Keep your collection with you'}</h2></div>
+    <div>{auth.user && <p className="eyebrow">YOUR CINEMA, EVERYWHERE</p>}<h2 className="section-title">{auth.user ? 'Your account' : mode === 'signup' ? 'Create your free account' : mode === 'recover' ? 'Reset your password' : 'Sign in'}</h2></div>
     {auth.error && <p role="alert">{auth.error} <button className="text-indigo-500 underline" onClick={auth.reload}>Retry</button></p>}
     {!auth.configured ? <p className="text-sm text-slate-500">Accounts are not available yet. You can keep using Umbrify as a guest on this device.</p> : auth.user && mode !== 'password' ? <>
       <p className="text-sm">Signed in as <strong>{auth.user.email}</strong></p>
@@ -45,6 +49,10 @@ export default function AccountPanel() {
           setMode(m);
           setMessage('');
         }}>{m === 'login' ? 'Sign in' : m === 'signup' ? 'Create account' : 'Forgot password?'}</button>)}</div>
+      {auth.google && !auth.user && mode !== 'recover' && <>
+        <button className="account-secondary w-full" disabled={busy} onClick={() => perform(() => backend('auth?action=google', {}))}>Continue with Google</button>
+        <p className="account-or"><span>or with your email</span></p>
+      </>}
       <form className="space-y-3" onSubmit={e => {
         e.preventDefault();
         perform(() => backend(`auth?action=${mode}`, {
@@ -59,7 +67,6 @@ export default function AccountPanel() {
         <button className="account-button" disabled={busy}>{busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : mode === 'recover' ? 'Send reset link' : mode === 'password' ? 'Save new password' : 'Sign in'}</button>
         {auth.user && <button className="account-secondary ml-2" type="button" onClick={() => setMode('login')}>Back to account</button>}
       </form>
-      {auth.google && !auth.user && <button className="account-secondary w-full" disabled={busy} onClick={() => perform(() => backend('auth?action=google', {}))}>Continue with Google</button>}
     </>}
     {message && <p className="text-sm" role="status">{message}</p>}
   </section>;

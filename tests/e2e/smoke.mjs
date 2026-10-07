@@ -156,7 +156,7 @@ async function run(browser, { label, member, locale, width }) {
   const pages = [
     ['/', member ? film : null], ['/?view=browse', film], ['/?view=cinema', null], ['/library/watched', null], ['/library/watchlist', null],
     ['/library/stats', null], ['/library/journeys', null], ['/library/lists', null], ['/friends', null], ['/profile', null],
-    ['/critic', null], ['/tonight', null], ['/map', null], ['/person/2', null]
+    ['/critic', null], ['/tonight', null], ['/map', null], ['/person/2', null], ['/rate', null]
   ];
   for (const [path, landmark] of pages) await visit(page, problems, label, path, landmark);
 
@@ -231,4 +231,4 @@ if (failures.length) {
   console.error(`UI smoke test failed (${failures.length}):\n- ${failures.join('\n- ')}`);
   process.exit(1);
 }
-console.log('UI smoke test passed: 14 pages × 4 views, filters, film sheet, rating, Letterboxd link.');
+console.log('UI smoke test passed: 15 pages × 4 views, filters, film sheet, rating, Letterboxd link.');

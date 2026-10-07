@@ -118,16 +118,9 @@ export default function Navbar() {
           </div>
         </div>
       </header>
+      {/* The account is in the header, top right: the bar keeps its five places. */}
       <nav aria-label="Mobile navigation" className="mobile-navigation">
         {destinations.map((d) => destination(d, true))}
-        {destination(
-          {
-            path: "/profile",
-            label: user ? "Account" : "Sign in",
-            icon: UserRound,
-          },
-          true,
-        )}
       </nav>
     </>
   );
