@@ -60,3 +60,15 @@ export function bestMatch(candidates, { title, year }) {
   }
   return best;
 }
+
+/**
+ * Whether the chosen film is beyond doubt: its title and year are exactly the
+ * entry's, and no other candidate comes close on both. Otherwise the import
+ * asks the film's Letterboxd page which TMDB film it is.
+ */
+export function certain(best, candidates, { title, year }) {
+  const wanted = plain(title);
+  const y = Number(year) || null;
+  if (!best || !wanted || titleScore(best, wanted) < 3 || yearScore(best, y) < 3) return false;
+  return !(candidates || []).some((c) => c?.id && c.id !== best.id && !c.adult && titleScore(c, wanted) >= 2.5 && yearScore(c, y) >= 1.5);
+}

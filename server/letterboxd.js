@@ -135,3 +135,79 @@ export async function syncEveryone({ db = database(null, true), budgetMs = 45000
   }
   return { members, failed, remaining: links.length - members - failed };
 }
+
+// ── Exact films for an export ────────────────────────────────────────────────
+// A Letterboxd export names films by title and year only, which can point at
+// the wrong film (a remake, a namesake). Each row also carries the film's
+// Letterboxd link, whose page names its TMDB id. The import asks for that only
+// when the title and year leave a doubt; answers are kept for everyone.
+const SHORT = /^https:\/\/boxd\.it\/([A-Za-z0-9]{1,12})\/?$/;
+const PAGE = /^https:\/\/letterboxd\.com\/(?:[A-Za-z0-9_]{1,40}\/)?film\/([a-z0-9-]{1,200})\/?(?:\d+\/?)?$/;
+
+/** The canonical form of a Letterboxd film link, or null for anything else. */
+export function filmLink(uri) {
+  const u = String(uri || '').trim();
+  const short = u.match(SHORT);
+  if (short) return `https://boxd.it/${short[1]}`;
+  const page = u.match(PAGE);
+  return page ? `https://letterboxd.com/film/${page[1]}/` : null;
+}
+
+/** The TMDB movie id named on a Letterboxd film page (null for TV, or when absent). */
+export function tmdbIdOnPage(html) {
+  const body = String(html || '').match(/<body[^>]*>/)?.[0] || '';
+  if (!/data-tmdb-type="movie"/.test(body)) return null;
+  const id = Number(body.match(/data-tmdb-id="(\d+)"/)?.[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+async function readFilmPage(link) {
+  const response = await fetch(link, {
+    headers: { Accept: 'text/html', 'User-Agent': 'Umbrify (+https://umbrify.vercel.app)' },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(8000)
+  });
+  // A missing page is a fact worth keeping; a refusal or an outage is not.
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Letterboxd answered ${response.status}`);
+  if (!/^https:\/\/(letterboxd\.com|boxd\.it)\//.test(response.url || link)) return null; // redirected off Letterboxd
+  // The id sits on the <body> tag near the top; stop reading once it is in.
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let html = '';
+  while (html.length < 200000) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    html += decoder.decode(value, { stream: true });
+    if (/<body[^>]*>/.test(html)) break;
+  }
+  reader.cancel().catch(() => {});
+  return tmdbIdOnPage(html);
+}
+
+/** TMDB ids for up to 25 Letterboxd film links, keyed by the link as sent; links that cannot be read are left out. */
+export async function resolveFilms(uris, { db = database(null, true) } = {}) {
+  const sent = (uris || []).slice(0, 25).map(u => [String(u), filmLink(u)]).filter(([, l]) => l);
+  const links = [...new Set(sent.map(([, l]) => l))];
+  const found = {};
+  if (!links.length) return {};
+  let cached = [];
+  try {
+    cached = await db(`letterboxd_films?link=in.(${links.map(l => `"${l}"`).join(',')})&select=link,tmdb_id`);
+  } catch {/* read them all from Letterboxd */}
+  for (const row of cached) if (row.tmdb_id) found[row.link] = Number(row.tmdb_id);
+  const missing = links.filter(l => !(l in found) && !cached.some(r => r.link === l));
+  const fresh = [];
+  for (let i = 0; i < missing.length; i += 6) {
+    const results = await Promise.allSettled(missing.slice(i, i + 6).map(readFilmPage));
+    results.forEach((r, j) => {
+      if (r.status !== 'fulfilled') return; // unreachable now; asked again next time
+      fresh.push({ link: missing[i + j], tmdb_id: r.value });
+      if (r.value) found[missing[i + j]] = r.value;
+    });
+  }
+  if (fresh.length) {
+    await db('letterboxd_films?on_conflict=link', { method: 'POST', body: fresh, prefer: 'resolution=merge-duplicates,return=minimal' }).catch(() => {});
+  }
+  return Object.fromEntries(sent.filter(([, l]) => found[l]).map(([u, l]) => [u, found[l]]));
+}

@@ -1,3 +1,4 @@
+import { claimAiCall } from './aiBudget.js';
 import { remote } from './http.js';
 import { parseConversation, validateConstraints, guidedUnderstands, GENRES } from '../shared/conversation.js';
 const schema = {
@@ -41,6 +42,8 @@ export async function interpret(message, previous, messages, lastIds) {
     understood: guidedUnderstands(message, previous, lastIds)
   };
   try {
+    // Past the site's daily allowance the guided parser answers on its own.
+    if (!(await claimAiCall())) throw new Error('AI allowance spent.');
     const response = await remote('https://api.openai.com/v1/responses', {
       method: 'POST',
       timeout: 20000,
