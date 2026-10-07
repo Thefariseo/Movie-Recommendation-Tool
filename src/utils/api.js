@@ -4,7 +4,7 @@
 // =====================================================
 import { viewerLanguage } from "./trailers";
 import { currentLanguage, tmdbLocale } from "../i18n/index.js";
-import { track } from "./activity";
+import { track } from "./busy";
 import { noteTitles } from "./titleStore";
 
 const API_KEY = import.meta.env.VITE_TMDB_KEY;

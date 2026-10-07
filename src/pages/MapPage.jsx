@@ -32,7 +32,7 @@ const posterOf = (m) => {
 function Film({ film, caption }) {
   const { open } = useModal();
   return (
-    <button type="button" onClick={() => open(film)} className="block w-full text-left">
+    <button type="button" data-film-id={film.id} onClick={() => open(film)} className="block w-full text-left">
       <img loading="lazy" decoding="async" className="w-full rounded-md object-cover" style={{ aspectRatio: "2 / 3" }} alt="" src={posterOf(film)} />
       <span className="mt-1 block truncate text-[11px] font-medium" translate="no"><FilmTitle film={film} /></span>
       {caption && <span className="block truncate text-[10px] text-slate-500">{caption}</span>}

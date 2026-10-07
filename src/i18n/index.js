@@ -17,11 +17,18 @@ const AUTO_KEY = "umbrify_lang_country_v1";
 const COUNTRY_LANGUAGES = { IT: "it", SM: "it", VA: "it" };
 const readStorage = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 
+// A Web Worker has no storage of its own: the page tells it the language.
+let assigned = null;
+export function assignLanguage(code) {
+  assigned = LANGUAGES.some((l) => l.code === code) ? code : null;
+}
+
 /**
  * The interface language: the member's own choice, else the language of the
  * country in their profile, else the browser's.
  */
 export function currentLanguage() {
+  if (assigned) return assigned;
   const saved = readStorage(KEY);
   if (LANGUAGES.some((l) => l.code === saved)) return saved;
   const country = readStorage(AUTO_KEY);

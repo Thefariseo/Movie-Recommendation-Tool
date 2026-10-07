@@ -29,7 +29,7 @@ function Film({ film, caption, children }) {
   const show = async () => { try { open(await movieDetails(film.id)); } catch { open(film); } };
   return (
     <li className="w-28 shrink-0 sm:w-32">
-      <button type="button" onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
+      <button type="button" data-film-id={film.id} onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
         <img loading="lazy" decoding="async" src={poster(film)} alt="" className="w-full rounded-lg object-cover shadow-sm" style={{ aspectRatio: "2 / 3" }} />
         <span className="mt-1 block truncate text-xs font-semibold" translate="no"><FilmTitle film={film} /></span>
       </button>

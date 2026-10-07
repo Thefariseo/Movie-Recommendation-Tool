@@ -67,6 +67,10 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
+    // Module workers (src/workers) share the app's code splitting.
+    worker: {
+      format: "es"
+    },
     preview: {
       port: 4173,
       strictPort: true

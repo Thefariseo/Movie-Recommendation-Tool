@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Compass, Library, Users, UserRound, Sun, Moon, Feather, Clapperboard } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import useWatchlist from "../hooks/useWatchlist";
 import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 import NotificationBell, { InstallButton } from "./NotificationBell";
@@ -17,6 +18,17 @@ const destinations = [
 export default function Navbar() {
   const { user, profile } = useAuth();
   const { pathname } = useLocation();
+  // Films waiting on the watchlist, beside the Library: the count goes up as
+  // a film saved lands there (src/utils/flight.js).
+  const waiting = useWatchlist().watchlist.length;
+  const [count, setCount] = useState(waiting);
+  useEffect(() => {
+    if (waiting <= count) { setCount(waiting); return undefined; }
+    const land = () => setCount(waiting);
+    const timer = setTimeout(land, 900);
+    window.addEventListener("umbrify:landed", land, { once: true });
+    return () => { clearTimeout(timer); window.removeEventListener("umbrify:landed", land); };
+  }, [waiting]);
   const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
@@ -57,6 +69,7 @@ export default function Navbar() {
     >
       {mobile && <Icon size={19} aria-hidden="true" />}
       <span>{label}</span>
+      {path === "/library" && count > 0 && <span className="nav-count" aria-hidden="true">{count > 99 ? "99+" : count}</span>}
     </NavLink>
   );
   return (

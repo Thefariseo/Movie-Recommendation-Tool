@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, m as motion } from "framer-motion";
 import { ArrowLeft, Check, Copy, Dices, Heart, LayoutGrid, Moon, Scale, Sparkles, ThumbsDown, ThumbsUp, Trophy, Shuffle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useModal } from "../hooks/useModal";
 import { backend } from "../utils/backend";
+import { haptic, reducedMotion } from "../utils/motion";
 import { DRAWS } from "../../shared/tonight.js";
 import FilmTitle from "../components/FilmTitle";
 
@@ -18,32 +19,61 @@ const DRAW_ICONS = { best: Trophy, lottery: Dices, chance: Shuffle, wildcard: Sp
 const poster = (f, size = "w185") => (f?.poster_path ? `https://image.tmdb.org/t/p/${size}${f.poster_path}` : "/placeholder_poster.svg");
 const percent = (p) => `${Math.round(p * 100)}%`;
 
-// The draw, played once for everyone who opens the night after it: posters
-// flick past, slowing down, and stop on the winner. Wild cards nobody saw are
-// shown face down until the last one turns over.
+// The draw, played once for everyone who opens the night after it: a strip
+// of film runs through the projector's gate, slowing down, with a tick (and,
+// on a phone, a tap) for every film that passes, and stops on the winner,
+// whose frame then lights up like a cinema's marquee. Wild cards nobody saw
+// run face down until the last one turns over.
+const FRAME = 104, GAP = 12;
 function Reel({ films, winner, onDone }) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onDone(); return undefined; }
-    let step = 0, timer;
-    const steps = 18 + films.length;
-    const tick = () => {
-      step++;
-      setIndex(step);
-      if (step >= steps) { timer = setTimeout(onDone, 700); return; }
-      // Each flick a little slower than the last, like a wheel losing speed.
-      timer = setTimeout(tick, 60 + 14 * step);
-    };
-    timer = setTimeout(tick, 60);
-    return () => clearTimeout(timer);
+  const strip = useRef(null);
+  const flash = useRef(null);
+  const [stopped, setStopped] = useState(false);
+  // The films over and over, the winner last, and a little film after it.
+  const frames = useMemo(() => {
+    const n = Math.max(1, films.length);
+    const run = Array.from({ length: Math.max(3, Math.ceil(22 / n)) * n }, (_, i) => films[i % n]);
+    return [...run, winner, films[0] ?? null, films[1 % n] ?? null];
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const steps = 18 + films.length;
-  const current = index >= steps ? winner : films[index % films.length];
+  const at = frames.length - 3;
+  useEffect(() => {
+    const el = strip.current;
+    const distance = at * (FRAME + GAP);
+    let timer = 0, raf = 0;
+    const done = () => { setStopped(true); timer = setTimeout(onDone, reducedMotion() ? 1200 : 2800); };
+    if (reducedMotion()) { el.style.transform = `translate3d(${-distance}px, 0, 0)`; done(); return () => clearTimeout(timer); }
+    const run = el.animate([{ transform: "translate3d(0, 0, 0)" }, { transform: `translate3d(${-distance}px, 0, 0)` }],
+      { duration: 3800 + Math.min(1200, films.length * 100), easing: "cubic-bezier(0.06, 0.55, 0.1, 1)", fill: "forwards" });
+    // A tick for every frame that passes the gate.
+    let last = 0;
+    const watch = () => {
+      const x = -new DOMMatrixReadOnly(getComputedStyle(el).transform).m41;
+      const frame = Math.round(x / (FRAME + GAP));
+      if (frame !== last) {
+        last = frame;
+        haptic(4);
+        flash.current?.animate([{ opacity: 0.5 }, { opacity: 0 }], { duration: 140, easing: "ease-out" });
+      }
+      if (run.playState === "running") raf = requestAnimationFrame(watch);
+    };
+    raf = requestAnimationFrame(watch);
+    run.finished.then(() => { haptic([10, 40, 16]); done(); }, () => {});
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer); run.cancel(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="account-panel flex flex-col items-center gap-3 py-8" role="status" aria-live="polite">
+    <div className="account-panel flex flex-col items-center gap-4 overflow-hidden py-8" role="status" aria-live="polite">
       <p className="eyebrow flex items-center gap-1.5"><Dices className="h-3.5 w-3.5" /> THE DRAW</p>
-      <img key={index} className="h-56 rounded-lg shadow-lg" style={{ aspectRatio: "2 / 3" }} alt="" src={current ? poster(current, "w342") : "/placeholder_poster.svg"} />
-      <p className="text-lg font-semibold">{index >= steps ? winner?.title : "…"}</p>
+      <div className={`reel-window ${stopped ? "reel-stopped" : ""}`} style={{ "--frame": `${FRAME}px`, "--gap": `${GAP}px` }}>
+        <div className="reel-strip" ref={strip}>
+          {frames.map((f, i) => (
+            <div key={i} className={`reel-frame ${stopped && i === at ? "reel-winner" : ""}`}>
+              {f ? <img alt="" src={poster(f, "w185")} decoding="async" /> : <span className="reel-back">?</span>}
+            </div>
+          ))}
+        </div>
+        <div className="reel-gate" aria-hidden="true"><span ref={flash} /></div>
+      </div>
+      <p className={`text-lg font-semibold ${stopped ? "marquee-title" : ""}`} translate="no">{stopped ? winner?.title : "…"}</p>
     </div>
   );
 }
@@ -84,7 +114,7 @@ function Ballot({ films, mine, onVote, busy, onOpen, onAll }) {
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div key={film.id} initial={{ opacity: 0, x: 40 * direction }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 * direction }}
           transition={{ duration: 0.2 }} className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
-          <button type="button" onClick={() => onOpen(film)} className="w-40 shrink-0 sm:w-48" aria-label={`Details of ${film.title}`}>
+          <button type="button" data-film-id={film.id} onClick={() => onOpen(film)} className="w-40 shrink-0 sm:w-48" aria-label={`Details of ${film.title}`}>
             <img className="w-full rounded-xl shadow-lg" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(film, "w342")} />
           </button>
           <div className="min-w-0 flex-1 space-y-2">
@@ -226,7 +256,7 @@ export default function NightPage() {
       {summary && <div className="grid gap-4 sm:grid-cols-2">
         {night.films.map((f) => (
           <article key={f.id} className={`account-panel flex gap-3 ${decided && f.id !== Number(night.winner) ? "opacity-50" : ""}`}>
-            <button type="button" onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
+            <button type="button" data-film-id={f.id} onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="font-semibold leading-tight">{f.title} <span className="text-xs font-normal text-slate-500">{f.release_date?.slice(0, 4)}</span></p>
               {f._reason && <p className="line-clamp-2 text-xs text-slate-500">{f._reason}</p>}

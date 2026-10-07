@@ -23,6 +23,16 @@ export function withTransition(update) {
   }
 }
 
+// The page transition under way, if any: a page still arriving waits for it
+// to end before drawing what it has loaded, so that what is in flight (a
+// photo, a poster) lands where it was headed instead of vanishing mid-air.
+let running = null;
+export function transitionStarted(vt) {
+  const done = vt.finished.catch(() => {}).finally(() => { if (running === done) running = null; });
+  running = done;
+}
+export const whenStill = () => running || Promise.resolve();
+
 /** A short vibration on phones that have one, to confirm a save or a rating. */
 export function haptic(ms = 10) {
   try {
@@ -40,19 +50,46 @@ export function pop(el) {
   el.addEventListener("animationend", () => el.classList.remove("tap-pop"), { once: true });
 }
 
+// A poster's smallest size (92 px wide, a few KB): shown blurred under the
+// real one while it downloads, it gives each place the film's own colours
+// and shapes at once, and the poster then comes into focus over it.
+const POSTER = /^(https:\/\/image\.tmdb\.org\/t\/p\/)w(?:154|185|300|342|500|780)(\/[^?#]+\.(?:jpe?g|png|webp))$/;
+export const tinyPoster = (src) => {
+  const m = POSTER.exec(src || "");
+  return m ? `${m[1]}w92${m[2]}` : null;
+};
+
 /**
- * Film images that are not ready yet fade in when they arrive, instead of
- * popping in. Images already in the browser's cache show at once. An image
- * marked data-no-fade (one that is animated otherwise) is left alone.
+ * Film images that are not ready yet: a poster shows its tiny version,
+ * blurred, then comes into focus; other film images fade in when they
+ * arrive, instead of popping in. Images already in the browser's cache show
+ * at once. An image marked data-no-fade (one animated otherwise) is left alone.
  */
 export function fadeInImages(root = document.body) {
-  if (reducedMotion()) return () => {};
+  const calm = reducedMotion();
   const seen = new WeakSet();
   const handle = (img) => {
     if (seen.has(img)) return;
     seen.add(img);
     if (img.hasAttribute("data-no-fade") || img.complete) return;
-    if (!/image\.tmdb\.org|ytimg\.com/.test(img.getAttribute("src") || "")) return;
+    const src = img.getAttribute("src") || "";
+    if (!/image\.tmdb\.org|ytimg\.com/.test(src)) return;
+    const tiny = tinyPoster(src);
+    if (tiny) {
+      // The colours arrive even for those who asked for less motion; only the
+      // focusing is skipped.
+      img.classList.add("img-blurup");
+      img.style.backgroundImage = `url("${tiny}")`;
+      const done = () => {
+        if (!calm) img.classList.add("img-focus");
+        // The real poster covers it; the placeholder is not kept underneath.
+        setTimeout(() => { img.style.backgroundImage = ""; img.classList.remove("img-blurup"); }, 700);
+      };
+      img.addEventListener("load", done, { once: true });
+      img.addEventListener("error", () => { img.style.backgroundImage = ""; img.classList.remove("img-blurup"); }, { once: true });
+      return;
+    }
+    if (calm) return;
     img.classList.add("img-fade");
     const done = () => img.classList.add("img-in");
     img.addEventListener("load", done, { once: true });

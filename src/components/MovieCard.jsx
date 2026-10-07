@@ -24,6 +24,7 @@ export default function MovieCard({ movie, showActions = true, dismissable = fal
     <article className="film-card">
       <button
         className="film-open"
+        data-film-id={movie.id}
         onClick={() => open(movie)}
         aria-label={`View ${movie.title}`}
       >

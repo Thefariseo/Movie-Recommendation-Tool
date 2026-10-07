@@ -32,7 +32,7 @@ export default function RecommendationList({ title, type }) {
   }, [type, retry]);
   return (
     <section
-      className="catalogue-section"
+      className="catalogue-section rise"
       aria-label={title}
       aria-busy={loading}
     >

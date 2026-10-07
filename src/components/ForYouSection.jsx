@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import useRecommend from "../hooks/useRecommend";
+import usePullToRefresh from "../hooks/usePullToRefresh";
 import DiscoveryFilters from "./DiscoveryFilters";
 import PicksShowcase, { PicksSkeleton } from "./PicksShowcase";
+import PullReel from "./PullReel";
 import { DEFAULT_DISCOVERY } from "../../shared/discovery.js";
 // Guests use the same controls and layout, with their on-device library.
 export default function ForYouSection() {
@@ -26,8 +28,12 @@ export default function ForYouSection() {
     refresh,
   } = useRecommend({ prefs, top: 6 });
   const list = pick ? [pick, ...rest] : [];
+  // On a phone, drawing the picks down from the top asks for others too.
+  const host = useRef(null);
+  const pull = usePullToRefresh(host, { onRefresh: refresh, busy: loading });
   return (
-    <section className="space-y-5">
+    <section ref={host} className="pull-host space-y-5">
+      <PullReel phase={pull} />
       <div className="flex items-center justify-between gap-4">
         <h2 className="section-title">Picked for you</h2>
         <button

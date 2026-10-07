@@ -24,6 +24,42 @@
   --color-primary-light: 192 90 105;
   --color-border: 234 234 234; /* #eaeaea */
   --color-accent: 255 66 56; /* #ff4238 */
+  /* The accent scale (Tailwind's indigo classes): Biking Red, step by step.
+     A film's sheet lays its own colour on these steps. */
+  --accent-50: 251 241 242;
+  --accent-100: 245 225 227;
+  --accent-200: 235 194 199;
+  --accent-300: 219 150 160;
+  --accent-400: 192 90 105;
+  --accent-500: 154 46 62;
+  --accent-600: 119 33 46;
+  --accent-700: 97 27 38;
+  --accent-800: 74 21 29;
+  --accent-900: 52 16 20;
+  --accent-950: 31 9 12;
+}
+
+/* The ambient light (src/utils/ambient.js): registered, so they fade. */
+@property --ambient-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(0 0 0 / 0);
+}
+@property --ambient-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(0 0 0 / 0);
+}
+/* Where the light comes from: behind the film in front of the member. */
+@property --ambient-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+@property --ambient-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 30%;
 }
 
 .dark {
@@ -1026,6 +1062,30 @@ summary {
   }
 }
 
+/* A poster still downloading shows its tiny version, blurred, in its place;
+   the real one then comes into focus over it (src/utils/motion.js). */
+.img-blurup {
+  background-size: cover;
+  background-position: center;
+  /* The tiny image upscaled reads as soft light and colour, not as pixels. */
+  image-rendering: auto;
+}
+.img-blurup:not(.img-focus) {
+  /* Until it arrives, the img paints only its background: blur the whole
+     box, kept within its own edges. */
+  filter: blur(6px) saturate(1.15);
+  clip-path: inset(0);
+}
+.img-focus {
+  clip-path: inset(0);
+  animation: posterFocus 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes posterFocus {
+  from {
+    filter: blur(6px) saturate(1.15);
+  }
+}
+
 /* Posters fade in once they arrive, instead of popping in. */
 .img-fade:not(.img-in) {
   opacity: 0;
@@ -1168,6 +1228,164 @@ button {
 ::view-transition-group(film-poster) {
   animation-duration: 0.36s;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Moving between destinations: the page slides the way the member travels
+   (src/hooks/useSmoothNavigation.js sets html[data-vt]); the header and the
+   tab bar stay where they are. */
+html[data-vt="forward"]::view-transition-old(root) {
+  animation: 0.26s cubic-bezier(0.4, 0, 1, 1) both vtOutLeft;
+}
+html[data-vt="forward"]::view-transition-new(root) {
+  animation: 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both vtInRight;
+}
+html[data-vt="back"]::view-transition-old(root) {
+  animation: 0.26s cubic-bezier(0.4, 0, 1, 1) both vtOutRight;
+}
+html[data-vt="back"]::view-transition-new(root) {
+  animation: 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both vtInLeft;
+}
+@keyframes vtOutLeft {
+  to { opacity: 0; transform: translateX(-9%); }
+}
+@keyframes vtInRight {
+  from { opacity: 0; transform: translateX(12%); }
+}
+@keyframes vtOutRight {
+  to { opacity: 0; transform: translateX(9%); }
+}
+@keyframes vtInLeft {
+  from { opacity: 0; transform: translateX(-12%); }
+}
+/* Between the tabs of one page only what is under the tab bar moves. */
+html[data-vt-within] .discovery-heading,
+html[data-vt-within] .library-layout > .page-heading {
+  view-transition-name: page-heading;
+}
+html[data-vt-within] .discover-page > .section-navigation,
+html[data-vt-within] .library-layout > .section-navigation {
+  view-transition-name: page-tabs;
+}
+/* Tonight and a cinema season: the lights go down, then the screen lights
+   up; a season's poster, coming from its card, stays lit throughout. */
+html[data-vt="dim"]::view-transition {
+  background: #000;
+}
+html[data-vt="dim"]::view-transition-old(root),
+html[data-vt="dim"]::view-transition-old(app-header),
+html[data-vt="dim"]::view-transition-old(mobile-navigation) {
+  animation: 0.34s ease-in both vtDimOut;
+}
+html[data-vt="dim"]::view-transition-new(root),
+html[data-vt="dim"]::view-transition-new(app-header),
+html[data-vt="dim"]::view-transition-new(mobile-navigation) {
+  animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.36s both vtLightsUp;
+}
+@keyframes vtDimOut {
+  to { opacity: 0; }
+}
+@keyframes vtLightsUp {
+  from { opacity: 0; transform: scale(1.015); }
+}
+
+/* Shared elements growing into their place on the next page: a cast photo
+   into the top of the person's page, a list's first posters into its grid,
+   a season's poster and title into its page. */
+::view-transition-group(person-photo),
+::view-transition-group(person-name),
+::view-transition-group(list-title),
+::view-transition-group(season-cover),
+::view-transition-group(season-title),
+::view-transition-group(list-film-0),
+::view-transition-group(list-film-1),
+::view-transition-group(list-film-2),
+::view-transition-group(list-film-3),
+::view-transition-group(list-film-4) {
+  animation-duration: 0.48s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Each poster leaves a beat after the one before it. */
+::view-transition-group(list-film-1) { animation-delay: 0.03s; }
+::view-transition-group(list-film-2) { animation-delay: 0.06s; }
+::view-transition-group(list-film-3) { animation-delay: 0.09s; }
+::view-transition-group(list-film-4) { animation-delay: 0.12s; }
+/* The round cast photo opens into the rectangular portrait. */
+::view-transition-image-pair(person-photo) {
+  overflow: clip;
+  animation: 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both vtUnround;
+}
+::view-transition-old(person-photo),
+::view-transition-new(person-photo) {
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+}
+@keyframes vtUnround {
+  from { border-radius: 50%; }
+}
+/* Words keep their proportions as they grow, instead of stretching. */
+::view-transition-old(person-name),
+::view-transition-new(person-name),
+::view-transition-old(list-title),
+::view-transition-new(list-title),
+::view-transition-old(season-title),
+::view-transition-new(season-title),
+::view-transition-old(film-title),
+::view-transition-new(film-title) {
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+
+/* The film sheet (src/hooks/useModal.jsx) opens out of the card tapped like
+   a curtain: the card's frame grows into the sheet while the sheet parts
+   from its middle, and the poster and the title fly to their places. It
+   closes the same way, back into the card. */
+.film-sheet {
+  view-transition-name: film-frame;
+}
+::view-transition-group(film-frame),
+::view-transition-group(film-title) {
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The header and the tab bar go under the sheet's shade with the rest of
+   the page, and the sheet sits above them, as it does once open. */
+html[data-curtain] .app-header,
+html[data-curtain] .mobile-navigation {
+  view-transition-name: none;
+}
+::view-transition-group(film-frame),
+::view-transition-group(film-poster),
+::view-transition-group(film-title) {
+  z-index: 1;
+}
+/* Closing, it eases out of its place before speeding back into the card. */
+html[data-curtain="close"]::view-transition-group(film-frame),
+html[data-curtain="close"]::view-transition-group(film-poster),
+html[data-curtain="close"]::view-transition-group(film-title) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+::view-transition-old(film-frame),
+::view-transition-new(film-frame) {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+::view-transition-new(film-frame) {
+  animation: 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both curtainOpen;
+}
+::view-transition-old(film-frame) {
+  animation: 0.32s cubic-bezier(0.4, 0, 0.6, 1) both curtainClose;
+}
+@keyframes curtainOpen {
+  from { clip-path: inset(0 50% round 16px); opacity: 0.5; }
+  to { clip-path: inset(0 0 round 16px); }
+}
+@keyframes curtainClose {
+  from { clip-path: inset(0 0 round 16px); }
+  to { clip-path: inset(0 50% round 16px); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1493,3 +1711,608 @@ button {
 .user-avatar.chip-avatar { width: 1.25rem; height: 1.25rem; min-width: 1.25rem; font-size: .55rem; border-width: 0; box-shadow: none; }
 .user-avatar.profile-avatar { width: 4.5rem; height: 4.5rem; min-width: 4.5rem; font-size: 1.2rem; }
 .user-avatar.friend-avatar { width: 2.25rem; height: 2.25rem; min-width: 2.25rem; font-size: .7rem; border-width: 1px; box-shadow: none; }
+
+/* --------------------------------------------------
+   AMBIENT LIGHT (src/utils/ambient.js)
+   The film in front of the member lights the page in its colours: a glow
+   behind everything, a trace of it in the header, its own light behind its
+   sheet. --ambient-1 is the film's base colour, --ambient-2 its accent;
+   both fade from film to film.
+   -------------------------------------------------- */
+html {
+  transition:
+    --ambient-1 1.1s ease,
+    --ambient-2 1.6s ease,
+    --ambient-x 1.2s cubic-bezier(0.25, 0.8, 0.25, 1),
+    --ambient-y 1.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+/* On paper, light is a pale wash of the film's most vivid colour; in the dark
+   room, a glow of its base and accent together (a near-black base alone
+   would not show). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(62% 36% at var(--ambient-x) var(--ambient-y), color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 62%, white) 60%, transparent), transparent 75%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) + 22%) calc(var(--ambient-y) + 14%), color-mix(in srgb, color-mix(in srgb, var(--ambient-1) 50%, white) 45%, transparent), transparent 72%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) - 24%) calc(var(--ambient-y) - 8%), color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 50%, white) 38%, transparent), transparent 72%);
+}
+.dark body::before {
+  background:
+    radial-gradient(62% 36% at var(--ambient-x) var(--ambient-y), color-mix(in srgb, color-mix(in srgb, var(--ambient-1), var(--ambient-2)) 52%, transparent), transparent 75%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) + 22%) calc(var(--ambient-y) + 14%), color-mix(in srgb, var(--ambient-2) 40%, transparent), transparent 72%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) - 24%) calc(var(--ambient-y) - 8%), color-mix(in srgb, var(--ambient-2) 30%, transparent), transparent 72%);
+}
+.app-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ambient-2) 12%, transparent), color-mix(in srgb, var(--ambient-1) 8%, transparent));
+}
+.film-overlay-light {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(95% 70% at 50% -5%, color-mix(in srgb, var(--ambient-1) 55%, transparent), transparent 76%),
+    radial-gradient(75% 60% at 50% 112%, color-mix(in srgb, var(--ambient-2) 38%, transparent), transparent 74%);
+}
+/* The sheet's paper takes a breath of the film's colour. */
+.film-sheet {
+  transition: background-color 0.8s ease;
+}
+.film-sheet.film-sheet-tinted {
+  background-color: color-mix(in srgb, rgb(var(--accent-500)) 6%, rgb(var(--color-bg-card)));
+}
+.dark .film-sheet.film-sheet-tinted {
+  background-color: color-mix(in srgb, rgb(var(--accent-400)) 10%, #181818);
+}
+
+/* --------------------------------------------------
+   UNDER THE FINGER
+   A film's sheet can be drawn down to close and swiped to the next film
+   (src/hooks/useSheetGestures.js); the picks can be drawn down for others
+   (src/hooks/usePullToRefresh.js).
+   -------------------------------------------------- */
+.sheet-grabber {
+  display: none;
+}
+@media (max-width: 767px) {
+  .sheet-grabber {
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    z-index: 30;
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin-left: -19px;
+    border-radius: 2px;
+    background: rgb(255 255 255 / 0.8);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+    pointer-events: none;
+  }
+}
+/* With a pointer, arrows either side of the sheet move along the row. */
+.sheet-step {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 860px) {
+  .sheet-step {
+    position: fixed;
+    top: 50%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 9999px;
+    color: #fff;
+    background: rgb(255 255 255 / 0.12);
+    backdrop-filter: blur(6px);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+  .sheet-step:hover {
+    background: rgb(255 255 255 / 0.24);
+  }
+  .sheet-step:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  .sheet-step-back {
+    left: calc(50% - 336px - 72px);
+  }
+  .sheet-step-next {
+    right: calc(50% - 336px - 72px);
+  }
+  .sheet-step-back:hover {
+    transform: translateX(-3px);
+  }
+  .sheet-step-next:hover {
+    transform: translateX(3px);
+  }
+}
+
+/* A rating given: a beam of light sweeps across the stars, which fill as it
+   passes and glow (src/components/StarRating.jsx); five stars flare, with a
+   burst of sparks and a flicker of film grain. */
+.star-beam {
+  position: absolute;
+  top: -35%;
+  bottom: -35%;
+  left: -14%;
+  width: 114%;
+  pointer-events: none;
+  transform-origin: left center;
+  /* A cone of light from a lens on the left. */
+  clip-path: polygon(0 44%, 100% 0, 100% 100%, 0 56%);
+  background: linear-gradient(90deg, rgb(251 191 36 / 0) 0%, rgb(251 191 36 / 0.2) 60%, rgb(255 244 205 / 0.9) 100%);
+  animation:
+    beamSweep calc(0.15s + var(--stars) * 0.08s) cubic-bezier(0.25, 0.6, 0.35, 1) both,
+    beamFade 0.6s ease-out calc(0.15s + var(--stars) * 0.08s) both;
+}
+.dark .star-beam {
+  mix-blend-mode: plus-lighter;
+}
+@keyframes beamSweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(calc((var(--stars) + 0.6) / 5.6)); }
+}
+@keyframes beamFade {
+  to { opacity: 0; }
+}
+.star-beam-fill {
+  animation: starFill 0.12s linear both;
+  animation-delay: calc(0.1s + var(--i) * 0.08s);
+}
+@keyframes starFill {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.star-lit {
+  animation: starGlow 0.6s ease-out both;
+  animation-delay: calc(0.16s + var(--i) * 0.08s);
+}
+@keyframes starGlow {
+  40% {
+    filter: drop-shadow(0 0 6px rgb(251 191 36 / 0.95)) brightness(1.15);
+    transform: scale(1.12);
+  }
+}
+.grain-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.grain-spark {
+  position: absolute;
+  top: 50%;
+  right: 8%;
+  width: var(--size);
+  height: var(--size);
+  margin: calc(var(--size) / -2);
+  border-radius: 50%;
+  background: rgb(255 236 179);
+  box-shadow: 0 0 6px rgb(251 191 36 / 0.9);
+  opacity: 0;
+  animation: sparkOut 0.75s cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+@keyframes sparkOut {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.3); }
+}
+.grain-flicker {
+  position: absolute;
+  inset: -40% -12%;
+  border-radius: 12px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.98 0 0 0 0 0.82 0 0 0 0 0.45 0 0 0 1.6 -0.55'/></filter><rect width='140' height='140' filter='url(%23g)'/></svg>");
+  opacity: 0;
+  animation: grainFlicker 1s steps(10) 0.5s both;
+}
+@keyframes grainFlicker {
+  0% { opacity: 0; background-position: 0 0; }
+  12% { opacity: 0.7; }
+  30% { background-position: 37px 11px; }
+  50% { opacity: 0.45; background-position: -23px 41px; }
+  75% { background-position: 51px -29px; }
+  100% { opacity: 0; background-position: -7px 63px; }
+}
+
+/* Tonight's draw (src/pages/NightPage.jsx): a strip of film through a
+   projector's gate, and the winner's frame lit like a marquee. */
+.reel-window {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  height: calc(var(--frame) * 1.5 + 36px);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+.reel-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - var(--frame) / 2);
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+  padding: 0 var(--gap);
+  margin-left: calc(var(--gap) * -1);
+  /* The film's base, with its sprocket holes along both edges. */
+  background-color: #151413;
+  background-image:
+    linear-gradient(90deg, #efe9dd 0 7px, transparent 7px),
+    linear-gradient(90deg, #efe9dd 0 7px, transparent 7px);
+  background-size: 15px 8px;
+  background-position: 4px 6px, 4px calc(100% - 6px);
+  background-repeat: repeat-x;
+  will-change: transform;
+}
+.reel-frame {
+  position: relative;
+  flex: none;
+  width: var(--frame);
+  height: calc(var(--frame) * 1.5);
+  border-radius: 3px;
+  background: #2b2926;
+}
+.reel-frame img {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.reel-back {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font: 700 34px/1 system-ui, sans-serif;
+  color: rgb(255 255 255 / 0.35);
+}
+/* The gate: where the light falls, and a flash as each frame passes. */
+.reel-gate {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--frame) + 10px);
+  height: calc(var(--frame) * 1.5 + 10px);
+  transform: translate(-50%, -50%);
+  border: 2px solid rgb(251 191 36 / 0.85);
+  border-radius: 6px;
+  box-shadow: 0 0 18px rgb(251 191 36 / 0.35), inset 0 0 14px rgb(251 191 36 / 0.25);
+  pointer-events: none;
+}
+.reel-gate span {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: rgb(255 248 225);
+  opacity: 0;
+}
+/* Stopped: the gate's work is done and the other frames fall into shadow. */
+.reel-stopped .reel-gate {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.reel-stopped .reel-frame:not(.reel-winner) {
+  opacity: 0.3;
+  transition: opacity 0.8s ease;
+}
+/* The winner's frame: a ring of bulbs that light up and chase round it. */
+.reel-winner {
+  z-index: 1;
+  animation: winnerLift 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.reel-winner::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  padding: 6px;
+  border-radius: 8px;
+  background: radial-gradient(circle, #ffe7a3 0 2.6px, transparent 3.3px) 0 0 / 12px 12px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 4px rgb(255 196 64 / 0.95));
+  animation: marqueeOn 0.9s steps(3) both, marqueeChase 0.42s steps(2) 0.9s infinite;
+}
+@keyframes winnerLift {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+@keyframes marqueeOn {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+  60% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+@keyframes marqueeChase {
+  to { background-position: 6px 6px; }
+}
+.marquee-title {
+  animation: marqueeTitle 1.1s steps(6) both;
+  text-shadow: 0 0 14px rgb(251 191 36 / 0.55);
+}
+@keyframes marqueeTitle {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  45% { opacity: 0.35; }
+  60%, 100% { opacity: 1; }
+}
+
+/* A film saved flies to the Library (src/utils/flight.js), whose count of
+   films waiting jumps as it lands. */
+.flying-poster {
+  position: fixed;
+  z-index: 300;
+  pointer-events: none;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.35);
+  will-change: transform, opacity;
+}
+.nav-destination {
+  position: relative;
+}
+.nav-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  color: #fff;
+  background: rgb(var(--accent-600));
+  vertical-align: 1px;
+}
+.nav-mobile .nav-count {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 6px);
+  margin: 0;
+  font-size: 9px;
+  line-height: 13px;
+  min-width: 16px;
+  padding: 0 4px;
+}
+.nav-bump svg,
+.nav-bump .nav-count {
+  animation: navBump 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes navBump {
+  35% {
+    transform: scale(1.35) translateY(-2px);
+  }
+}
+
+/* The taste map's zoom (src/components/TasteAtlas.jsx). */
+.atlas-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-zoom button {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 9999px;
+  color: rgb(var(--color-fg));
+  background: rgb(var(--color-bg-card) / 0.9);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  backdrop-filter: blur(6px);
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+.atlas-zoom button:hover:not(:disabled) {
+  transform: scale(1.08);
+}
+.atlas-zoom button:disabled {
+  opacity: 0.4;
+}
+.atlas-canvas.atlas-zoomed {
+  cursor: grab;
+}
+.atlas-canvas.atlas-zoomed:active {
+  cursor: grabbing;
+}
+
+/* The picks drawn down from the top: they move only while drawn (a moved
+   box would hold any fixed panel inside it), and glide back when let go. */
+.pull-host {
+  --pull: 0px;
+  --pull-turn: 0;
+  position: relative;
+}
+.pull-host.pull-active {
+  transform: translate3d(0, var(--pull), 0);
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.08);
+}
+.pull-host.pulling {
+  transition: none;
+}
+.pull-reel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  height: var(--pull);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  color: rgb(var(--accent-600));
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: var(--pull-turn);
+  pointer-events: none;
+}
+.pull-reel-idle {
+  visibility: hidden;
+}
+.pull-reel-wheel {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  /* It turns as the finger draws it, a little more than once. */
+  transform: rotate(calc(var(--pull-turn) * 400deg)) scale(calc(0.7 + var(--pull-turn) * 0.3));
+}
+.pull-reel-ready .pull-reel-wheel {
+  color: rgb(var(--accent-500));
+}
+.pull-reel-loading .pull-reel-wheel {
+  animation: reelSpin 0.8s linear infinite;
+}
+@keyframes reelSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.pull-reel span {
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------
+   MOTION FOLLOWING THE SCROLL
+   Driven by the browser's scroll timelines, off the page's own thread;
+   browsers without them, and those who asked for less motion, see the page
+   still.
+   -------------------------------------------------- */
+/* The header settles into a slim bar: its top scrolls away (sticky above
+   the screen's edge) while the wordmark and controls fade. On phones only
+   the search bar stays. */
+.app-header {
+  top: -10px;
+}
+.app-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.35);
+  opacity: 0;
+}
+/* Captured for a page transition, the shadow the header is not showing yet
+   makes its picture swell (Chrome): it sits the transition out. */
+html:active-view-transition .app-header::before {
+  display: none;
+}
+@media (max-width: 767px) {
+  .app-header {
+    top: -58px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .app-header::before {
+      animation: headerShadow linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 90px;
+    }
+    .app-header .brand {
+      transform-origin: left center;
+      animation: headerBrand linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 70px;
+    }
+    @media (max-width: 767px) {
+      .app-header .brand,
+      .app-header .header-row > .shrink-0 {
+        animation: headerFade linear both;
+        animation-timeline: scroll(root block);
+        animation-range: 0 58px;
+      }
+    }
+
+    /* The picture at the top of a film's sheet, or of the picks, scrolls
+       more slowly than the page: it stays behind as the rest moves on. */
+    .parallax-media {
+      animation: parallax linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* In a film's sheet, the picture stays behind as the details scroll
+       over it: the details' own scrolling drives it (named timeline). */
+    .film-sheet {
+      timeline-scope: --sheet;
+    }
+    .sheet-body {
+      scroll-timeline: --sheet block;
+    }
+    .sheet-backdrop {
+      animation: sheetBackdrop linear both;
+      animation-timeline: --sheet;
+      animation-range: 0px 280px;
+    }
+
+    /* Rows and cards rise into place as they come on screen. */
+    .rise {
+      animation: rise linear both;
+      animation-timeline: view();
+      /* A fixed distance, so a grid taller than the screen settles as soon. */
+      animation-range: entry 0px entry 240px;
+    }
+  }
+}
+@keyframes headerShadow {
+  to { opacity: 1; }
+}
+@keyframes headerBrand {
+  to { transform: scale(0.88); }
+}
+@keyframes headerFade {
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes parallax {
+  to { transform: translateY(32%); }
+}
+@keyframes sheetBackdrop {
+  to { transform: translateY(16%) scale(1.08); }
+}
+@keyframes rise {
+  from { opacity: 0.35; transform: translateY(28px) scale(0.97); }
+}
+
+/* Posters lean towards the pointer (and, on phones, with the phone):
+   src/utils/tilt.js sets the angles on the posters in view. */
+.film-poster,
+[data-tilt] {
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.film-poster.tilting,
+[data-tilt].tilting {
+  transition: transform 0.12s linear;
+}
+/* A sheen where the light would catch it. */
+.film-poster::after,
+[data-tilt]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 0%), rgb(255 255 255 / 0.22), transparent 55%);
+  opacity: var(--glare, 0);
+  transition: opacity 0.4s ease;
+  mix-blend-mode: soft-light;
+}
