@@ -1504,4 +1504,18 @@ export default {
   "Reset your password": "Reimposta la password",
   "or with your email": "oppure con la tua email",
   "What you rated and saved on this device is now in your account.": "Quello che hai votato e salvato su questo dispositivo ora è nel tuo account.",
+  // ── Feedback, cinema country, instant sign-up ──
+  "Country": "Paese",
+  "Best bets for your taste first.": "Prima i più adatti al tuo gusto.",
+  "Send feedback": "Invia un feedback",
+  "What do you think?": "Cosa ne pensi?",
+  "Something you liked, something broken, something missing: every note is read.": "Qualcosa che ti è piaciuto, qualcosa che non funziona, qualcosa che manca: ogni messaggio viene letto.",
+  "Thank you! Your note is on its way.": "Grazie! Il tuo messaggio è arrivato.",
+  "Your feedback": "Il tuo feedback",
+  "Email, if you would like a reply": "Email, se vuoi una risposta",
+  "(optional)": "(facoltativa)",
+  "Write a few words first.": "Scrivi prima qualche parola.",
+  "An account with this email already exists. Sign in instead.": "Esiste già un account con questa email. Accedi.",
+  "Choose a stronger password.": "Scegli una password più sicura.",
+  "Accounts are temporarily unavailable. Please try again.": "Gli account non sono disponibili al momento. Riprova.",
 };

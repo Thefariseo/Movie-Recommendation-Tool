@@ -210,6 +210,11 @@ export async function getRecommendations({
   /* 1. Taste DNA: genre + decade affinity from liked films             */
   /* ================================================================= */
 
+  // The taste space and map, and the saved films, download while the rest is worked out.
+  const spaceLoad = loadTasteSpace();
+  const atlasLoad = loadTasteMap();
+  const watchlistLoad = Promise.allSettled(watchlist.slice(0, 20).map(m => movieDetails(m.id)));
+
   const likedFilms = watched.filter(m => Number(m.rated) >= 6);
   // A newcomer's first-visit choices (shared/onboarding.js) stand in for
   // ratings in their taste profile and place in the space, never as ratings.
@@ -264,7 +269,7 @@ export async function getRecommendations({
   // The taste space: where the member sits among 200,000 people's loved films.
   // Without the file, or with too few loved films it knows, picks carry on
   // from the member's own evidence alone.
-  const space = await loadTasteSpace();
+  const space = await spaceLoad;
   const member = space && placeMember(space, placedFilms, watchlist.map((m) => m.id));
   const peer = member ? affinities(space, member) : null;
   const peerZ = (id) => {
@@ -334,7 +339,7 @@ export async function getRecommendations({
 
   const candidates = new Map();
 
-  const hydratedWatchlist = await Promise.allSettled(watchlist.slice(0, 20).map(m => movieDetails(m.id)));
+  const hydratedWatchlist = await watchlistLoad;
   hydratedWatchlist.forEach(r => {
     if (r.status === 'fulfilled') {
       const m = r.value;
@@ -416,6 +421,17 @@ export async function getRecommendations({
     if (prefs.era && eraRanges[prefs.era])
       Object.assign(discoverParams, eraRanges[prefs.era]);
 
+    // Every source below is asked for at once (the TMDB client queues them),
+    // then each is read in its turn, so the first source to name a film keeps it.
+    const dirFilmsLoad = Promise.all(topDirs.map(([dirId]) => personMovieCredits(dirId).catch(() => ({ crew: [] }))));
+    const actorFilmsLoad = Promise.all(topActors.map(([actorId]) => personMovieCredits(actorId).catch(() => ({ cast: [] }))));
+    const seedDirs = [...CINEPHILE_DIRECTORS].sort(() => Math.random() - 0.5).slice(0, 6);
+    const cinephileLoad = Promise.all(seedDirs.map(({ id }) => personMovieCredits(id).catch(() => ({ crew: [] }))));
+    const seedFilms = seedMovies(watched, 8);
+    const seedLoad = Promise.all(seedFilms.map((m) => movieDetails(m.id).catch(() => ({}))));
+    const spaceMatches = member ? strongest(space, member, { limit: SPACE_PICKS, exclude: new Set([...watched, ...watchlist].map((m) => Number(m.id))), scores: peer }) : [];
+    const spaceLoadDetails = Promise.allSettled(spaceMatches.map((m) => movieCore(m.id)));
+
     // 4 random pages from a wide range (2–15) + page 1 as quality baseline
     const [disc1, disc2, disc3, disc4, disc5, discPopular, trend, upc] = await Promise.all([
       discoverMovies({ ...discoverParams, page: 1 }),
@@ -444,9 +460,7 @@ export async function getRecommendations({
 
     // ── Director filmographies ──
     if (topDirs.length > 0) {
-      const dirFilms = await Promise.all(
-        topDirs.map(([dirId]) => personMovieCredits(dirId).catch(() => ({ crew: [] })))
-      );
+      const dirFilms = await dirFilmsLoad;
       dirFilms.forEach((data, i) => {
         const [dirId, { name, score }] = topDirs[i];
         (data.crew || []).filter((m) => m.job === "Director").forEach((m) => {
@@ -462,9 +476,7 @@ export async function getRecommendations({
 
     // ── Actor filmographies ──
     if (topActors.length > 0) {
-      const actorFilms = await Promise.all(
-        topActors.map(([actorId]) => personMovieCredits(actorId).catch(() => ({ cast: [] })))
-      );
+      const actorFilms = await actorFilmsLoad;
       actorFilms.forEach((data, i) => {
         const [actorId, { name, score }] = topActors[i];
         (data.cast || []).forEach((m) => {
@@ -480,12 +492,7 @@ export async function getRecommendations({
     }
 
     // Exploration candidates still have to earn their place through taste scoring.
-    const shuffled  = [...CINEPHILE_DIRECTORS].sort(() => Math.random() - 0.5);
-    const seedDirs  = shuffled.slice(0, 6);
-
-    const cinephileFilms = await Promise.all(
-      seedDirs.map(({ id }) => personMovieCredits(id).catch(() => ({ crew: [] })))
-    );
+    const cinephileFilms = await cinephileLoad;
     cinephileFilms.forEach((data, i) => {
       const { name } = seedDirs[i];
       (data.crew || []).filter((m) => m.job === "Director").forEach((m) => {
@@ -517,11 +524,8 @@ export async function getRecommendations({
 
     // ── The taste space's strongest matches ──
     if (member) {
-      const exclude = new Set([...watched, ...watchlist].map((m) => Number(m.id)));
-      const matches = strongest(space, member, { limit: SPACE_PICKS, exclude, scores: peer });
-      // Credits and keywords are all a candidate needs: about half the full
-      // details. The TMDB client keeps six requests in flight.
-      const fetched = await Promise.allSettled(matches.map((m) => movieCore(m.id)));
+      // Credits and keywords are all a candidate needs: about half the full details.
+      const fetched = await spaceLoadDetails;
       fetched.forEach((r) => {
         if (r.status !== "fulfilled" || !r.value?.id || candidates.has(r.value.id)) return;
         candidates.set(r.value.id, { id: r.value.id, raw: { ...r.value, genre_ids: genreIds(r.value) }, source: "taste-space", dirScore: 0, actorScore: 0 });
@@ -536,9 +540,7 @@ export async function getRecommendations({
     });
 
     // ── TMDB recommendations from top-10 highest-rated watched films ──
-    const seedFilms = seedMovies(watched, 8);
-
-    const seedDetails = await Promise.all(seedFilms.map((m) => movieDetails(m.id).catch(() => ({}))));
+    const seedDetails = await seedLoad;
     seedFilms.forEach((m, i) => {
       (seedDetails[i].recommendations?.results || []).forEach((r) => {
         if (!candidates.has(r.id))
@@ -814,7 +816,7 @@ export async function getRecommendations({
   if (!predictor || hasPersonFilter) return diversePicks(round, top, {recent, strength: hasPersonFilter ? .06 : .12});
   // The first picks are composed, as on the server: the top match, then the
   // other sides of the member's taste, new territory and a hidden gem.
-  const atlas = await loadTasteMap();
+  const atlas = await atlasLoad;
   const visited = new Set(atlas ? watched.map((f) => space.index.get(Number(f.id))).filter((i) => i != null).map((i) => atlas.map.region[i]) : []);
   const at = (m) => space.index.get(Number(m.id));
   const anchors = new Map();

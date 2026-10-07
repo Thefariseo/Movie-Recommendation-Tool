@@ -1,7 +1,6 @@
 import React, { Suspense, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Bookmark, Star } from "lucide-react";
-import KnownFilms from "../components/KnownFilms";
 import SaveProgress from "../components/SaveProgress";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "@/hooks/useWatched";
@@ -19,6 +18,8 @@ import useAmbientGlow from "../hooks/useAmbientGlow";
 const ForYouSection = lazyPage(() => import("../components/ForYouSection"));
 const TasteOnboarding = lazyPage(() => import("../components/TasteOnboarding"));
 const CinemaSection = lazyPage(() => import("../components/CinemaSection"));
+// The films to rate need the taste map's landmarks: they load with their row.
+const KnownFilms = lazyPage(() => import("../components/KnownFilms"));
 
 export default function Home() {
   const { user } = useAuth(),
@@ -151,7 +152,7 @@ export default function Home() {
             </section>
           )}
           {!focus && <SaveProgress />}
-          {!focus && fewRatings && <KnownFilms />}
+          {!focus && fewRatings && <Suspense fallback={null}><KnownFilms /></Suspense>}
         </div>
       )}
     </main>

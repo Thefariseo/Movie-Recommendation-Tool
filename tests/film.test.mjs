@@ -62,3 +62,19 @@ test('the film endpoint is public, trimmed and cacheable; anything else is refus
     assert.match(res.headers.get('cache-control'), /no-store/);
   }
 });
+
+test('where a film streams comes back for one country only, cached at the edge', async () => {
+  globalThis.fetch = async (url) => {
+    assert(String(url).includes('/movie/129/watch/providers'));
+    const offer = (n) => ({ provider_id: n, provider_name: `P${n}`, logo_path: `/${n}.png`, display_priority: n, extra: 'x' });
+    return new Response(JSON.stringify({ id: 129, results: { US: { link: 'https://t/US', flatrate: [offer(1)], rent: [offer(2)] }, IT: { flatrate: [offer(3)] }, FR: { buy: [offer(4)] } } }), { headers: { 'Content-Type': 'application/json' } });
+  };
+  const res = await execute(new Request('https://umbrify.test/api/film?path=%2Fmovie%2F129%2Fwatch%2Fproviders&language=en-US&region=US'), film);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('cache-control'), /s-maxage/);
+  const body = await res.json();
+  assert.deepEqual(Object.keys(body.results), ['US']);
+  assert.deepEqual(body.results.US.flatrate, [{ provider_id: 1, provider_name: 'P1', logo_path: '/1.png', display_priority: 1 }]);
+  assert.deepEqual(body.results.US.buy, []);
+  assert.equal((await execute(new Request('https://umbrify.test/api/film?path=%2Fmovie%2F129%2Fwatch%2Fproviders&language=en-US&region=usa'), film)).status, 400);
+});

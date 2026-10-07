@@ -45,6 +45,15 @@ async function onPage(args) {
   return result;
 }
 
+/**
+ * Starts the worker ahead of the first picks: it begins downloading the taste
+ * space and map it will need, while the page is still being drawn.
+ */
+export function warmUp() {
+  const w = spawn();
+  try { w?.postMessage({ warm: true, language: currentLanguage() }); } catch { /* the first real request warms it */ }
+}
+
 /** getRecommendations(args), computed in the worker when the browser allows it. */
 export function recommend(args) {
   const w = spawn();

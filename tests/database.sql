@@ -365,5 +365,19 @@ do $$begin
  begin perform 1 from public.letterboxd_films;raise exception 'A member read the film cache';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
+-- Feedback: anyone may send it, as themselves or anonymously; nobody reads it back.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+insert into public.feedback(user_id,message,page) values('11111111-1111-4111-8111-111111111111','Love the map','/library/map');
+do $$begin
+ begin insert into public.feedback(user_id,message) values('22222222-2222-4222-8222-222222222222','Pretending');raise exception 'A member wrote feedback as someone else';exception when insufficient_privilege or check_violation then null;end;
+ begin perform 1 from public.feedback;raise exception 'A member read the feedback';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.sub','',true);
+insert into public.feedback(message) values('From a guest');
+reset role;
+select public.test_assert((select count(*)=2 from public.feedback),'feedback from a member and a guest is kept');
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'

@@ -7,6 +7,7 @@ import UserAvatar from "./UserAvatar";
 import SearchBar from "./SearchBar";
 import NotificationBell, { InstallButton } from "./NotificationBell";
 import LanguagePicker from "./LanguagePicker";
+import FeedbackButton from "./FeedbackButton";
 import { preloadPage } from "../utils/lazyPage";
 const destinations = [
   { path: "/", label: "Discover", icon: Compass },
@@ -93,6 +94,7 @@ export default function Navbar() {
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <LanguagePicker compact className="hidden px-1 text-[rgb(var(--color-fg-muted))] md:inline-flex" />
+            <FeedbackButton />
             {user ? <NotificationBell userId={user.id} /> : <InstallButton />}
             <button
               onClick={toggle}

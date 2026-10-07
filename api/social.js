@@ -2,12 +2,18 @@ import { nodeHandler, identify, database, allRows, body, HttpError, uuid } from 
 import { normalizeMovie } from '../shared/library.js';
 import { personView, recommendFilm, inbox, markRecommendationsSeen, dismissRecommendation, react, reactionsFor } from '../server/friends.js';
 import { readList, myLists, saveList, changeListFilm, deleteList } from '../server/lists.js';
+import { sendFeedback } from '../server/feedback.js';
 import { readNotifications, subscribePush, unsubscribePush, notify, senderName } from '../server/notifications.js';
 export async function social(ctx) {
   // A public list opens for anyone with the link, signed in or not.
   if (ctx.request.method === 'GET' && ctx.url.searchParams.get('list')) {
     await identify(ctx, false);
     return readList(ctx, ctx.url.searchParams.get('list'));
+  }
+  // Feedback comes from guests too.
+  if (ctx.request.method === 'POST' && ctx.url.searchParams.has('feedback')) {
+    await identify(ctx, false);
+    return sendFeedback(ctx, await body(ctx));
   }
   await identify(ctx);
   const db = database(ctx.token),

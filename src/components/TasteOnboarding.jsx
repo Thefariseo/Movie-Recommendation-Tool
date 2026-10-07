@@ -53,9 +53,20 @@ export default function TasteOnboarding({ onDone, onSkip, onStage }) {
   const [mode, setMode] = useState("start");
   const [imported, setImported] = useState(false);
 
+  // The taste space (0.6 MB) is only needed for the pairs: it loads once the
+  // newcomer reaches for them, or after a few seconds on a fast connection.
+  const [wanted, setWanted] = useState(false);
+  const want = () => setWanted(true);
   useEffect(() => {
-    Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions, atlas.landmarks) }) : setFailed(true)));
+    const fast = typeof navigator === "undefined" || !navigator.connection || (!navigator.connection.saveData && navigator.connection.effectiveType === "4g");
+    if (!fast) return undefined;
+    const timer = setTimeout(want, 4000);
+    return () => clearTimeout(timer);
   }, []);
+  useEffect(() => {
+    if (!wanted && mode !== "pairs") return;
+    Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions, atlas.landmarks) }) : setFailed(true)));
+  }, [wanted, mode === "pairs"]); // eslint-disable-line react-hooks/exhaustive-deps
   const pair = useMemo(() => (model && !done ? nextPair(model.space, model.pool, history) : null), [model, history, done]);
   // Until the choices are made, the page steps back (src/pages/Home.jsx) and,
   // on a phone, so does the search above it: the welcome, then each pair,
@@ -114,7 +125,7 @@ export default function TasteOnboarding({ onDone, onSkip, onStage }) {
       <div className="welcome-start">
         <h2 className="welcome-start-title">Start in a minute</h2>
         <div className="welcome-start-options">
-          <button type="button" onClick={() => setMode("pairs")} className="welcome-option welcome-option-main" disabled={failed}>
+          <button type="button" onClick={() => setMode("pairs")} onPointerEnter={want} onPointerDown={want} onFocus={want} className="welcome-option welcome-option-main" disabled={failed}>
             <Shuffle className="h-6 w-6 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block font-semibold">Seven quick choices</span>

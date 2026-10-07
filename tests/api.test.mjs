@@ -446,3 +446,36 @@ test('a real access token is checked with Supabase once a minute, not on every c
   await call(other); await call(other);
   assert.equal(asked, 5, 'a token naming someone else is never remembered');
 });
+test('with the service key, sign-up makes a confirmed account and signs in at once', async () => {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push(String(url));
+    if (String(url).endsWith('/auth/v1/admin/users')) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.email_confirm, true);
+      assert.equal(body.user_metadata.display_name, 'Ada');
+      return json({ id });
+    }
+    if (String(url).includes('/token?grant_type=password')) return json({ access_token: 'access-secret', refresh_token: 'refresh-secret', expires_in: 3600 });
+    return json(true);
+  };
+  const result = await execute(request('auth?action=signup', { email: 'new@example.com', password: 'long-password', display_name: 'Ada' }), auth);
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), { signedIn: true });
+  assert(!calls.some((u) => u.includes('/auth/v1/signup')), 'no confirmation email is asked for');
+  globalThis.fetch = async (url) => (String(url).endsWith('/auth/v1/admin/users') ? json({ msg: 'A user with this email address has already been registered' }, 422) : json(true));
+  const taken = await execute(request('auth?action=signup', { email: 'new@example.com', password: 'long-password' }), auth);
+  assert.equal(taken.status, 409);
+});
+test('feedback is accepted from a guest, with the page it came from', async () => {
+  const sent = [];
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes('/rest/v1/feedback')) { sent.push(JSON.parse(options.body)); return new Response(null, { status: 201 }); }
+    return json(true);
+  };
+  const result = await execute(request('social?feedback', { message: '  Love it\u0007  ', page: '/rate', contact: 'me@example.com', lang: 'en' }), social);
+  assert.equal(result.status, 200);
+  assert.deepEqual(sent, [{ user_id: null, message: 'Love it', page: '/rate', contact: 'me@example.com', lang: 'en' }]);
+  assert.equal((await execute(request('social?feedback', { message: 'x' }), social)).status, 400);
+});
