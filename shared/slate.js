@@ -4,8 +4,9 @@
 // top match, then gives a place to each other side of their taste (a film
 // anchored to a different loved film), to a film a close friend loved, to one
 // from a territory of the map they have never visited, and to a hidden gem,
-// as long as each is still a strong match. The rest follow in order, kept
-// varied: near-duplicates and a third film by one director wait their turn.
+// as long as each is still a strong match (and no two by one director). The
+// rest follow in order, kept varied by a penalty for resembling a film
+// already chosen.
 
 // How far below the top pick a film may score and still take a role.
 const MARGIN = 4;
@@ -13,7 +14,6 @@ const MARGIN = 4;
 const ROLE_PLACES = 6;
 // How much a near-duplicate of a film already chosen loses, per unit of similarity.
 const SAMENESS = 3;
-const SAME_DIRECTOR = 1.5;
 
 /**
  * `movies` sorted by _score, best first. Helpers say whether a film can take
@@ -67,8 +67,7 @@ export function slate(movies, {
     let best = 0, bestValue = -Infinity;
     rest.forEach((m, i) => {
       const alike = Math.max(0, ...chosen.map((c) => similar(c.m, m)));
-      const value = (Number(m._score) || 0) - SAMENESS * Math.max(0, alike - 0.6) / 0.4
-        - (m.dirName && (directors.get(m.dirName) || 0) >= 2 ? SAME_DIRECTOR : 0) - (recent.has(Number(m.id)) ? 2 : 0);
+      const value = (Number(m._score) || 0) - SAMENESS * Math.max(0, alike - 0.6) / 0.4 - (recent.has(Number(m.id)) ? 2 : 0);
       if (value > bestValue) { best = i; bestValue = value; }
     });
     take(rest.splice(best, 1)[0], null);

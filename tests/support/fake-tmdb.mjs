@@ -13,6 +13,8 @@ export async function movieDetails(id) {
 }
 // Credits and keywords only, in the real client; here the same film.
 export async function movieCore(id) { return movieDetails(id); }
+// Already downloaded, in the real client; here every film in the catalogue is.
+export function cachedCore(id) { const film = catalog.get(Number(id)); return film ? { recommendations: { results: [] }, ...film } : null; }
 export async function discoverMovies() { calls.push('discover'); return result(lists.discover); }
 export async function trendingMovies() { return result(lists.trending); }
 export async function upcomingMovies() { return result(lists.upcoming); }

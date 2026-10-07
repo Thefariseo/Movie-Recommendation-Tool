@@ -39,8 +39,10 @@ function spawn() {
 }
 
 async function onPage(args) {
-  const { getRecommendations } = await import("../algorithms/recommender.js");
-  return getRecommendations(args);
+  const { getRecommendations, warmNextRound } = await import("../algorithms/recommender.js");
+  const result = await getRecommendations(args);
+  setTimeout(warmNextRound, 1500);
+  return result;
 }
 
 /** getRecommendations(args), computed in the worker when the browser allows it. */

@@ -5,6 +5,7 @@ import {
   upcomingMovies,
   movieDetails,
   movieCore,
+  cachedCore,
   discoverMovies,
   personMovieCredits,
 } from "../utils/api";
@@ -143,11 +144,30 @@ function sigmoidVoteScore(avg) {
 // where the judge weighs every sign for and against them. Details are cached,
 // and the final cards reuse them.
 const SHORTLIST = 48;
+// A second half of the shortlist is judged too, as far as its details are
+// already here; the rest download in the background, to be judged next time.
+const SHORTLIST_WIDE = 96;
 
 // How many of the taste space's strongest matches join the candidate pool, and
 // how far a match must stand above the member's ordinary film to be named as
 // the reason (in standard deviations over the whole catalogue).
+// Measured: a wider circle from the space (60, 120) brought in films the
+// member's own ratings predict less well, so it stays at 30.
 const SPACE_PICKS = 30;
+
+// Films whose details are fetched once a round is over, for the next one:
+// in the background, so they never hold up the films about to be shown.
+const later = new Set();
+function fetchLater(ids) {
+  for (const id of ids) if (!cachedCore(id)) later.add(Number(id));
+}
+export function warmNextRound() {
+  const ids = [...later].slice(0, 60);
+  ids.forEach((id) => later.delete(id));
+  return Promise.allSettled(ids.map((id) => movieCore(id)));
+}
+// What is already here, as settled results (null where it is not).
+const fromCache = (ids) => ids.map((id) => { const d = cachedCore(id); return d ? { status: "fulfilled", value: d } : null; });
 const SPACE_REASON_Z = 1.5;
 // The rating the member's diary predicts, per point above their mean (the
 // server's weight on this scale), and how far below the top pick a film may
@@ -741,13 +761,20 @@ export async function getRecommendations({
   // every sign against it. Several signs agreeing lift a film; a film held up
   // by one loose link or by nothing but its genre drops. The reason names them.
   if (evidence.films > 0 || rules.length || member) {
-    const shortlist = results.slice(0, SHORTLIST);
-    const details = await Promise.allSettled(shortlist.map((r) => movieCore(r.id)));
-    // Films past the shortlist were not judged: they carry half the penalty of
-    // a film with no sign in its favour, so they cannot leap over judged ones.
-    for (const r of results.slice(SHORTLIST)) r.score -= 0.1;
+    // The first half is waited for; the second is judged as far as its
+    // details are already here, and the rest of it downloads meanwhile, to be
+    // judged in the next round.
+    const shortlist = results.slice(0, SHORTLIST_WIDE);
+    const details = [
+      ...await Promise.allSettled(shortlist.slice(0, SHORTLIST).map((r) => movieCore(r.id))),
+      ...fromCache(shortlist.slice(SHORTLIST).map((r) => r.id)),
+    ];
+    fetchLater(shortlist.slice(SHORTLIST).map((r) => r.id));
+    // Films not judged carry half the penalty of a film with no sign in its
+    // favour, so they cannot leap over judged ones.
+    results.forEach((r, i) => { if (i >= SHORTLIST && !details[i]?.value) r.score -= 0.1; });
     shortlist.forEach((r, i) => {
-      const d = details[i].status === "fulfilled" ? details[i].value : null;
+      const d = details[i]?.status === "fulfilled" ? details[i].value : null;
       if (!d) return;
       const z = peerZ(r.id);
       const verdict = judge({
