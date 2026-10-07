@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, Check, Clapperboard, Compass, Flag, Info, ListPlus, MapPin, RefreshCw, Route, Search, Shuffle, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
@@ -11,7 +11,7 @@ import { useFollowedJourneys } from "../utils/journeys";
 import { movieDetails, personMovieCredits, searchPeople } from "../utils/api";
 import { directorContext, directorsToDiscover, lovedDirectors } from "../utils/directors";
 import { placeMember, becauseOf } from "../../shared/tasteSpace.js";
-import { memberMap, planJourney, planJourneys, regionLabel, regionName, regionScores, journeyProgress, reroute, territoryOverTime, directorJourney, bridgeJourney } from "../../shared/journeys.js";
+import { memberMap, planJourney, planJourneys, regionLabel, regionName, regionScores, journeyProgress, reroute, directorJourney, bridgeJourney } from "../../shared/journeys.js";
 import TasteAtlas from "../components/TasteAtlas";
 import SeasonPlanner, { SeasonList } from "../components/SeasonPlanner";
 import { backend } from "../utils/backend";
@@ -85,7 +85,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
         </div>
       </div>
       {journey.explain && (
-        <details className="group rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50" open={!followed}>
+        <details className="group rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/50">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Info className="h-3.5 w-3.5" /> Why this journey
           </summary>
@@ -111,11 +111,12 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
         <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><RefreshCw className="h-3.5 w-3.5 shrink-0" /> Re-routed after “{disliked}”: the films ahead keep away from it and still reach the same place.</p>
       )}
       {notice && <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
-      <ol className={`grid gap-2 ${journey.steps.length > 6 ? "grid-cols-4 sm:grid-cols-8" : "grid-cols-3 sm:grid-cols-6"}`}>
+      {/* On a phone the films run in one row to scroll; wider, they sit side by side. */}
+      <ol className={`-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide sm:mx-0 sm:grid sm:overflow-visible sm:px-0 ${journey.steps.length > 6 ? "sm:grid-cols-8" : "sm:grid-cols-6"}`}>
         {progress.steps.map((s, i) => {
           const next = followed && progress.next?.id === s.id;
           return (
-            <li key={s.id}>
+            <li key={s.id} className="w-[30%] shrink-0 snap-start sm:w-auto">
               <Poster
                 id={s.id}
                 details={details}
@@ -285,8 +286,18 @@ function DirectorJourneys({ ctx, model, member, watched, exclude, onPlanned }) {
   );
 }
 
+// The page's parts: journeys followed, new ones for the member's taste,
+// through a director's films, and cinema seasons (with friends or alone).
+const TABS = [
+  { key: "yours", label: "Your journeys", icon: Route },
+  { key: "new", label: "New journeys", icon: Compass },
+  { key: "directors", label: "Directors", icon: Clapperboard },
+  { key: "seasons", label: "Cinema seasons", icon: CalendarDays },
+];
+
 // Journeys out of the member's comfort zone, and the map they are drawn on.
 export default function JourneysPage() {
+  const [params, setParams] = useSearchParams();
   const { user } = useAuth();
   const { watched } = useWatched();
   const { watchlist, isInWatchlist, addToWatchlist } = useWatchlist();
@@ -370,7 +381,6 @@ export default function JourneysPage() {
     return out;
   }, [model, member, shown]);
 
-  const growth = useMemo(() => (view ? territoryOverTime(view.points) : []), [view]);
   const regionMeta = (id) => model?.regions.find((r) => r.id === id);
   const explorable = scores.filter((r) => !view?.visited.has(r.id)).sort((a, b) => a.rank - b.rank).slice(0, 6);
 
@@ -394,89 +404,105 @@ export default function JourneysPage() {
   if (!view) return <p className="text-sm text-slate-500">Drawing your taste map…</p>;
 
   const total = model.regions.length;
+  const newOnes = [...(planned ? [planned] : []), ...view.suggestions];
+  const ownDirector = directorPlans.filter((j) => !followed.some((f) => f.id === j.id));
+  const tab = TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : followed.length || seasons.length ? "yours" : "new";
+  const counts = { yours: followed.length + seasons.length, new: newOnes.length, directors: ownDirector.length, seasons: seasons.length };
+  const card = (j, isFollowed) => (
+    <Journey key={j.id} journey={j} region={regionMeta(j.region.id)} details={details} watched={watched} why={why} followed={isFollowed} notice={notice[j.id]}
+      onFollow={() => followJourney(j)} onDrop={() => drop(j)} onWatchlist={() => toWatchlist(j)} />
+  );
   return (
-    <section className="space-y-6">
-      <div className="account-panel space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="eyebrow flex items-center gap-1.5"><Compass className="h-3.5 w-3.5" /> YOUR TASTE MAP</p>
-            <h2 className="section-title">You have explored {view.visited.size} of {total} regions of cinema.</h2>
-            <p className="text-xs text-slate-500">16,000 films, placed so that films loved by the same people sit together. Your films are the dark dots (rose: disliked); territories you have visited are shaded red, your frontier amber. Tap a territory to explore it.</p>
-          </div>
-          {growth.length > 1 && (
-            <p className="text-xs text-slate-500">Regions over time: {growth.slice(-6).map((g) => `${g.month.slice(2)} · ${g.regions}`).join("  →  ")}</p>
-          )}
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-amber-500" style={{ width: `${(100 * view.visited.size) / total}%` }} /></div>
-        <TasteAtlas
-          model={model}
-          grid={grid}
-          lands={lands}
-          points={view.points}
-          centre={view.centre}
-          journeys={shown}
-          selected={selected}
-          compact
-          onPick={(r) => { setSelected(r); setPlanError(""); }}
-        />
-        <p className="text-xs text-slate-500">The full atlas, with your territories, frontier, friends and milestones, is on the <Link className="font-medium text-indigo-600 hover:underline" to="/library/map">Map</Link>.</p>
-        {member && explorable.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-slate-500">Unexplored, and made for you:</span>
-            {explorable.map((r) => (
-              <button key={r.id} onClick={() => { setSelected(r.id); setPlanError(""); }}
-                className={`rounded-full border px-2.5 py-0.5 text-xs ${selected === r.id ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" : "border-slate-200 text-slate-600 hover:border-amber-400 dark:border-slate-700 dark:text-slate-300"}`}>
-                {regionName(r.region)}
-              </button>
-            ))}
-          </div>
-        )}
-        {selectedRow && <RegionPanel key={selectedRow.id} row={selectedRow} total={total} details={details} member={member} onPlan={plan} onClose={() => setSelected(null)} />}
-        {planError && <p className="text-xs text-rose-600">{planError}</p>}
-      </div>
+    <section className="space-y-5">
+      <header className="space-y-2">
+        <h2 className="section-title">You have explored {view.visited.size} of {total} regions of cinema.</h2>
+        <p className="max-w-3xl text-sm text-slate-500">Journeys take you, one film at a time, from what you love to corners of cinema you have never visited: on your own, through a director, or week by week with friends.</p>
+        <div className="h-1.5 max-w-md overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-amber-500" style={{ width: `${(100 * view.visited.size) / total}%` }} /></div>
+      </header>
 
-      {!member ? (
+      {/* What this page holds, one part at a time. */}
+      <nav className="journey-tabs" aria-label="Journeys">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button key={key} type="button" aria-current={tab === key ? "page" : undefined} onClick={() => setParams({ tab: key }, { replace: true })}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            <span>{label}</span>
+            {counts[key] > 0 && <span className="journey-count">{counts[key]}</span>}
+          </button>
+        ))}
+      </nav>
+
+      {!member && tab !== "seasons" ? (
         <p className="account-panel text-sm text-slate-500">Rate at least two films you loved (7/10 or more) and Umbrify will plot journeys out of your comfort zone.</p>
-      ) : (
+      ) : tab === "yours" ? (
         <div className="space-y-4">
           {saveError && <p className="text-sm text-rose-600">{saveError}</p>}
-          {followed.length > 0 && (
-            <>
-              <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> YOUR JOURNEYS</p>
-              {followed.map((j) => (
-                <Journey key={j.id} journey={j} region={regionMeta(j.region.id)} details={details} watched={watched} why={why} followed notice={notice[j.id]}
-                  onDrop={() => drop(j)} onWatchlist={() => toWatchlist(j)} />
-              ))}
-            </>
-          )}
+          {followed.map((j) => card(j, true))}
           {seasons.length > 0 && (
             <>
               <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> YOUR CINEMA SEASONS</p>
               <SeasonList seasons={seasons} />
             </>
           )}
-          <SeasonPlanner model={model} member={member} watched={watched} exclude={onJourneys} signedIn={Boolean(user)} />
-          <DirectorJourneys ctx={ctx} model={model} member={member} watched={watched}
-            exclude={new Set(followed.flatMap((j) => j.steps.map((s) => s.id)))} onPlanned={setDirectorPlans} />
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <p className="eyebrow flex items-center gap-1.5"><Route className="h-3.5 w-3.5" /> JOURNEYS TO GROW YOUR TASTE</p>
-              <p className="text-sm text-slate-500">Each journey starts next to a film you loved and ends in a region you have never visited, but that people with your taste love. If a film on the way does not land, rate it and the journey re-routes.</p>
+          {!followed.length && !seasons.length && (
+            <div className="account-panel space-y-3 text-center">
+              <Route className="mx-auto h-7 w-7 text-indigo-500" />
+              <p className="font-semibold">You are not following any journey yet</p>
+              <p className="text-sm text-slate-500">Pick one made for your taste, go through a director's films, or start a season with friends.</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <button type="button" className="account-button" onClick={() => setParams({ tab: "new" }, { replace: true })}>See new journeys</button>
+                <button type="button" className="account-secondary" onClick={() => setParams({ tab: "seasons" }, { replace: true })}>Plan a season</button>
+              </div>
             </div>
+          )}
+        </div>
+      ) : tab === "new" ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <p className="max-w-2xl text-sm text-slate-500">Each journey starts next to a film you loved and ends in a region you have never visited, but that people with your taste love. If a film on the way does not land, rate it and the journey re-routes.</p>
             {view.suggestions.length > 0 && (
               <button className="account-secondary inline-flex items-center gap-1.5" onClick={() => setSkip((s) => new Set([...s, ...view.suggestions.map((j) => j.region.id)]))}>
                 <Shuffle className="h-4 w-4" /> Other destinations
               </button>
             )}
           </div>
-          {suggestions.map((j) => (
-            <Journey key={j.id} journey={j} region={regionMeta(j.region.id)} details={details} watched={watched} why={why} notice={notice[j.id]}
-              onFollow={() => followJourney(j)} onWatchlist={() => toWatchlist(j)} />
-          ))}
-          {!suggestions.length && skip.size > 0 && (
+          {/* Or a destination of one's own, picked on the map. */}
+          <details className="account-panel journey-map" open={selected != null}>
+            <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><Compass className="h-4 w-4 text-indigo-500" /> Choose a destination on the map</summary>
+            <div className="mt-3 space-y-3">
+              <TasteAtlas model={model} grid={grid} lands={lands} points={view.points} centre={view.centre} journeys={[...followed, ...newOnes]} selected={selected} compact
+                onPick={(r) => { setSelected(r); setPlanError(""); }} />
+              {explorable.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-slate-500">Unexplored, and made for you:</span>
+                  {explorable.map((r) => (
+                    <button key={r.id} onClick={() => { setSelected(r.id); setPlanError(""); }}
+                      className={`rounded-full border px-2.5 py-0.5 text-xs ${selected === r.id ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" : "border-slate-200 text-slate-600 hover:border-amber-400 dark:border-slate-700 dark:text-slate-300"}`}>
+                      {regionName(r.region)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedRow && <RegionPanel key={selectedRow.id} row={selectedRow} total={total} details={details} member={member} onPlan={plan} onClose={() => setSelected(null)} />}
+              {planError && <p className="text-xs text-rose-600">{planError}</p>}
+              <p className="text-xs text-slate-500">The full atlas, with your territories, frontier, friends and milestones, is on the <Link className="font-medium text-indigo-600 hover:underline" to="/library/map">Map</Link>.</p>
+            </div>
+          </details>
+          {newOnes.map((j) => card(j, false))}
+          {!newOnes.length && skip.size > 0 && (
             <p className="text-sm text-slate-500">No more destinations for now. <button className="underline" onClick={() => setSkip(new Set())}>Start over</button></p>
           )}
-          {!suggestions.length && !skip.size && !followed.length && <p className="text-sm text-slate-500">You have visited every region Umbrify can map. Impressive.</p>}
+          {!newOnes.length && !skip.size && <p className="text-sm text-slate-500">You have visited every region Umbrify can map. Impressive.</p>}
+        </div>
+      ) : tab === "directors" ? (
+        <div className="space-y-4">
+          <DirectorJourneys ctx={ctx} model={model} member={member} watched={watched}
+            exclude={new Set(followed.flatMap((j) => j.steps.map((s) => s.id)))} onPlanned={setDirectorPlans} />
+          {ownDirector.map((j) => card(j, false))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {seasons.length > 0 && <SeasonList seasons={seasons} />}
+          <SeasonPlanner model={model} member={member} watched={watched} exclude={onJourneys} signedIn={Boolean(user)} />
         </div>
       )}
     </section>

@@ -182,7 +182,7 @@ export default function TonightPage() {
     .filter(Boolean).flatMap((part, i) => (i ? [" · ", <span key={i}>{part}</span>] : [<span key={i}>{part}</span>]));
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 pb-44 pt-6 md:pb-32">
+    <main className="mx-auto max-w-2xl space-y-6 px-4 pb-44 pt-6 md:pb-32 lg:max-w-6xl lg:pb-16">
       <header className="space-y-1">
         <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> TONIGHT WITH FRIENDS</p>
         <h1 className="font-display text-2xl sm:text-3xl">One film. Your friends. A shared movie night.</h1>
@@ -223,7 +223,8 @@ export default function TonightPage() {
           </div>
         </section>
       ) : (
-        <>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-12">
+        <div className="space-y-6">
           <Part n={1} title="Who's watching with you?" hint="Pick up to three friends. Each votes from their own phone."
             aside={<span className="text-xs text-slate-500">{`${chosen.length}/3`}</span>}>
             <div className="tonight-friends">
@@ -326,6 +327,33 @@ export default function TonightPage() {
             </div>
           </details>
 
+        </div>
+
+          {/* On a wide screen, the night so far beside the questions. */}
+          <aside className="tonight-summary hidden lg:block" aria-label="Your night">
+            <p className="eyebrow">YOUR NIGHT</p>
+            <dl className="space-y-3">
+              {[
+                ["Watching", friendNames.length ? friendNames.join(", ") : "Nobody yet", true],
+                ["Mood", answers.mood ? MOODS[answers.mood]?.label : "Surprise us"],
+                ["Time", TIMES[answers.time]?.label || "No limit"],
+                ["Where", serviceNames.length ? serviceNames.join(", ") : "Any service"],
+                ["Also", extras.length ? extras.join(" · ") : "No limits"],
+              ].map(([label, value, names]) => (
+                <div key={label}>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+                  <dd className="text-sm" translate={names && friendNames.length ? "no" : undefined}>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <button className="account-button flex w-full items-center justify-center gap-2 py-3" disabled={busy || !chosen.length} onClick={startVote}>
+              {busy ? "Finding films for everyone…" : <>Start the vote <ArrowRight className="h-4 w-4" /></>}
+            </button>
+            {!chosen.length && <p className="text-center text-xs text-slate-500">Pick at least one friend to start</p>}
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+            <p className="text-xs text-slate-500">Umbrify picks five films for the whole group. Whoever compromised in your recent movie nights gets a little more say.</p>
+          </aside>
+
           {/* Always in reach: what the night is so far, and the button to start it. */}
           <div className="tonight-bar">
             <div className="mx-auto flex max-w-2xl items-center gap-3 px-4">
@@ -337,7 +365,7 @@ export default function TonightPage() {
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </main>
   );

@@ -2116,6 +2116,28 @@ body::before {
   background: rgb(var(--color-bg-card) / 0.94);
   backdrop-filter: blur(14px);
 }
+.tonight-summary {
+  position: sticky;
+  top: 96px;
+  display: none;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 20px;
+  padding: 20px;
+  background: rgb(var(--color-bg-card));
+  box-shadow: 0 10px 30px -18px rgb(0 0 0 / 0.35);
+}
+.tonight-summary > * + * {
+  margin-top: 16px;
+}
+@media (min-width: 1024px) {
+  .tonight-summary {
+    display: block;
+  }
+  /* The summary beside the questions has the button. */
+  .tonight-bar {
+    display: none;
+  }
+}
 @media (max-width: 767px) {
   /* Above the tab bar. */
   .tonight-bar {
@@ -2158,6 +2180,51 @@ body::before {
   font-size: 8px;
   border-width: 0;
   box-shadow: none;
+}
+
+/* Journeys (src/pages/JourneysPage.jsx): one part of the page at a time. */
+.journey-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgb(var(--color-border) / 0.5);
+  scrollbar-width: none;
+}
+.journey-tabs button {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: rgb(var(--color-fg-muted));
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.journey-tabs button[aria-current="page"] {
+  color: rgb(var(--color-fg));
+  background: rgb(var(--color-bg-card));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+.journey-count {
+  min-width: 18px;
+  border-radius: 9999px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+  color: #fff;
+  background: rgb(var(--accent-600));
+}
+.journey-map summary {
+  list-style: none;
+}
+.journey-map summary::-webkit-details-marker {
+  display: none;
 }
 
 /* Tonight's draw (src/pages/NightPage.jsx): a strip of film through a
