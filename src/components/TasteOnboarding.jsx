@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { AnimatePresence, m as motion } from "framer-motion";
-import { ArrowLeft, Check, NotebookPen, Shuffle, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, NotebookPen, Shuffle, Sparkles } from "lucide-react";
 import { loadTasteSpace } from "../utils/tasteSpace";
 import { loadTasteMap } from "../utils/tasteMap";
 import { movieDetails } from "../utils/api";
+import { useAuth } from "../contexts/AuthContext";
+import WelcomePoints from "./WelcomePoints";
 import { saveOnboarding } from "../utils/signals";
 import { skipOnboarding } from "../utils/onboarding";
 import { onboardingPool, nextPair, ROUNDS } from "../../shared/onboarding.js";
@@ -38,7 +41,8 @@ function Choice({ film, details, onPick, disabled }) {
  * the taste space, so their first picks are already theirs. `onDone` runs
  * once the choices are saved; `onSkip` when they would rather not.
  */
-export default function TasteOnboarding({ onDone, onSkip }) {
+export default function TasteOnboarding({ onDone, onSkip, onStage }) {
+  const { user } = useAuth();
   const [model, setModel] = useState(null);
   const [failed, setFailed] = useState(false);
   const [history, setHistory] = useState([]);
@@ -53,6 +57,20 @@ export default function TasteOnboarding({ onDone, onSkip }) {
     Promise.all([loadTasteSpace(), loadTasteMap()]).then(([space, atlas]) => (space && atlas ? setModel({ space, pool: onboardingPool(space, atlas.regions, atlas.landmarks) }) : setFailed(true)));
   }, []);
   const pair = useMemo(() => (model && !done ? nextPair(model.space, model.pool, history) : null), [model, history, done]);
+  // Until the choices are made, the page steps back (src/pages/Home.jsx) and,
+  // on a phone, so does the search above it: the welcome, then each pair,
+  // fills the screen.
+  // Without the taste space there are no pairs to show.
+  useEffect(() => { if (failed && mode === "pairs") setMode("start"); }, [failed, mode]);
+  const stage = done || imported ? "done" : mode;
+  useEffect(() => {
+    onStage?.(stage);
+    const html = document.documentElement;
+    if (stage === "done") delete html.dataset.focus;
+    else html.dataset.focus = "taste";
+    if (stage === "pairs") window.scrollTo({ top: 0, behavior: "instant" });
+    return () => { delete html.dataset.focus; };
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const chosen = history.filter((h) => h.chosen);
 
   useEffect(() => {
@@ -85,52 +103,72 @@ export default function TasteOnboarding({ onDone, onSkip }) {
     onSkip?.();
   };
 
-  if (mode === "start" || mode === "import") return (
+  if (mode === "start") return (
+    <section className="welcome-band" aria-label="Welcome to Umbrify">
+      <div className="welcome-band-head">
+        <p className="eyebrow flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> WELCOME TO UMBRIFY</p>
+        <h1 className="welcome-band-title">Films picked for your taste, and the reason why.</h1>
+        <p className="welcome-band-lede">Umbrify learns what you love and finds your next film, on your own or with friends.</p>
+      </div>
+      <WelcomePoints />
+      <div className="welcome-start">
+        <h2 className="welcome-start-title">Start in a minute</h2>
+        <div className="welcome-start-options">
+          <button type="button" onClick={() => setMode("pairs")} className="welcome-option welcome-option-main" disabled={failed}>
+            <Shuffle className="h-6 w-6 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">Seven quick choices</span>
+              <span className="block text-sm opacity-80">Two well-known films at a time. You do not need to have seen them.</span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => setMode("import")} className="welcome-option">
+            <NotebookPen className="h-6 w-6 shrink-0 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">I keep a diary on Letterboxd</span>
+              <span className="block text-sm text-slate-500">Bring your films and ratings in a minute.</span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="welcome-start-foot">
+          {!user && <Link to="/profile" className="underline-offset-2 hover:underline">Already have an account? Sign in</Link>}
+          <button type="button" onClick={skip} className="underline-offset-2 hover:underline">Not now, just browse</button>
+        </div>
+      </div>
+    </section>
+  );
+  if (mode === "import") return (
     <section className="account-panel space-y-5 overflow-hidden" aria-label="Find your taste">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> WELCOME TO UMBRIFY</p>
-          <h2 className="text-2xl font-semibold">{imported ? "Your diary is in." : "Let us learn your taste."}</h2>
+          <h2 className="text-2xl font-semibold">{imported ? "Your diary is in." : "Bring your Letterboxd diary."}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            {imported ? "Your recommendations now start from the films you have seen and rated." : "Bring the films you have already rated, or make a few quick choices: your first picks follow from either."}
+            {imported ? "Your recommendations now start from the films you have seen and rated." : "Your first picks start from the films you have already rated."}
           </p>
         </div>
         {!imported && <button type="button" onClick={skip} className="text-xs text-slate-500 underline-offset-2 hover:underline">Not now</button>}
       </div>
-      {mode === "start" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={() => setMode("import")} className="account-panel flex flex-col items-start gap-2 text-left transition hover:border-indigo-600 dark:hover:border-indigo-300">
-            <NotebookPen className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-            <span className="font-semibold">I keep a diary on Letterboxd</span>
-            <span className="text-sm text-slate-500">Import your films and ratings in a minute, from the export Letterboxd gives you.</span>
-          </button>
-          <button type="button" onClick={() => setMode("pairs")} className="account-panel flex flex-col items-start gap-2 text-left transition hover:border-indigo-600 dark:hover:border-indigo-300" disabled={failed}>
-            <Shuffle className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-            <span className="font-semibold">Start from scratch</span>
-            <span className="text-sm text-slate-500">Seven quick choices between two well-known films. You do not need to have seen them.</span>
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {!imported && <button type="button" onClick={() => setMode("start")} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"><ArrowLeft className="h-4 w-4" /> Back</button>}
-          <Suspense fallback={<div className="skeleton h-40" />}>
-            {/* The page is told when the import starts, so it keeps this panel when the films arrive. */}
-            <LetterboxdImport onStart={() => onDone?.()} onDone={() => setImported(true)} />
-          </Suspense>
-        </div>
-      )}
+      <div className="space-y-3">
+        {!imported && <button type="button" onClick={() => setMode("start")} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"><ArrowLeft className="h-4 w-4" /> Back</button>}
+        <Suspense fallback={<div className="skeleton h-40" />}>
+          {/* The page is told when the import starts, so it keeps this panel when the films arrive. */}
+          <LetterboxdImport onStart={() => onDone?.()} onDone={() => setImported(true)} />
+        </Suspense>
+      </div>
     </section>
   );
   if (failed) return null;
   return (
-    <section className="account-panel space-y-5 overflow-hidden" aria-label="Find your taste">
+    <section className={`account-panel space-y-5 overflow-hidden ${done ? "" : "taste-pairs"}`} aria-label="Find your taste">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> FIND YOUR TASTE IN A MINUTE</p>
           <h2 className="text-2xl font-semibold">{done ? "Your first picks are ready." : "Which would you rather watch?"}</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="taste-pairs-hint mt-1 text-sm text-slate-500">
             {done ? "They follow the films you chose. Rate films you have seen and they get sharper every time."
-              : "Seven quick choices between two films. You do not need to have seen them: go with the one that calls you."}
+              : "You do not need to have seen them: go with the one that calls you."}
           </p>
         </div>
         {!done && <button type="button" onClick={skip} className="text-xs text-slate-500 underline-offset-2 hover:underline">Not now</button>}

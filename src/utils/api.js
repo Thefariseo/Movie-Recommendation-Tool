@@ -140,6 +140,11 @@ export function movieCore(id) {
   return full ? Promise.resolve(full) : get(`/movie/${id}`, { append_to_response: "credits,keywords" });
 }
 
+/** A film's basic details (title, poster, year): the lightest answer TMDB gives. */
+export function movieBasic(id) {
+  return get(`/movie/${id}`);
+}
+
 /** A film's credits and keywords if already downloaded, without asking for them. */
 export function cachedCore(id) {
   return cache.get(`/movie/${id}` + JSON.stringify(detailParams())) || cache.get(`/movie/${id}` + JSON.stringify({ append_to_response: "credits,keywords" })) || null;

@@ -36,6 +36,7 @@ const WatchedPage = lazyPage(() => import("./pages/WatchedPage"));
 const StatsPage = lazyPage(() => import("./pages/StatsPage"));
 const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
 const MapPage = lazyPage(() => import("./pages/MapPage"));
+const QuickRatePage = lazyPage(() => import("./pages/QuickRatePage"), "/rate");
 
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
@@ -130,6 +131,7 @@ function AppContent() {
                       <Route path="/season/:id" element={<SeasonPage />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<Profile />} />
+                      <Route path="/rate" element={<QuickRatePage />} />
                       {/* 404 */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>

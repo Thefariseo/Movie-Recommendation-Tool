@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { m as motion } from "framer-motion";
+import GuestPreview, { CriticExample } from "../components/GuestPreview";
 import { Feather, MessageSquarePlus, RotateCcw, Send, Sparkles, Star, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { backend } from "../utils/backend";
@@ -243,14 +244,11 @@ export default function CriticPage() {
   };
 
   if (!user) return (
-    <main className="mx-auto max-w-xl p-6">
-      <section className="account-panel">
-        <p className="eyebrow">YOUR PERSONAL CRITIC</p>
-        <h1 className="font-display text-2xl sm:text-3xl">A critic who has read your whole diary.</h1>
-        <p className="my-4 text-sm text-slate-500">Sign in and your critic learns your taste from your ratings, talks films with you and remembers what you told it.</p>
-        <Link to="/profile" className="account-button inline-block">Sign in</Link>
-      </section>
-    </main>
+    <GuestPreview eyebrow="YOUR PERSONAL CRITIC" title="A critic who has read your whole diary."
+      text="Ask for a film for tonight, or talk about one you just saw. Your critic learns your taste from your ratings and remembers what you told it."
+      points={["Suggestions for the mood you are in, explained", "Conversations about the films you watch", "What it learns sharpens all your picks"]}>
+      <CriticExample />
+    </GuestPreview>
   );
   if (state && !state.enabled) return (
     <main className="mx-auto max-w-xl p-6">

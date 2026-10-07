@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import GuestPreview, { CriticExample } from "../components/GuestPreview";
 import { backend } from "../utils/backend";
 import { GENRE_MAP } from "../utils/genres";
 import { MessageCircle, Send, Plus, ArrowLeft } from "lucide-react";
@@ -91,21 +92,10 @@ export default function ChatPage() {
     );
   if (!user)
     return (
-      <main className="mx-auto max-w-xl p-6">
-        <section className="account-panel">
-          <p className="eyebrow">LET’S FIND YOUR NEXT FILM</p>
-          <h1 className="font-display text-2xl sm:text-3xl">
-            Tell me what you're in the mood for.
-          </h1>
-          <p className="my-4 text-sm text-slate-500">
-            Sign in to save conversations and pick up where you left off on any
-            device.
-          </p>
-          <Link to="/profile" className="account-button inline-block">
-            Sign in to chat
-          </Link>
-        </section>
-      </main>
+      <GuestPreview eyebrow="LET’S FIND YOUR NEXT FILM" title="Tell me what you're in the mood for."
+        text="Describe the evening you want and get films that fit, each with the reason it suits you. Conversations are saved, so you can pick up where you left off on any device.">
+        <CriticExample />
+      </GuestPreview>
     );
   return (
     <main className="chat-page">

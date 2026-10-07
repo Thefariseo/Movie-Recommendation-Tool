@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { backend } from '../utils/backend';
 import { importChanges, mergeRows, normalizeMovie, rowToMovie } from '../../shared/library';
+import { hasGuestSignals, importGuestSignals } from '../utils/signals';
 const LibraryContext = createContext(null);
 export const useLibrary = () => useContext(LibraryContext);
 function guestRead(kind) {
@@ -229,7 +230,8 @@ export function LibraryProvider({
         watched: [],
         watchlist: []
       });
-      return true;
+      // The first-visit choices and dismissed films come along too.
+      return await importGuestSignals();
     } catch (e) {
       setError(e.message);
       addToast(e.message, 'error');
@@ -238,6 +240,20 @@ export function LibraryProvider({
       if (alive.current) setPending(n => n - 1);
     }
   };
+  // A guest who creates an account keeps what they did on this device: into
+  // an account with nothing in it yet, it moves on its own. An account that
+  // already has films is asked first (src/components/AccountPanel.jsx), since
+  // the device may be shared.
+  const moved = useRef(false);
+  useEffect(() => {
+    if (!user || !ready || pending || moved.current) return;
+    moved.current = true;
+    const onDevice = guestRead('watched').length + guestRead('watchlist').length;
+    if (rows.length || (!onDevice && !hasGuestSignals())) return;
+    importGuest().then(ok => {
+      if (ok && onDevice) addToast('What you rated and saved on this device is now in your account.');
+    });
+  }, [user?.id, ready, pending]); // eslint-disable-line react-hooks/exhaustive-deps
   const active = useMemo(() => rows.filter(r => !r.deleted), [rows]);
   const watched = useMemo(() => user ? active.filter(r => r.kind === 'watched').map(rowToMovie) : guest.watched, [active, user?.id, guest.watched]);
   const watchlist = useMemo(() => user ? active.filter(r => r.kind === 'watchlist').map(rowToMovie) : guest.watchlist, [active, user?.id, guest.watchlist]);

@@ -70,6 +70,29 @@ export async function undismissFilm(id) {
   else writeGuest();
 }
 
+/** Whether this browser holds a guest's signals (first-visit choices, dismissals). */
+export const hasGuestSignals = () => readGuest().length > 0;
+
+/**
+ * A guest who signs in takes their first-visit choices and dismissed films
+ * along to their account; the browser's copy goes once they are saved.
+ */
+export async function importGuestSignals() {
+  const guest = readGuest();
+  if (!guest.length) return true;
+  const chosen = guest.filter((r) => r.source === "onboarding" && r.movie?.id).map((r) => r.movie);
+  const dismissed = guest.filter((r) => r.source === "dismissed" && r.movie?.id).map((r) => r.movie);
+  try {
+    for (let i = 0; i < chosen.length; i += 12) await backend("signals", { action: "onboarding", movies: chosen.slice(i, i + 12) });
+    for (const movie of dismissed.slice(0, 100)) await backend("signals", { action: "dismiss", movie });
+  } catch {
+    return false;
+  }
+  try { localStorage.removeItem(GUEST_KEY); } catch { /* storage may be blocked */ }
+  reloadSignals();
+  return true;
+}
+
 /** Re-renders when signals change; returns the current map. */
 export function useSignals(userId) {
   const [, tick] = useState(0);
