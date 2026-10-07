@@ -174,6 +174,9 @@ export default function MovieModal({ movie, onClose }) {
           {(movie.backdrop_path || details?.backdrop_path) ? (
             <img
               src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path || details.backdrop_path}`}
+              // A phone gets the 780 px still: half the bytes, the same sharpness at its width.
+              srcSet={`https://image.tmdb.org/t/p/w780${movie.backdrop_path || details.backdrop_path} 780w, https://image.tmdb.org/t/p/w1280${movie.backdrop_path || details.backdrop_path} 1280w`}
+              sizes="(max-width: 672px) 100vw, 672px"
               alt=""
               className="h-full w-full object-cover"
             />

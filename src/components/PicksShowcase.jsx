@@ -42,7 +42,7 @@ function Hero({ movie }) {
   };
   return (
     <article className="relative overflow-hidden rounded-2xl bg-slate-900 text-white shadow-lg">
-      {backdrop && <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+      {backdrop && <img src={backdrop} srcSet={`https://image.tmdb.org/t/p/w780${movie.backdrop_path} 780w, ${backdrop} 1280w`} sizes="100vw" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/30" />
       <div className="relative flex items-start gap-4 p-4 sm:gap-5 sm:p-7">
         <button type="button" onClick={() => open(movie)} className="w-24 shrink-0 sm:w-40" aria-label={`View ${movie.title}`}>

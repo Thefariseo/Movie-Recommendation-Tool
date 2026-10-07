@@ -82,6 +82,8 @@ function api({ member }) {
     const action = url.searchParams.get('action');
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
     const body = request.method() === 'POST' ? JSON.parse(request.postData() || '{}') : null;
+    // Film details and filmographies come through the site's own trimmed endpoint.
+    if (url.pathname === '/api/film') return json(tmdb(`https://api.themoviedb.org/3${url.searchParams.get('path')}`));
     if (url.pathname === '/api/auth') return member ? json({ configured: true, user: { id: MEMBER, email: 'ada@example.com' }, profile: { id: MEMBER, display_name: 'Ada', country: 'IT' } }) : json({ configured: true, user: null });
     if (!member) return json({ error: 'Please sign in to continue.' }, 401);
     if (url.pathname === '/api/library') {

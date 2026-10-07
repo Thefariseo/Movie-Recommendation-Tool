@@ -428,3 +428,21 @@ test('a device with the library asks only for rows changed since its newest one,
   const bad = await execute(request('library?since=yesterday', undefined, { Cookie: 'umbrify_access=valid' }), library);
   assert.equal(bad.status, 400);
 });
+test('a real access token is checked with Supabase once a minute, not on every call', async () => {
+  const jwt = (sub, exp) => ['e30', Buffer.from(JSON.stringify({ sub, exp })).toString('base64url'), 'sig'].join('.');
+  let asked = 0;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/user')) { asked++; return json({ id }); }
+    return json([]);
+  };
+  const call = token => execute(request('library', undefined, { Cookie: `umbrify_access=${token}` }), library);
+  const live = jwt(id, Math.floor(Date.now() / 1000) + 3600);
+  await call(live); await call(live); await call(live);
+  assert.equal(asked, 1, 'remembered for the same member');
+  const expired = jwt(id, Math.floor(Date.now() / 1000) - 1);
+  await call(expired); await call(expired);
+  assert.equal(asked, 3, 'an expired token is always asked about');
+  const other = jwt('someone-else', Math.floor(Date.now() / 1000) + 3600);
+  await call(other); await call(other);
+  assert.equal(asked, 5, 'a token naming someone else is never remembered');
+});

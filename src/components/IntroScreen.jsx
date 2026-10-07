@@ -88,12 +88,14 @@ export default function IntroScreen({ onDone }) {
     ]).then(([week, day, top1, top2]) => {
       const seen = new Set();
       const imgs = [];
+      // Stills as wide as the screen needs: a phone does not load 1280 px ones.
+      const wide = window.innerWidth * (window.devicePixelRatio || 1) > 900;
 
       for (const result of [week, day, top1, top2]) {
         for (const m of (result.results || [])) {
           if (m.backdrop_path && !seen.has(m.id)) {
             seen.add(m.id);
-            imgs.push(`https://image.tmdb.org/t/p/w1280${m.backdrop_path}`);
+            imgs.push(`https://image.tmdb.org/t/p/${wide ? "w1280" : "w780"}${m.backdrop_path}`);
           }
         }
       }

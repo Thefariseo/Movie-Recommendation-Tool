@@ -77,7 +77,7 @@
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/((?!film$|ratings$).*)",
       "headers": [
         {
           "key": "Cache-Control",

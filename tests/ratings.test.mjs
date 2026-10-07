@@ -164,9 +164,16 @@ test('the endpoint validates ids and answers without an account', async () => {
   const ok = await execute(new Request('https://umbrify.test/api/ratings?ids=27205'), ratings, ['GET']);
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).ratings['27205'], { imdb: 8.8, imdbVotes: 5, rt: null, imdbId: 'tt1375666' });
+  // The same answer for everyone: the edge keeps it a day once complete, minutes while not.
+  assert.match(ok.headers.get('cache-control'), /public.*s-maxage=86400/);
+  assert.equal(ok.headers.get('vary'), null);
+  services({ cached: [], budget: 0, imdbIds: { 27205: 'tt1375666' } });
+  const partial = await execute(new Request('https://umbrify.test/api/ratings?ids=27205'), ratings, ['GET']);
+  assert.match(partial.headers.get('cache-control'), /s-maxage=300\b/);
   for (const bad of ['', 'abc', '0', '-3', Array.from({ length: 101 }, (_, i) => i + 1).join(',')]) {
     const res = await execute(new Request(`https://umbrify.test/api/ratings?ids=${bad}`), ratings, ['GET']);
     assert.equal(res.status, 400, `ids=${bad.slice(0, 20)}`);
+    assert.match(res.headers.get('cache-control'), /no-store/);
   }
 });
 
