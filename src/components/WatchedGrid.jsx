@@ -37,7 +37,7 @@ export default function WatchedGrid({ movies }) {
     <div ref={container} className="py-6" style={long ? { paddingTop: before + 24, paddingBottom: after + 24, overflowAnchor: "none" } : undefined}>
       <div className={`${long ? "" : "stagger "}grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7`}>
         {displayMovies.slice(start, end).map((m) => (
-          <div key={m.id} data-virtual-row-item className="min-w-0">
+          <div key={m.id} data-virtual-row-item className="rise min-w-0">
             <WatchedCard movie={m} />
           </div>
         ))}

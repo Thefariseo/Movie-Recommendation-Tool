@@ -41,8 +41,8 @@ function Hero({ movie }) {
     else if (await addToWatchlist(movie)) addToast("Added to Watchlist");
   };
   return (
-    <article className="relative overflow-hidden rounded-2xl bg-slate-900 text-white shadow-lg">
-      {backdrop && <img src={backdrop} srcSet={`https://image.tmdb.org/t/p/w780${movie.backdrop_path} 780w, ${backdrop} 1280w`} sizes="100vw" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+    <article className="relative overflow-clip rounded-2xl bg-slate-900 text-white shadow-lg">
+      {backdrop && <img src={backdrop} srcSet={`https://image.tmdb.org/t/p/w780${movie.backdrop_path} 780w, ${backdrop} 1280w`} sizes="100vw" alt="" className="parallax-media absolute inset-0 h-full w-full object-cover opacity-40" />}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/30" />
       <div className="relative flex items-start gap-4 p-4 sm:gap-5 sm:p-7">
         <button type="button" data-film-id={movie.id} onClick={() => open(movie)} className="w-24 shrink-0 sm:w-40" aria-label={`View ${movie.title}`}>
@@ -109,7 +109,7 @@ export default function PicksShowcase({ movies }) {
     <div className="space-y-5">
       <Hero movie={first} />
       {rest.length > 0 && (
-        <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="rise stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {rest.map((m) => (
             <div key={m.id} className="min-w-0 space-y-1.5">
               <MovieCard movie={m} dismissable />

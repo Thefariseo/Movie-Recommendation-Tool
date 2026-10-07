@@ -117,7 +117,7 @@ export default function ListPage() {
         )}
       </header>
       {!list.films.length && <p className="account-panel text-sm text-slate-500">{list.mine ? "This list is empty. Open any film and use “Add to list”." : "This list is empty for now."}</p>}
-      <ol className="stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
+      <ol className="rise stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
         {list.films.map((f, i) => (
           <Film key={f.id} film={f} rank={i + 1} mine={list.mine} seen={mine.has(Number(f.id)) ? mine.get(Number(f.id)) : null} predicted={predicted(f.id)} onRemove={() => remove(f)} />
         ))}

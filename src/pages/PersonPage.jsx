@@ -118,14 +118,14 @@ export default function PersonPage() {
 
       <section className="space-y-3">
         <h2 className="section-title">{`Still to see (${ranked.unseen.length})`}</h2>
-        {ranked.unseen.length ? <ul className="stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.unseen.filter((f) => !start.includes(f)).map((f) => <Film key={f.id} film={f} />)}</ul>
+        {ranked.unseen.length ? <ul className="rise stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.unseen.filter((f) => !start.includes(f)).map((f) => <Film key={f.id} film={f} />)}</ul>
           : <p className="text-sm text-slate-500">You have seen every one. Impressive.</p>}
       </section>
 
       {ranked.seen.length > 0 && (
         <section className="space-y-3">
           <h2 className="section-title">{`Seen (${ranked.seen.length})`}</h2>
-          <ul className="stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.seen.map((f) => <Film key={f.id} film={f} />)}</ul>
+          <ul className="rise stagger grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">{ranked.seen.map((f) => <Film key={f.id} film={f} />)}</ul>
         </section>
       )}
       <p className="text-xs text-slate-500">Biography and filmography from TMDB. <Link to="/library/journeys" className="hover:underline">Directors you love have journeys too →</Link></p>

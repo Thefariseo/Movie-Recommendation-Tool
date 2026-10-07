@@ -1614,3 +1614,125 @@ body::before {
 .dark .film-sheet.film-sheet-tinted {
   background-color: color-mix(in srgb, rgb(var(--accent-400)) 10%, #181818);
 }
+
+/* --------------------------------------------------
+   MOTION FOLLOWING THE SCROLL
+   Driven by the browser's scroll timelines, off the page's own thread;
+   browsers without them, and those who asked for less motion, see the page
+   still.
+   -------------------------------------------------- */
+/* The header settles into a slim bar: its top scrolls away (sticky above
+   the screen's edge) while the wordmark and controls fade. On phones only
+   the search bar stays. */
+.app-header {
+  top: -10px;
+}
+.app-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.35);
+  opacity: 0;
+}
+@media (max-width: 767px) {
+  .app-header {
+    top: -58px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .app-header::before {
+      animation: headerShadow linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 90px;
+    }
+    .app-header .brand {
+      transform-origin: left center;
+      animation: headerBrand linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 70px;
+    }
+    @media (max-width: 767px) {
+      .app-header .brand,
+      .app-header .header-row > .shrink-0 {
+        animation: headerFade linear both;
+        animation-timeline: scroll(root block);
+        animation-range: 0 58px;
+      }
+    }
+
+    /* The picture at the top of a film's sheet, or of the picks, scrolls
+       more slowly than the page: it stays behind as the rest moves on. */
+    .parallax-media {
+      animation: parallax linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* In a film's sheet, the picture stays behind as the details scroll
+       over it: the details' own scrolling drives it (named timeline). */
+    .film-sheet {
+      timeline-scope: --sheet;
+    }
+    .sheet-body {
+      scroll-timeline: --sheet block;
+    }
+    .sheet-backdrop {
+      animation: sheetBackdrop linear both;
+      animation-timeline: --sheet;
+      animation-range: 0px 280px;
+    }
+
+    /* Rows and cards rise into place as they come on screen. */
+    .rise {
+      animation: rise linear both;
+      animation-timeline: view();
+      /* A fixed distance, so a grid taller than the screen settles as soon. */
+      animation-range: entry 0px entry 240px;
+    }
+  }
+}
+@keyframes headerShadow {
+  to { opacity: 1; }
+}
+@keyframes headerBrand {
+  to { transform: scale(0.88); }
+}
+@keyframes headerFade {
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes parallax {
+  to { transform: translateY(32%); }
+}
+@keyframes sheetBackdrop {
+  to { transform: translateY(16%) scale(1.08); }
+}
+@keyframes rise {
+  from { opacity: 0.35; transform: translateY(28px) scale(0.97); }
+}
+
+/* Posters lean towards the pointer (and, on phones, with the phone):
+   src/utils/tilt.js sets the angles on the posters in view. */
+.film-poster,
+[data-tilt] {
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.film-poster.tilting,
+[data-tilt].tilting {
+  transition: transform 0.12s linear;
+}
+/* A sheen where the light would catch it. */
+.film-poster::after,
+[data-tilt]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 0%), rgb(255 255 255 / 0.22), transparent 55%);
+  opacity: var(--glare, 0);
+  transition: opacity 0.4s ease;
+  mix-blend-mode: soft-light;
+}

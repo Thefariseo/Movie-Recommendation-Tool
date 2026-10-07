@@ -101,7 +101,7 @@ export default function CinemaSection() {
       {!films && !error && <PosterGridSkeleton className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6" />}
       {films && !films.length && <p className="text-sm text-slate-500">Nothing listed here right now.</p>}
       {films && films.length > 0 && (
-        <ul className="stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
+        <ul className="rise stagger grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
           {films.map((f) => <Film key={f.id} film={f} upcoming={tab === "soon"} />)}
         </ul>
       )}
