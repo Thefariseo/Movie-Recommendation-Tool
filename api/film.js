@@ -6,6 +6,8 @@ import { leanMovie, leanFilmography } from '../server/lean.js';
 // answer serves every visitor asking for that film in that language.
 const MOVIE = /^\/movie\/(\d{1,9})$/;
 const FILMOGRAPHY = /^\/person\/(\d{1,9})\/movie_credits$/;
+// Where a film streams, for one country: TMDB's answer lists every country (~100 KB).
+const PROVIDERS = /^\/movie\/(\d{1,9})\/watch\/providers$/;
 const APPEND = new Set(['videos', 'credits', 'keywords', 'recommendations']);
 
 export async function film(ctx) {
@@ -25,6 +27,14 @@ export async function film(ctx) {
       params.include_video_language = videos;
     }
     lean = leanMovie;
+  } else if (PROVIDERS.test(path)) {
+    const region = q.get('region') || '';
+    if (!/^[A-Z]{2}$/.test(region)) throw new HttpError(400, 'Invalid country.');
+    const data = await tmdb(path.slice(1), {});
+    const offers = data.results?.[region] || {};
+    const keep = list => (list || []).map(({ provider_id, provider_name, logo_path, display_priority }) => ({ provider_id, provider_name, logo_path, display_priority }));
+    ctx.headers = { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800' };
+    return { id: data.id, results: { [region]: { link: offers.link || null, flatrate: keep(offers.flatrate), rent: keep(offers.rent), buy: keep(offers.buy) } } };
   } else if (FILMOGRAPHY.test(path)) {
     lean = leanFilmography;
   } else throw new HttpError(400, 'Unknown film data.');

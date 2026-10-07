@@ -12,20 +12,21 @@ let next = 1000;
 beforeEach(() => http.reset());
 
 test('a failed request does not fail the requests queued behind it', async () => {
-  const base = next; next += 20;
+  const base = next; next += 40;
   // Fill every slot, then queue one more behind them.
-  const running = Array.from({ length: 6 }, (_, i) => api.movieDetails(base + i));
-  const queued = api.movieDetails(base + 6);
+  const slots = api.MAX_CONCURRENT;
+  const running = Array.from({ length: slots }, (_, i) => api.movieDetails(base + i));
+  const queued = api.movieDetails(base + slots);
   await tick();
-  assert.equal(http.requests.length, 6, 'the seventh waits for a free slot');
+  assert.equal(http.requests.length, slots, 'the one past the slots waits for a free slot');
   running.slice(1).forEach((p) => p.catch(() => {}));
   http.requests[0].reject(new Error('404 for one film'));
   await assert.rejects(running[0]);
   await tick();
-  assert.equal(http.requests.length, 7, 'the freed slot goes to the queued request');
-  http.requests[6].resolve({ id: base + 6 });
-  assert.deepEqual(await queued, { id: base + 6 }, 'the queued request succeeds on its own merits');
-  http.requests.slice(1, 6).forEach((r, i) => r.resolve({ id: base + 1 + i }));
+  assert.equal(http.requests.length, slots + 1, 'the freed slot goes to the queued request');
+  http.requests[slots].resolve({ id: base + slots });
+  assert.deepEqual(await queued, { id: base + slots }, 'the queued request succeeds on its own merits');
+  http.requests.slice(1, slots).forEach((r, i) => r.resolve({ id: base + 1 + i }));
 });
 
 test('simultaneous requests for the same film share one call, and the answer is cached', async () => {

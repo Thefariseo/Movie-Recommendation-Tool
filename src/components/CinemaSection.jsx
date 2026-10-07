@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, MapPin, Plus, Star, Ticket } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
 import useWatchlist from "../hooks/useWatchlist";
 import { useModal } from "../hooks/useModal";
@@ -12,9 +11,14 @@ import { PosterGridSkeleton } from "./Skeletons";
 
 const poster = (f) => (f?.poster_path ? `https://image.tmdb.org/t/p/w342${f.poster_path}` : "/placeholder_poster.svg");
 const stars = (r) => `${Math.round(Number(r)) / 2}★`;
-const browserCountry = () => {
-  const parts = ((typeof navigator !== "undefined" && navigator.language) || "en-US").split("-");
-  return parts.length > 1 ? parts.at(-1).toUpperCase() : { it: "IT", fr: "FR", de: "DE", es: "ES" }[parts[0]] || "US";
+// The cinemas shown: the United States unless the member chose another country.
+const CINEMA_KEY = "umbrify_cinema_country_v1";
+const CINEMA_COUNTRIES = ["US", "GB", "CA", "AU", "IE", "NZ", "IT", "FR", "DE", "ES", "PT", "NL", "BE", "CH", "AT", "SE", "DK", "NO", "FI", "PL", "BR", "MX", "AR", "JP", "KR", "IN"];
+const savedCountry = () => {
+  try { const c = localStorage.getItem(CINEMA_KEY); return CINEMA_COUNTRIES.includes(c) ? c : "US"; } catch { return "US"; }
+};
+const countryName = (code) => {
+  try { return new Intl.DisplayNames([document.documentElement.lang || "en"], { type: "region" }).of(code) || code; } catch { return code; }
 };
 // A film first released long ago is back in cinemas, not new.
 const reissue = (film) => Date.now() - new Date(film.release_date || 0).getTime() > 200 * 86_400_000;
@@ -56,9 +60,12 @@ function Film({ film, upcoming }) {
  * for it), best bets first.
  */
 export default function CinemaSection() {
-  const { profile } = useAuth();
   const { watched } = useWatched();
-  const region = profile?.country || browserCountry();
+  const [region, setRegion] = useState(savedCountry);
+  const choose = (code) => {
+    setRegion(code);
+    try { localStorage.setItem(CINEMA_KEY, code); } catch { /* the choice lasts this visit */ }
+  };
   const [tab, setTab] = useState("now");
   const [lists, setLists] = useState({ now: null, soon: null });
   const [space, setSpace] = useState(null);
@@ -89,7 +96,16 @@ export default function CinemaSection() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="section-title flex items-center gap-2"><Ticket className="h-5 w-5" /> {tab === "now" ? "In cinemas now" : "Coming to cinemas"}</h2>
-          <p className="mt-1 text-sm text-slate-500">{`Showing in ${new Intl.DisplayNames([document.documentElement.lang || "en"], { type: "region" }).of(region) || region}, best bets for your taste first.`}</p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+            <label className="inline-flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="sr-only">Country</span>
+              <select value={region} onChange={(e) => choose(e.target.value)} className="cinema-country" aria-label="Country">
+                {CINEMA_COUNTRIES.map((code) => <option key={code} value={code}>{countryName(code)}</option>)}
+              </select>
+            </label>
+            <span>Best bets for your taste first.</span>
+          </p>
         </div>
         <div className="flex gap-2" role="radiogroup" aria-label="When">
           {[["now", "Now showing"], ["soon", "Coming soon"]].map(([key, label]) => (

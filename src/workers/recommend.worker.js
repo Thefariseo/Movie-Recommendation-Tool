@@ -5,8 +5,18 @@
 // the site share the browser's HTTP cache with the page.
 import { getRecommendations, warmNextRound } from "../algorithms/recommender.js";
 import { assignLanguage } from "../i18n/index.js";
+import { loadTasteSpace } from "../utils/tasteSpace";
+import { loadTasteMap } from "../utils/tasteMap";
 
 self.onmessage = async ({ data }) => {
+  // Warming up: what every set of picks starts from begins downloading now.
+  if (data?.warm) {
+    // The map's place names come in the interface language.
+    assignLanguage(data.language);
+    loadTasteSpace().catch(() => {});
+    loadTasteMap().catch(() => {});
+    return;
+  }
   const { id, args, language } = data || {};
   assignLanguage(language);
   try {

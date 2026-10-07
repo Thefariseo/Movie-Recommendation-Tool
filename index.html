@@ -3,19 +3,91 @@
   <head>
     <!-- First, before the stylesheets it would otherwise wait for. -->
     <script src="/lang-preload.js"></script>
-    <!-- The fonts' stylesheet is fetched alongside ours, not discovered inside it. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;family=Newsreader:ital,wght@0,400;0,500;1,400&amp;display=swap" />
-    <!-- The wordmark is the only text in Playfair: just its letters (2 KB, not 36). -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;text=umbrify&amp;display=swap" />
+    <!-- The fonts are served from this site, declared here so they are known
+         at once: one variable file covers every weight of Albert Sans, and the
+         wordmark's Playfair holds only its own letters (2 KB). -->
+    <link rel="preload" href="/fonts/albertsans-normal-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/playfair-umbrify.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face {
+        font-family: "Albert Sans";
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/albertsans-italic-latin-ext.woff2") format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: "Albert Sans";
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/albertsans-italic-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Albert Sans";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: swap;
+        src: url("/fonts/albertsans-normal-latin-ext.woff2") format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: "Albert Sans";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: swap;
+        src: url("/fonts/albertsans-normal-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Newsreader";
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/newsreader-italic-latin-ext.woff2") format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: "Newsreader";
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/newsreader-italic-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Newsreader";
+        font-style: normal;
+        font-weight: 400 500;
+        font-display: swap;
+        src: url("/fonts/newsreader-normal-latin-ext.woff2") format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: "Newsreader";
+        font-style: normal;
+        font-weight: 400 500;
+        font-display: swap;
+        src: url("/fonts/newsreader-normal-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Playfair Display";
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url("/fonts/playfair-umbrify.woff2") format("woff2");
+      }
+    </style>
     <link rel="stylesheet" href="/tailwind.css" />
     <!-- Posters and film data come from TMDB: open those connections early. -->
     <link rel="preconnect" href="https://image.tmdb.org" />
     <link rel="preconnect" href="https://api.themoviedb.org" crossorigin />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Umbrify</title>
+    <title>Umbrify · Films picked for your taste</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
@@ -29,8 +101,19 @@
     <meta name="description" content="Umbrify — intelligent movie recommendations shaped by your taste. Discover world cinema, hidden gems, and Criterion classics." />
     <meta name="theme-color" content="#000000" />
     <meta property="og:title" content="Umbrify" />
-    <meta property="og:description" content="Intelligent movie recommendations shaped by your taste." />
+    <meta property="og:description" content="Films picked for your taste, and the reason why. Rate a few films, plan movie nights with friends, talk films with a critic who knows your diary." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://umbrify.vercel.app/" />
+    <meta property="og:site_name" content="Umbrify" />
+    <meta property="og:image" content="https://umbrify.vercel.app/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Umbrify: films picked for your taste, and the reason why." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Umbrify" />
+    <meta name="twitter:description" content="Films picked for your taste, and the reason why. Rate a few films, plan movie nights with friends, talk films with a critic who knows your diary." />
+    <meta name="twitter:image" content="https://umbrify.vercel.app/og-image.jpg" />
+    <link rel="canonical" href="https://umbrify.vercel.app/" />
   </head>
   <body>
     <div id="root"></div>

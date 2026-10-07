@@ -111,31 +111,27 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   }
   const excluded = new Set(libraries.flat().filter(r => r.kind === 'watched').map(r => Number(r.movie_id)));
   for (const id of constraints.excluded_ids || []) excluded.add(Number(id));
+  // Everything below that does not depend on the rest is asked for at once.
+  const modelLoad = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? database(null, true)('rpc/current_model', { method: 'POST', body: {} }).catch(() => null) // A failed optional model lookup must not take discovery down.
+    : Promise.resolve(null);
+  const collaborativeLoad = ids.length === 1 ? db('rpc/collaborative_candidates', { method: 'POST', body: {} }) : Promise.resolve([]);
+  // Marked as handled while it waits: a failure still surfaces where it is awaited.
+  collaborativeLoad.catch(() => {});
+  const spaceLoad = loadTasteSpace();
   // The host's signals hold for every night they host: what their critic
   // warned against, judged "skip", or they dismissed is never offered.
-  const signals = signalMap(await readSignals(ctx).catch(() => []));
   // What the host's critic has learned about them. Only a member's own picks
   // follow it: a group night weighs everyone equally.
-  const rules = ids.length === 1 ? await readRules(ctx) : [];
+  const [signalRows, rules] = await Promise.all([readSignals(ctx).catch(() => []), ids.length === 1 ? readRules(ctx) : []]);
+  const signals = signalMap(signalRows);
   for (const [id] of signals) if (blocked(signals, id)) excluded.add(id);
   // A newcomer's first-visit choices place them in the taste space until they
   // rate films; the films they chose are not offered back to them.
   const hostFilms = withSeeds(watchedMovies(libraries[0]), signals);
   for (const f of hostFilms) if (f._seed) excluded.add(Number(f.id));
   const savedIds = new Set(libraries.flat().filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
-  let model = null;
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    try {
-      model = await database(null, true)('rpc/current_model', {
-        method: 'POST',
-        body: {}
-      });
-    } catch {/* A failed optional model lookup must not take discovery down. */}
-  }
-  const collaborative = ids.length === 1 ? await db('rpc/collaborative_candidates', {
-    method: 'POST',
-    body: {}
-  }) : [];
+  const [model, collaborative] = await Promise.all([modelLoad, collaborativeLoad]);
   const candidateMap = new Map();
   const personSets = [];
   const personFilms = [];
@@ -156,7 +152,7 @@ export async function recommendations(ctx, members = [], constraints = {}, recen
   })).filter(x => x.score != null && !excluded.has(x.id)).sort((a, b) => b.score - a.score).slice(0, 20).map(x => x.id)))] : [];
   // Every member is placed in the taste space from their own ratings. It costs
   // no provider calls, so group picks use it for everyone.
-  const space = await loadTasteSpace();
+  const space = await spaceLoad;
   const placed = space ? libraries.map((rows, index) => {
     const member = placeMember(space, index === 0 ? hostFilms : watchedMovies(rows), rows.filter(r => r.kind === 'watchlist').map(r => Number(r.movie_id)));
     return member && { member, z: affinities(space, member) };

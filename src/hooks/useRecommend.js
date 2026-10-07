@@ -110,6 +110,8 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
 
       // Fetch full details (keywords, videos, credits)
       const topIds  = ranked.map((r) => r.id);
+      // Where the top pick streams is asked for alongside its details, not after.
+      const providersOfTop = topIds.length ? movieWatchProviders(topIds[0], region).catch(() => null) : null;
       // All at once: the TMDB client keeps six in flight.
       const details = (await Promise.allSettled(topIds.map((id) => movieDetails(id))))
         .filter((r) => r.status === 'fulfilled').map((r) => r.value);
@@ -154,12 +156,9 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
       });
 
       // Streaming providers for hero only
-      if (scored.length > 0) {
-        try {
-          const country   = region;
-          const providers = await movieWatchProviders(scored[0].id, country);
-          scored[0]       = { ...scored[0], _providers: providers };
-        } catch { /* optional */ }
+      if (scored.length > 0 && scored[0].id === topIds[0]) {
+        const providers = await providersOfTop;
+        if (providers) scored[0] = { ...scored[0], _providers: providers };
       }
 
       if (version !== requestVersion.current) return;

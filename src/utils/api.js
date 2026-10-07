@@ -14,7 +14,7 @@ const BASE_URL = "https://api.themoviedb.org/3";
 // gives (hundreds of credited names); the site's own /api/film returns them
 // trimmed to what is read, cached at the edge for every visitor. TMDB itself
 // answers if that is unavailable.
-const LEAN = /^\/(movie\/\d+|person\/\d+\/movie_credits)$/;
+const LEAN = /^\/(movie\/\d+|movie\/\d+\/watch\/providers|person\/\d+\/movie_credits)$/;
 let leanDown = false;
 
 /** One TMDB GET with the key and language every request carries. */
@@ -48,8 +48,9 @@ const remember = (key, data) => {
 };
 const inflight = new Map();
 const queue  = [];
-// Well under TMDB's rate limit; recommendations fetch a shortlist in batches of 6.
-const MAX_CONCURRENT = 6;
+// Well under TMDB's rate limit (about fifty a second); most answers come from
+// the site's own cached endpoint (/api/film) anyway.
+export const MAX_CONCURRENT = 10;
 
 async function get(url, params = {}) {
   const key = url + JSON.stringify(params);
@@ -227,7 +228,8 @@ export function upcomingInRegion(region = "US", page = 1) {
  * countryCode: ISO 3166-1 alpha-2 (e.g. "US", "IT", "FR").
  */
 export async function movieWatchProviders(id, countryCode = "US") {
-  const data = await get(`/movie/${id}/watch/providers`);
+  // The site's own endpoint keeps only this country (TMDB's answer lists them all).
+  const data = await get(`/movie/${id}/watch/providers`, { region: countryCode });
   const region = data.results?.[countryCode] || {};
   return {
     flatrate: region.flatrate || [],

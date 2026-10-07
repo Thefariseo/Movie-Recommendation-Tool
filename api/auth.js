@@ -93,7 +93,12 @@ export async function auth(ctx) {
         message: 'If this email has an account, a reset link is on its way.'
       };
     }
-    const session = action === 'login' ? await authRequest('token?grant_type=password', {
+    // With the service key, a new account is ready at once: no confirmation
+    // email to wait for (Supabase's own mail service sends only a few an
+    // hour). AUTH_EMAIL_CONFIRM=true brings the confirmation email back.
+    const instant = action === 'signup' && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.AUTH_EMAIL_CONFIRM !== 'true';
+    if (instant) await createConfirmedUser(url, input);
+    const session = action === 'login' || instant ? await authRequest('token?grant_type=password', {
       email: input.email,
       password: input.password
     }) : await authRequest(`signup?redirect_to=${encodeURIComponent(`${origin}/auth/callback`)}`, {
@@ -160,3 +165,25 @@ export async function auth(ctx) {
   throw new HttpError(400, 'Unknown account action.');
 }
 export default nodeHandler(auth);
+
+// A confirmed account, made with the service key. An email already in use is
+// told to sign in, as Supabase's own sign-up would.
+async function createConfirmedUser(url, input) {
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const response = await fetch(`${url}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: { apikey: service, Authorization: `Bearer ${service}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { display_name: String(input.display_name || 'Film lover').slice(0, 60) }
+    })
+  });
+  if (response.ok) return;
+  const detail = await response.json().catch(() => ({}));
+  const text = `${detail.msg || ''} ${detail.message || ''} ${detail.error_code || ''}`;
+  if (response.status === 422 || /already|exists|registered/i.test(text)) throw new HttpError(409, 'An account with this email already exists. Sign in instead.');
+  if (/password/i.test(text)) throw new HttpError(400, 'Choose a stronger password.');
+  throw new HttpError(502, 'Accounts are temporarily unavailable. Please try again.');
+}
