@@ -24,7 +24,7 @@ function Film({ film, rank, mine, seen, predicted, onRemove }) {
   const show = async () => { try { open(await movieDetails(film.id)); } catch { open(film); } };
   return (
     <li className="flex flex-col">
-      <button type="button" onClick={show} className="relative block text-left" aria-label={`Open ${film.title}`}>
+      <button type="button" data-film-id={film.id} onClick={show} className="relative block text-left" aria-label={`Open ${film.title}`}>
         <img src={poster(film)} alt="" loading="lazy" className="w-full object-cover" style={{ aspectRatio: "2 / 3" }} />
         <span className="absolute left-0 top-0 bg-black/75 px-2 py-0.5 text-xs font-semibold text-white">{rank}</span>
         <span className="film-title" translate="no"><FilmTitle film={film} /></span>

@@ -34,7 +34,7 @@ export default function WatchedCard({ movie }) {
     <div className="group flex min-w-0 flex-col gap-1.5">
       {/* Poster area */}
       <div className="relative overflow-hidden rounded-lg shadow">
-        <button type="button" onClick={() => open(movieForModal)} className="block w-full" aria-label={`View ${movie.title}`}>
+        <button type="button" data-film-id={movie.id} onClick={() => open(movieForModal)} className="block w-full" aria-label={`View ${movie.title}`}>
           <img
             src={
               movie.poster

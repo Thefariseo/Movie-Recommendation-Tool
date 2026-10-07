@@ -28,7 +28,7 @@ function Film({ film, upcoming }) {
   const showtimes = `https://www.google.com/search?q=${encodeURIComponent(`${film.title} ${document.documentElement.lang === "it" ? "orari cinema" : "showtimes"}`)}`;
   return (
     <li className="flex flex-col">
-      <button type="button" onClick={show} className="block text-left" aria-label={`Open ${film.title}`}>
+      <button type="button" data-film-id={film.id} onClick={show} className="block text-left" aria-label={`Open ${film.title}`}>
         <img src={poster(film)} alt="" loading="lazy" className="w-full object-cover" style={{ aspectRatio: "2 / 3" }} />
         <span className="film-title" translate="no">{film.title}</span>
       </button>

@@ -22,7 +22,7 @@ function Film({ film }) {
   const show = async () => { try { open(await movieDetails(film.id)); } catch { open(film); } };
   return (
     <li className="group relative">
-      <button type="button" onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
+      <button type="button" data-film-id={film.id} onClick={show} className="block w-full text-left" aria-label={`Open ${film.title}`}>
         <img src={poster(film)} alt="" loading="lazy" className={`w-full object-cover ${film.rated != null ? "" : "transition group-hover:opacity-90"}`} style={{ aspectRatio: "2 / 3" }} />
         <span className="film-title" translate="no">{film.title}</span>
         <span className="block text-xs text-slate-500">

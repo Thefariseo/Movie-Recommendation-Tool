@@ -1026,6 +1026,30 @@ summary {
   }
 }
 
+/* A poster still downloading shows its tiny version, blurred, in its place;
+   the real one then comes into focus over it (src/utils/motion.js). */
+.img-blurup {
+  background-size: cover;
+  background-position: center;
+  /* The tiny image upscaled reads as soft light and colour, not as pixels. */
+  image-rendering: auto;
+}
+.img-blurup:not(.img-focus) {
+  /* Until it arrives, the img paints only its background: blur the whole
+     box, kept within its own edges. */
+  filter: blur(6px) saturate(1.15);
+  clip-path: inset(0);
+}
+.img-focus {
+  clip-path: inset(0);
+  animation: posterFocus 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes posterFocus {
+  from {
+    filter: blur(6px) saturate(1.15);
+  }
+}
+
 /* Posters fade in once they arrive, instead of popping in. */
 .img-fade:not(.img-in) {
   opacity: 0;

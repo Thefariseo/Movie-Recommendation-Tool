@@ -84,7 +84,7 @@ function Ballot({ films, mine, onVote, busy, onOpen, onAll }) {
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div key={film.id} initial={{ opacity: 0, x: 40 * direction }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 * direction }}
           transition={{ duration: 0.2 }} className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
-          <button type="button" onClick={() => onOpen(film)} className="w-40 shrink-0 sm:w-48" aria-label={`Details of ${film.title}`}>
+          <button type="button" data-film-id={film.id} onClick={() => onOpen(film)} className="w-40 shrink-0 sm:w-48" aria-label={`Details of ${film.title}`}>
             <img className="w-full rounded-xl shadow-lg" style={{ aspectRatio: "2 / 3" }} alt="" src={poster(film, "w342")} />
           </button>
           <div className="min-w-0 flex-1 space-y-2">
@@ -226,7 +226,7 @@ export default function NightPage() {
       {summary && <div className="grid gap-4 sm:grid-cols-2">
         {night.films.map((f) => (
           <article key={f.id} className={`account-panel flex gap-3 ${decided && f.id !== Number(night.winner) ? "opacity-50" : ""}`}>
-            <button type="button" onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
+            <button type="button" data-film-id={f.id} onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="font-semibold leading-tight">{f.title} <span className="text-xs font-normal text-slate-500">{f.release_date?.slice(0, 4)}</span></p>
               {f._reason && <p className="line-clamp-2 text-xs text-slate-500">{f._reason}</p>}

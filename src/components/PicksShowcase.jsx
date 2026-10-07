@@ -45,7 +45,7 @@ function Hero({ movie }) {
       {backdrop && <img src={backdrop} srcSet={`https://image.tmdb.org/t/p/w780${movie.backdrop_path} 780w, ${backdrop} 1280w`} sizes="100vw" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/30" />
       <div className="relative flex items-start gap-4 p-4 sm:gap-5 sm:p-7">
-        <button type="button" onClick={() => open(movie)} className="w-24 shrink-0 sm:w-40" aria-label={`View ${movie.title}`}>
+        <button type="button" data-film-id={movie.id} onClick={() => open(movie)} className="w-24 shrink-0 sm:w-40" aria-label={`View ${movie.title}`}>
           <img className="w-full rounded-xl shadow-2xl ring-1 ring-white/20" style={{ aspectRatio: "2 / 3" }} alt=""
             src={movie.poster_path ? `https://image.tmdb.org/t/p/w342${movie.poster_path}` : "/placeholder_poster.svg"} />
         </button>
@@ -61,7 +61,7 @@ function Hero({ movie }) {
           </div>
           {(movie._reasonDetail || movie._reason) && <p className="max-w-2xl text-sm leading-relaxed text-slate-200 line-clamp-4">{movie._reasonDetail || movie._reason}</p>}
           <div className="flex flex-wrap gap-2 pt-1">
-            <button type="button" onClick={() => open(movie)} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"><Info className="h-4 w-4" /> Why, and the trailer</button>
+            <button type="button" data-film-id={movie.id} onClick={() => open(movie)} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"><Info className="h-4 w-4" /> Why, and the trailer</button>
             <button type="button" onClick={toggle} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold hover:bg-white/25">{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />} {saved ? "On your watchlist" : "Watchlist"}</button>
             <button type="button" onClick={() => { dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/10"><EyeOff className="h-4 w-4" /> Not for me</button>
           </div>
