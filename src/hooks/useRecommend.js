@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {useAuth} from "../contexts/AuthContext";
 import useWatched   from "@/hooks/useWatched";
 import useWatchlist from "./useWatchlist";
-import { getRecommendations, CRITERION_RADIANCE_IDS } from "../algorithms/recommender";
+import { CRITERION_RADIANCE_IDS } from "../algorithms/criterion.js";
+import { recommend } from "../utils/recommendOffThread";
 import { movieDetails, movieWatchProviders } from "../utils/api";
 import { loadSignals, useSignals, currentRules } from "../utils/signals";
 import { blocked } from "../../shared/signals.js";
@@ -96,7 +97,7 @@ export default function useRecommend({ prefs = {}, top = 10 } = {}) {
     try {
       const recentlyShown = getShownIds(shownKey);
 
-      const ranked = await getRecommendations({
+      const ranked = await recommend({
         watched,
         watchlist,
         prefs,

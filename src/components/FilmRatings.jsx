@@ -1,5 +1,5 @@
 import React from "react";
-import { useFilmRating } from "@/utils/ratings";
+import { useFilmRating } from "@/hooks/useFilmRating";
 
 // IMDb and Rotten Tomatoes, the reference marks for a film. Nothing is shown
 // until a real figure is known: TMDB's average in their place would mislead.

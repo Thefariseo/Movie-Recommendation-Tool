@@ -359,8 +359,8 @@ function BarRow({ label, value, max, color = "indigo" }) {
       <div className="w-24 shrink-0 text-xs text-slate-600 dark:text-slate-400">{label}</div>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
         <div
-          className={`h-full rounded-full ${barColor} transition-all duration-700`}
-          style={{ width: `${pct}%` }}
+          className={`h-full origin-left rounded-full ${barColor} transition-transform duration-700`}
+          style={{ transform: `scaleX(${pct / 100})` }}
         />
       </div>
       <div className="w-6 text-right text-xs font-semibold text-slate-500 dark:text-slate-400">

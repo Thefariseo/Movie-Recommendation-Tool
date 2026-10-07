@@ -65,7 +65,8 @@ export default function WatchedCard({ movie }) {
 
       <div className="min-w-0 px-0.5">
         <p className="truncate text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100" title={movie.title} translate="no"><FilmTitle film={movie} /></p>
-        {movie.year && <p className="text-[11px] text-slate-500">{movie.year}</p>}
+        {/* Always there, so every card (and every row of a long grid) is the same height. */}
+        <p className="text-[11px] text-slate-500">{movie.year || "\u00a0"}</p>
       </div>
       <StarRating value={movie.rated} onChange={handleRating} size="sm" />
     </div>

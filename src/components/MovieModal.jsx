@@ -201,7 +201,7 @@ export default function MovieModal({ movie, onClose }) {
                   onError={(e) => { if (thumbHq) e.target.src = thumbHq; }}
                 />
               )}
-              <span className="relative flex items-center gap-2 rounded-full bg-black/55 px-5 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition-all group-hover:bg-black/75 group-hover:scale-105">
+              <span className="relative flex items-center gap-2 rounded-full bg-black/55 px-5 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition group-hover:bg-black/75 group-hover:scale-105">
                 <Play className="h-4 w-4 fill-white" />
                 Watch Trailer
               </span>

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { backend } from "./backend";
 
 // IMDb and Rotten Tomatoes ratings, fetched through our server so the OMDb key
@@ -54,17 +53,18 @@ function flush() {
   if (ids.length) request(ids).then(() => listeners.forEach((notify) => notify()));
 }
 
-/** One film's ratings for display. Cards rendered together share one request. */
-export function useFilmRating(id) {
+/** A film's ratings already known on this page, or null. */
+export const knownRating = (id) => known.get(Number(id)) || null;
+
+/**
+ * Asks for one film's ratings for display; cards rendered together share one
+ * request. `notify` runs when an answer arrives; the returned function stops it.
+ */
+export function watchRating(id, notify) {
   const film = Number(id);
-  const [, redraw] = useState(0);
-  useEffect(() => {
-    if (!Number.isSafeInteger(film) || film <= 0 || known.has(film)) return undefined;
-    const notify = () => redraw((n) => n + 1);
-    listeners.add(notify);
-    queued.add(film);
-    timer ??= setTimeout(flush, 30);
-    return () => listeners.delete(notify);
-  }, [film]);
-  return known.get(film) || null;
+  if (!Number.isSafeInteger(film) || film <= 0 || known.has(film)) return () => {};
+  listeners.add(notify);
+  queued.add(film);
+  timer ??= setTimeout(flush, 30);
+  return () => listeners.delete(notify);
 }

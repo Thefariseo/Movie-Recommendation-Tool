@@ -103,7 +103,7 @@ function Journey({ journey, region, details, watched, why, followed, onFollow, o
           </div>
         </details>
       )}
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${(100 * progress.done) / journey.steps.length}%` }} /></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full origin-left bg-indigo-500 transition-transform duration-500" style={{ transform: `scaleX(${progress.done / journey.steps.length})` }} /></div>
       {progress.arrived && (
         <p className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Flag className="h-4 w-4 shrink-0" /> {text.arrived}</p>
       )}

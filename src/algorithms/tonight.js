@@ -1,7 +1,7 @@
 // Tonight, solo: the member's own recommendations, narrowed to the mood, the
 // time they have, the services they pay for and the night's other filters,
 // and nudged away from what they watched in the last few days.
-import { getRecommendations } from "./recommender";
+import { recommend } from "../utils/recommendOffThread";
 import { movieDetails, movieWatchProviders } from "../utils/api";
 import { loadRatings, withRatings } from "../utils/ratings";
 import { genreIds, qualityScore } from "../../shared/taste.js";
@@ -30,7 +30,7 @@ export async function tonightPicks({
   if (watchlistOnly) {
     // From the member's own list: the recommender's order where it has an
     // opinion, the films' quality otherwise.
-    const ranked = await getRecommendations({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown, signals, rules });
+    const ranked = await recommend({ watched, watchlist, prefs: { genres }, top: 200, recentlyShown, signals, rules });
     const score = new Map(ranked.map((r) => [Number(r.id), r._score || 0]));
     ordered = watchlist
       .filter((m) => !seen.has(Number(m.id)))
@@ -38,7 +38,7 @@ export async function tonightPicks({
       .filter((m) => !genres.length || genreIds(m).some((g) => genres.includes(g)))
       .sort((a, b) => b._tonight - a._tonight);
   } else {
-    const ranked = await getRecommendations({
+    const ranked = await recommend({
       watched, watchlist, top: 60, recentlyShown: new Set([...recentlyShown, ...exclude]), signals, rules,
       prefs: { genres, era: ERAS[filters.era] ? filters.era : undefined }
     });

@@ -320,7 +320,7 @@ export default function LetterboxdImport({ onStart, onDone } = {}) {
               <button
                 key={key}
                 onClick={() => { setMode(key); setZipError(null); }}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   mode === key
                     ? "bg-white text-slate-800 shadow dark:bg-slate-600 dark:text-slate-100"
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
@@ -528,8 +528,9 @@ export default function LetterboxdImport({ onStart, onDone } = {}) {
 
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                 <motion.div
-                  className="h-full rounded-full bg-indigo-500"
-                  animate={{ width: `${pct}%` }}
+                  className="h-full origin-left rounded-full bg-indigo-500"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: pct / 100 }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
