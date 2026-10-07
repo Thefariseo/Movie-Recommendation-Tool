@@ -94,12 +94,39 @@ function checkAccount(ctx, user) {
     throw error;
   }
 }
-export async function identify(ctx, required = true) {
+// Who a token belongs to, remembered for a minute by a warm instance: every
+// API call otherwise asks Supabase again (library polls, ratings, signals).
+// Only a real access token is remembered, never past its expiry, and only
+// for the member it names; sign-out clears the cookie it travels in.
+const KNOWN_FOR = 60 * 1000;
+const known = new Map();
+function claims(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(String(token).split('.')[1] || '', 'base64url').toString());
+    return typeof payload?.sub === 'string' && Number.isFinite(payload.exp) ? payload : null;
+  } catch {
+    return null;
+  }
+}
+async function userOf(token, fresh) {
+  const claim = claims(token);
+  const hit = !fresh && claim && known.get(token);
+  if (hit && Date.now() - hit.at < KNOWN_FOR && Date.now() < claim.exp * 1000) return hit.user;
+  const user = await authRequest('user', null, token);
+  if (claim && user?.id === claim.sub) {
+    known.set(token, { user, at: Date.now() });
+    if (known.size > 500) known.delete(known.keys().next().value);
+  }
+  return user;
+}
+
+/** The signed-in member; `fresh` asks Supabase even when the token was just seen (account pages). */
+export async function identify(ctx, required = true, { fresh = false } = {}) {
   const c = cookies(ctx.request);
   let token = c.umbrify_access;
   if (token) {
     try {
-      const user = await authRequest('user', null, token);
+      const user = await userOf(token, fresh);
       checkAccount(ctx, user);
       ctx.user = user;
       ctx.token = token;
@@ -253,6 +280,11 @@ export async function execute(request, work, methods = ['GET', 'POST']) {
     'Vary': 'Cookie',
     'X-Content-Type-Options': 'nosniff'
   });
+  // A public answer (the same for everyone) may be cached: its own headers win.
+  if (status === 200 && ctx.headers) {
+    for (const [key, value] of Object.entries(ctx.headers)) headers.set(key, value);
+    if (/\bpublic\b/.test(ctx.headers['Cache-Control'] || '')) headers.delete('Vary');
+  }
   for (const c of ctx.cookies) headers.append('Set-Cookie', c);
   if (result?.redirect) {
     headers.set('Location', result.redirect);

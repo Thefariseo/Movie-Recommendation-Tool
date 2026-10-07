@@ -10,11 +10,28 @@ import { noteTitles } from "./titleStore";
 const API_KEY = import.meta.env.VITE_TMDB_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 
+// A film's details and a person's filmography are the heaviest answers TMDB
+// gives (hundreds of credited names); the site's own /api/film returns them
+// trimmed to what is read, cached at the edge for every visitor. TMDB itself
+// answers if that is unavailable.
+const LEAN = /^\/(movie\/\d+|person\/\d+\/movie_credits)$/;
+let leanDown = false;
+
 /** One TMDB GET with the key and language every request carries. */
 export async function tmdbGet(url, params = {}, { signal } = {}) {
   // Titles, plots and genres come in the interface language.
-  const query = new URLSearchParams({ api_key: API_KEY, language: tmdbLocale() });
+  const query = new URLSearchParams({ language: tmdbLocale() });
   for (const [k, v] of Object.entries(params)) if (v != null) query.set(k, String(v));
+  if (LEAN.test(url) && !leanDown) {
+    // Offline, both would fail alike: a network error is not retried at TMDB.
+    const lean = await fetch(`/api/film?path=${encodeURIComponent(url)}&${query}`, { signal });
+    // A site without the endpoint (a static preview) is not asked again this visit;
+    // a server error falls back to TMDB for this request only.
+    if (!(lean.headers.get("content-type") || "").includes("json")) leanDown = true;
+    else if (lean.ok) return lean.json();
+    else if (lean.status < 500) throw new Error(`TMDB ${lean.status}`);
+  }
+  query.set("api_key", API_KEY);
   const response = await fetch(`${BASE_URL}${url}?${query}`, { signal });
   if (!response.ok) throw new Error(`TMDB ${response.status}`);
   return response.json();

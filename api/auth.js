@@ -11,7 +11,7 @@ export async function auth(ctx) {
       configured: false,
       google: false
     };
-    const user = await identify(ctx, false);
+    const user = await identify(ctx, false, { fresh: true });
     const profiles = user ? await database(ctx.token)(`profiles?id=eq.${user.id}&select=*`) : [];
     return {
       user: user ? publicUser(user) : null,
@@ -126,7 +126,7 @@ export async function auth(ctx) {
       ok: true
     };
   }
-  await identify(ctx);
+  await identify(ctx, true, { fresh: true });
   if (action === 'logout') {
     await remote(`${url}/auth/v1/logout?scope=local`, {
       method: 'POST',
