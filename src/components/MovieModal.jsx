@@ -35,6 +35,8 @@ import Rail from "./Rail";
 import FilmTitle from "./FilmTitle";
 import WrongFilm from "./WrongFilm";
 import RateFilm from "./RateFilm";
+import { posterColours, knownColours, accentScale } from "../utils/filmColor";
+import { setFilmLight } from "../utils/ambient";
 
 function detectCountry() {
   const lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -93,6 +95,19 @@ export default function MovieModal({ movie, onClose }) {
 
   /* ---- Full details + trailer ---- */
   const [details,      setDetails]      = useState(null);
+
+  /* ---- The film's colours: the page's light and the sheet's accents ---- */
+  const posterPath = movie.poster_path || movie.poster || details?.poster_path || null;
+  const [colours, setColours] = useState(() => knownColours(posterPath));
+  useEffect(() => {
+    let live = true;
+    setColours(knownColours(posterPath));
+    posterColours(posterPath).then((c) => { if (live && c) setColours(c); });
+    return () => { live = false; };
+  }, [posterPath]);
+  useEffect(() => { setFilmLight(colours); }, [colours]);
+  useEffect(() => () => setFilmLight(null), []);
+  const accents = accentScale(colours);
   const [trailerKeys,  setTrailerKeys]  = useState([]);
   const [trailerState, setTrailerState] = useState("thumb"); // "thumb" | "player"
   const trailerKey = trailerKeys[0] || null;
@@ -153,7 +168,8 @@ export default function MovieModal({ movie, onClose }) {
       exit={{ scale: 0.94, opacity: 0, y: 24 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
       onClick={(e) => e.stopPropagation()}
-      className="film-sheet relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+      className={`film-sheet relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900${accents ? " film-sheet-tinted" : ""}`}
+      style={accents || undefined}
     >
       {/* ── Trailer player (lazy-embed) ── */}
       <AnimatePresence>

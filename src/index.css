@@ -24,6 +24,42 @@
   --color-primary-light: 192 90 105;
   --color-border: 234 234 234; /* #eaeaea */
   --color-accent: 255 66 56; /* #ff4238 */
+  /* The accent scale (Tailwind's indigo classes): Biking Red, step by step.
+     A film's sheet lays its own colour on these steps. */
+  --accent-50: 251 241 242;
+  --accent-100: 245 225 227;
+  --accent-200: 235 194 199;
+  --accent-300: 219 150 160;
+  --accent-400: 192 90 105;
+  --accent-500: 154 46 62;
+  --accent-600: 119 33 46;
+  --accent-700: 97 27 38;
+  --accent-800: 74 21 29;
+  --accent-900: 52 16 20;
+  --accent-950: 31 9 12;
+}
+
+/* The ambient light (src/utils/ambient.js): registered, so they fade. */
+@property --ambient-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(0 0 0 / 0);
+}
+@property --ambient-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(0 0 0 / 0);
+}
+/* Where the light comes from: behind the film in front of the member. */
+@property --ambient-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+@property --ambient-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 30%;
 }
 
 .dark {
@@ -1517,3 +1553,64 @@ button {
 .user-avatar.chip-avatar { width: 1.25rem; height: 1.25rem; min-width: 1.25rem; font-size: .55rem; border-width: 0; box-shadow: none; }
 .user-avatar.profile-avatar { width: 4.5rem; height: 4.5rem; min-width: 4.5rem; font-size: 1.2rem; }
 .user-avatar.friend-avatar { width: 2.25rem; height: 2.25rem; min-width: 2.25rem; font-size: .7rem; border-width: 1px; box-shadow: none; }
+
+/* --------------------------------------------------
+   AMBIENT LIGHT (src/utils/ambient.js)
+   The film in front of the member lights the page in its colours: a glow
+   behind everything, a trace of it in the header, its own light behind its
+   sheet. --ambient-1 is the film's base colour, --ambient-2 its accent;
+   both fade from film to film.
+   -------------------------------------------------- */
+html {
+  transition:
+    --ambient-1 1.1s ease,
+    --ambient-2 1.6s ease,
+    --ambient-x 1.2s cubic-bezier(0.25, 0.8, 0.25, 1),
+    --ambient-y 1.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+/* On paper, light is a pale wash of the film's most vivid colour; in the dark
+   room, a glow of its base and accent together (a near-black base alone
+   would not show). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(62% 36% at var(--ambient-x) var(--ambient-y), color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 62%, white) 60%, transparent), transparent 75%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) + 22%) calc(var(--ambient-y) + 14%), color-mix(in srgb, color-mix(in srgb, var(--ambient-1) 50%, white) 45%, transparent), transparent 72%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) - 24%) calc(var(--ambient-y) - 8%), color-mix(in srgb, color-mix(in srgb, var(--ambient-2) 50%, white) 38%, transparent), transparent 72%);
+}
+.dark body::before {
+  background:
+    radial-gradient(62% 36% at var(--ambient-x) var(--ambient-y), color-mix(in srgb, color-mix(in srgb, var(--ambient-1), var(--ambient-2)) 52%, transparent), transparent 75%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) + 22%) calc(var(--ambient-y) + 14%), color-mix(in srgb, var(--ambient-2) 40%, transparent), transparent 72%),
+    radial-gradient(44% 28% at calc(var(--ambient-x) - 24%) calc(var(--ambient-y) - 8%), color-mix(in srgb, var(--ambient-2) 30%, transparent), transparent 72%);
+}
+.app-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ambient-2) 12%, transparent), color-mix(in srgb, var(--ambient-1) 8%, transparent));
+}
+.film-overlay-light {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(95% 70% at 50% -5%, color-mix(in srgb, var(--ambient-1) 55%, transparent), transparent 76%),
+    radial-gradient(75% 60% at 50% 112%, color-mix(in srgb, var(--ambient-2) 38%, transparent), transparent 74%);
+}
+/* The sheet's paper takes a breath of the film's colour. */
+.film-sheet {
+  transition: background-color 0.8s ease;
+}
+.film-sheet.film-sheet-tinted {
+  background-color: color-mix(in srgb, rgb(var(--accent-500)) 6%, rgb(var(--color-bg-card)));
+}
+.dark .film-sheet.film-sheet-tinted {
+  background-color: color-mix(in srgb, rgb(var(--accent-400)) 10%, #181818);
+}

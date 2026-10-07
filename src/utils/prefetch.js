@@ -3,11 +3,16 @@
 // that open a film carry data-film-id.
 import { movieDetails } from "./api";
 import { preloadPage } from "./lazyPage";
+import { posterColours } from "./filmColor";
 
 const warmed = new Set();
 
+const posterOf = (el) => /\/t\/p\/w\d+(\/[^?#]+)$/.exec(el?.querySelector?.("img")?.getAttribute("src") || "")?.[1] || null;
+
 /** Fetches a film's full details (and the film sheet's code) ahead of opening it. */
-export function prefetchFilm(id) {
+export function prefetchFilm(id, poster = null) {
+  // Its colours too, so its sheet opens already in them.
+  if (poster) posterColours(poster);
   const film = Number(id);
   if (!Number.isSafeInteger(film) || film <= 0 || warmed.has(film)) return;
   warmed.add(film);
@@ -22,14 +27,14 @@ export function installFilmPrefetch(root = document) {
   // A touch or a click is a near-certain open: always fetched.
   const onDown = (e) => {
     const el = target(e);
-    if (el) prefetchFilm(el.dataset.filmId);
+    if (el) prefetchFilm(el.dataset.filmId, posterOf(el));
   };
   // A mouse resting on a card for a moment is likely to click it.
   const onOver = (e) => {
     if (e.pointerType !== "mouse" || saveData) return;
     clearTimeout(timer);
     const el = target(e);
-    if (el) timer = setTimeout(() => prefetchFilm(el.dataset.filmId), 90);
+    if (el) timer = setTimeout(() => prefetchFilm(el.dataset.filmId, posterOf(el)), 90);
   };
   const onOut = () => clearTimeout(timer);
   root.addEventListener("pointerdown", onDown, { capture: true, passive: true });

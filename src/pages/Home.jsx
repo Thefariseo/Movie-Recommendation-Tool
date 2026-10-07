@@ -11,6 +11,7 @@ import RecommendationList from "../components/RecommendationList";
 import { useSignals } from "../utils/signals";
 import { onboardingSkipped } from "../utils/onboarding";
 import { hasSeeds } from "../../shared/onboarding.js";
+import useAmbientGlow from "../hooks/useAmbientGlow";
 // Guests' picks are computed in the browser; members' come from the server,
 // so the in-browser recommender is only downloaded when a guest needs it.
 const ForYouSection = lazyPage(() => import("../components/ForYouSection"));
@@ -30,6 +31,8 @@ export default function Home() {
   // A newcomer with nothing rated first makes a few quick choices.
   const onboarding = finished || (!watched.some((m) => Number(m.rated) > 0) && !seeded && !skipped);
   const hasTaste = watched.length > 0 || watchlist.length > 0 || seeded;
+  // The page glows in the colours of the film in the middle of the screen.
+  useAmbientGlow();
   return (
     <main className="discover-page">
       <div className="discovery-heading">

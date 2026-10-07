@@ -74,6 +74,8 @@ function ModalRoot({ movie, onClose }) {
       className="fixed inset-0 z-[100] overflow-y-auto bg-black/75 backdrop-blur-sm focus:outline-none"
       onClick={onClose}
     >
+      {/* The film's own light behind its sheet (src/utils/ambient.js). */}
+      <div className="film-overlay-light" aria-hidden="true" />
       {/* Centre vertically; scrollable on small screens */}
       <div className="film-sheet-wrap flex min-h-full items-center justify-center p-4">
         <Suspense fallback={<div className="h-64 w-full max-w-2xl animate-pulse rounded-2xl bg-white/10" role="status" aria-label="Opening the film" />}>

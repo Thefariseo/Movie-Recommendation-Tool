@@ -82,7 +82,8 @@ function AppContent() {
         <WatchedProvider>
           <WatchlistProvider>
             <ModalProvider>
-                              <div className="min-h-screen bg-[rgb(var(--color-bg))] text-[rgb(var(--color-fg))]">
+                              {/* No background of its own: the body's shows, with the ambient light (src/utils/ambient.js) between them. */}
+                              <div className="min-h-screen text-[rgb(var(--color-fg))]">
                   <TopProgress />
                   <Navbar />
                   <div id="page-content" tabIndex={-1}>

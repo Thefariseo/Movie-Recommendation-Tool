@@ -46,19 +46,10 @@ module.exports = {
         },
         // The accent is PANTONE 19-1650 TCX Biking Red (#77212E); the existing
         // indigo classes take it on.
-        indigo: {
-          50: '#fbf1f2',
-          100: '#f5e1e3',
-          200: '#ebc2c7',
-          300: '#db96a0',
-          400: '#c05a69',
-          500: '#9a2e3e',
-          600: '#77212e',
-          700: '#611b26',
-          800: '#4a151d',
-          900: '#341014',
-          950: '#1f090c'
-        },
+        indigo: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+          // Variables (src/index.css), so a film's sheet can lay its own colour
+          // on the same scale (src/utils/filmColor.js).
+          .map((step) => [step, `rgb(var(--accent-${step}) / <alpha-value>)`])),
         // Pure neutral greys, without the blue cast of slate.
         slate: {
           50: '#f7f7f7',
