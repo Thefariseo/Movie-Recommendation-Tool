@@ -149,3 +149,26 @@ test('a night reads without its wild cards, and says how many there are', async 
   assert.equal(res.odds.wildcard, undefined, 'not even their ids are sent before the draw');
   assert.deepEqual(res.odds.chance.map(o => o.id), [10, 20]);
 });
+
+import { nightExpired } from '../shared/tonight.js';
+const ago = h => new Date(Date.now() - h * 3600_000).toISOString();
+test('an open night expires two days after its creation or its latest vote; a decided one never does', () => {
+  assert(!nightExpired({ status: 'open', created_at: ago(47) }));
+  assert(nightExpired({ status: 'open', created_at: ago(49) }));
+  assert(!nightExpired({ status: 'open', created_at: ago(80) }, [{ updated_at: ago(20) }]), 'a recent vote keeps it alive');
+  assert(!nightExpired({ status: 'decided', created_at: ago(200) }));
+});
+test('an expired night is left out of the list, and cannot be voted on or decided', async () => {
+  const stale = { ...ballot(), created_at: ago(72) };
+  db({ night: stale });
+  const list = await execute(new Request('https://umbrify.test/api/tonight', { headers: { Cookie: 'umbrify_access=valid' } }), tonight);
+  assert.deepEqual((await list.json()).nights, []);
+  const read = await execute(new Request(`https://umbrify.test/api/tonight?id=${stale.id}`, { headers: { Cookie: 'umbrify_access=valid' } }), tonight);
+  assert.equal((await read.json()).night.expired, true);
+  assert.equal((await execute(request({ action: 'vote', id: stale.id, movie_id: 10, vote: 2 }), tonight)).status, 410);
+  assert.equal((await execute(request({ action: 'decide', id: stale.id, mode: 'chance' }), tonight)).status, 410);
+  const fresh = { ...ballot(), created_at: ago(3) };
+  db({ night: fresh });
+  const listed = await execute(new Request('https://umbrify.test/api/tonight', { headers: { Cookie: 'umbrify_access=valid' } }), tonight);
+  assert.equal((await listed.json()).nights.length, 1);
+});

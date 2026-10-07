@@ -28,9 +28,11 @@ test('the bell lists a night waiting for my vote, a decided night, a new followe
     tonight_sessions: () => [
       { id: 'n1', host: B, members: [A, B], status: 'open', films: [{ id: 1, title: 'Alien' }, { id: 2, title: 'Heat' }, { id: 3, title: 'Ran', reserve: true }], created_at: hours(1) },
       { id: 'n2', host: C, members: [A, C], status: 'open', films: [{ id: 4 }], created_at: hours(2) },
+      // Nobody answered for two days: it has expired and asks for nothing.
+      { id: 'n4', host: C, members: [A, C], status: 'open', films: [{ id: 5 }], created_at: hours(60) },
       { id: 'n3', host: A, members: [A, B], status: 'decided', winner: 2, films: [{ id: 2, title: 'Heat', poster_path: '/h.jpg' }], created_at: hours(30), decided_at: hours(5) }
     ],
-    tonight_votes: () => [{ session_id: 'n2' }],
+    tonight_votes: () => [{ session_id: 'n2', user_id: A, updated_at: hours(2) }, { session_id: 'n4', user_id: C, updated_at: hours(50) }],
     follows: (q) => (q.get('followed_id') ? [{ follower_id: C, created_at: hours(3) }] : [{ followed_id: B }]),
     user_movies: () => [{ user_id: B, movie_id: 9, movie: { title: 'Tokyo Story', poster_path: '/t.jpg' }, rating: 10, updated_at: hours(8) }],
     profiles: () => [{ id: B, display_name: 'Bea' }, { id: C, display_name: 'Carlo' }]

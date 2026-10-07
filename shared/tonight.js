@@ -164,3 +164,20 @@ export function drawWinner(odds, random) {
   }
   return odds.at(-1)?.id ?? null;
 }
+
+// An open movie night nobody answers goes stale: two days after its last sign
+// of life (its creation or the latest vote) it expires, leaves the lists and
+// the bell, and can no longer be voted on or decided.
+export const NIGHT_EXPIRES_MS = 2 * 86_400_000;
+/** When an open night expires, from its creation and its votes' updated_at (null when neither is known). */
+export function nightExpiresAt(night, votes = []) {
+  const last = Math.max(Date.parse(night.created_at) || 0, ...votes.map(v => Date.parse(v.updated_at) || 0));
+  return last ? new Date(last + NIGHT_EXPIRES_MS) : null;
+}
+export const nightExpired = (night, votes = [], now = Date.now()) => night.status === 'open' && (nightExpiresAt(night, votes)?.getTime() ?? Infinity) <= now;
+/** Open nights' latest votes, as session id -> [{ updated_at }]. */
+export function votesBySession(votes) {
+  const map = new Map();
+  for (const v of votes) (map.get(v.session_id) || map.set(v.session_id, []).get(v.session_id)).push(v);
+  return map;
+}
