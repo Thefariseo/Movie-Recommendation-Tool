@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, m as motion } from "framer-motion";
-import { ArrowLeft, Check, Copy, Dices, Heart, LayoutGrid, Moon, Scale, Sparkles, ThumbsDown, ThumbsUp, Trophy, Shuffle } from "lucide-react";
+import { ArrowLeft, Check, Copy, Crown, Dices, Heart, LayoutGrid, Moon, Scale, Sparkles, ThumbsDown, ThumbsUp, Trophy, Shuffle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useModal } from "../hooks/useModal";
 import { backend } from "../utils/backend";
 import { haptic, reducedMotion } from "../utils/motion";
 import { DRAWS } from "../../shared/tonight.js";
 import FilmTitle from "../components/FilmTitle";
+import UserAvatar from "../components/UserAvatar";
 
 const CHOICES = [
   { vote: -1, label: "No", icon: ThumbsDown, tone: "hover:border-rose-400 hover:text-rose-600", on: "border-rose-500 bg-rose-500 text-white" },
@@ -189,13 +190,13 @@ export default function NightPage() {
   if (!state) return <main className="mx-auto max-w-xl p-6">{error ? <p role="alert" className="text-sm text-red-500">{error}</p> : <p className="text-sm text-slate-500">Loading the ballot…</p>}</main>;
 
   const { night, votes, people, ranking, odds = {} } = state;
-  const name = (uid) => people.find((p) => p.id === uid)?.display_name || "Someone";
+  const person = (uid) => people.find((p) => p.id === uid);
+  const name = (uid) => person(uid)?.display_name || "Someone";
   const mine = (movieId) => votes.find((v) => v.user_id === user.id && Number(v.movie_id) === movieId)?.vote;
   const voted = new Set(votes.map((v) => v.user_id));
   const favoured = Object.entries(night.weights || {}).filter(([, w]) => w > 1);
   const decided = night.status === "decided";
   const winner = decided && night.films.find((f) => f.id === Number(night.winner));
-  const score = Object.fromEntries(ranking.map((r) => [r.id, r]));
   const draw = night.draw;
   const drawn = draw && draw.mode !== "best";
   const winnerOdds = drawn ? draw.odds?.find((o) => Number(o.id) === Number(night.winner))?.p : null;
@@ -205,19 +206,40 @@ export default function NightPage() {
   const preview = odds[mode] || [];
   const allVoted = night.films.every((f) => mine(f.id));
   const summary = decided || (showAll ?? allVoted);
+  // The film the group wants most so far, once anyone has voted.
+  const leader = !decided && votes.length ? [...ranking].sort((a, b) => b.score - a.score)[0]?.id : null;
+  const theirVotes = (fid) => votes.filter((v) => Number(v.movie_id) === Number(fid) && v.vote);
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 px-4 pb-24 pt-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="space-y-3">
           <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> MOVIE NIGHT</p>
           <h1 className="font-display text-2xl sm:text-3xl">{decided ? "Tonight you are watching…" : "Vote for tonight's film"}</h1>
-          <p className="mt-1 text-sm text-slate-500">{night.members.map((m) => `${name(m)}${voted.has(m) ? " ✓" : ""}`).join(" · ")}</p>
+          {/* Who is in, and who has voted. */}
+          <ul className="flex flex-wrap gap-3" aria-label="Who is watching">
+            {night.members.map((m) => (
+              <li key={m} className="flex items-center gap-2">
+                <span className="relative">
+                  <UserAvatar user={person(m)} name={name(m)} className="bell-avatar" />
+                  {voted.has(m) && <Check className="night-voted" aria-hidden="true" />}
+                </span>
+                <span className="text-sm leading-tight">
+                  {m === user.id ? <span className="block font-medium">You</span> : <span className="block font-medium" translate="no">{name(m)}</span>}
+                  {!decided && <span className="block text-xs text-slate-500">{voted.has(m) ? "Has voted" : "Still to vote"}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
         {!decided && (
           <button className="account-secondary flex items-center gap-1.5" onClick={async () => {
-            try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard may be blocked */ }
-          }}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Link copied" : "Copy link for friends"}</button>
+            const url = window.location.href;
+            try {
+              if (navigator.share) await navigator.share({ title: "Umbrify", text: "Vote for tonight's film", url });
+              else { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+            } catch { /* closed, or the clipboard is blocked */ }
+          }}>{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Link copied" : "Invite to vote"}</button>
         )}
       </header>
 
@@ -258,7 +280,8 @@ export default function NightPage() {
           <article key={f.id} className={`account-panel flex gap-3 ${decided && f.id !== Number(night.winner) ? "opacity-50" : ""}`}>
             <button type="button" data-film-id={f.id} onClick={() => open(f)} className="w-20 shrink-0"><img className="rounded-md" alt={f.title} src={f.poster_path ? `https://image.tmdb.org/t/p/w185${f.poster_path}` : "/placeholder_poster.svg"} /></button>
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="font-semibold leading-tight">{f.title} <span className="text-xs font-normal text-slate-500">{f.release_date?.slice(0, 4)}</span></p>
+              {leader === f.id && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"><Crown className="h-3 w-3" /> Leading</span>}
+              <p className="font-semibold leading-tight" translate="no">{f.title} <span className="text-xs font-normal text-slate-500">{f.release_date?.slice(0, 4)}</span></p>
               {f._reason && <p className="line-clamp-2 text-xs text-slate-500">{f._reason}</p>}
               {f.providers?.length > 0 && <p className="text-xs text-slate-500">On {f.providers.map((p) => p.name).join(", ")}</p>}
               {!decided ? (
@@ -273,7 +296,21 @@ export default function NightPage() {
                   })}
                 </div>
               ) : null}
-              <p className="text-[11px] text-slate-400">{score[f.id]?.voters || 0} votes · score {score[f.id]?.score ?? 0}</p>
+              {/* Everyone's answer on this film. */}
+              {theirVotes(f.id).length > 0 && (
+                <ul className="flex flex-wrap gap-1.5" aria-label="Votes">
+                  {theirVotes(f.id).map((v) => {
+                    const c = CHOICES.find((x) => x.vote === v.vote);
+                    const Icon = c?.icon;
+                    return (
+                      <li key={v.user_id} className={`night-vote night-vote-${v.vote < 0 ? "no" : v.vote > 1 ? "yes" : "fine"}`} title={`${name(v.user_id)}: ${c?.label}`}>
+                        <UserAvatar user={person(v.user_id)} name={name(v.user_id)} className="night-vote-avatar" />
+                        {Icon && <Icon className="h-3 w-3" aria-hidden="true" />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </article>
         ))}

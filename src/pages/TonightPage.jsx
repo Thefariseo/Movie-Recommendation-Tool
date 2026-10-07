@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AnimatePresence, m as motion } from "framer-motion";
 import {
-  ArrowLeft, ArrowRight, BookOpen, Brain, Check, Clock, Ghost, Heart, Infinity as NoLimit,
-  Moon, Mountain, Pencil, Smile, Sparkles, Timer, Tv, Users, Zap,
+  ArrowRight, BookOpen, Brain, Check, Clock, Ghost, Heart, Infinity as NoLimit,
+  Moon, Mountain, Smile, Sparkles, Timer, Tv, Users, Zap,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { backend } from "../utils/backend";
@@ -40,30 +39,6 @@ const MOOD_ICONS = { light: Smile, tense: Zap, mindbending: Brain, moving: Heart
 const MOOD_HINTS = { light: "Comedies, animation, family", tense: "Thrillers and crime", mindbending: "Sci-fi and mysteries", moving: "Drama and romance", epic: "Action, adventure, fantasy", dark: "Horror and dark thrillers", curious: "Documentaries and history" };
 const TIME_ICONS = { short: Timer, standard: Clock, long: NoLimit };
 
-const STEPS = [
-  { key: "friends", title: "Who's watching with you?", hint: "Pick up to three friends. Each votes from their own phone." },
-  { key: "mood", title: "What are you in the mood for?", hint: "One tap and you're on to the next question." },
-  { key: "time", title: "How much time do you have?", hint: "Films longer than this are left out." },
-  { key: "where", title: "Where will you watch?", hint: "Only films on these services, or any if you pick none." },
-  { key: "avoid", title: "Anything you'd rather avoid?", hint: "Optional. Leave it as it is and carry on." },
-  { key: "review", title: "Ready when you are", hint: "Check the answers, then everyone votes." },
-];
-
-// A big answer tile: one choice of a question.
-function Tile({ active, onClick, icon: Icon, title, hint, children }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={active}
-      className={`group flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${active ? "border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500 dark:bg-indigo-950/40" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"}`}>
-      {children || (Icon && <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 dark:bg-slate-800 dark:text-slate-300"}`}><Icon className="h-5 w-5" /></span>)}
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold">{title}</span>
-        {hint && <span className="block text-xs text-slate-500">{hint}</span>}
-      </span>
-      {active && <Check className="h-5 w-5 shrink-0 text-indigo-600" />}
-    </button>
-  );
-}
-
 const Chip = ({ active, children, ...props }) => (
   <button type="button" aria-pressed={active}
     className={`rounded-full border px-3 py-1.5 text-sm transition ${active ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-200 hover:border-indigo-300 dark:border-slate-700"}`} {...props}>
@@ -80,12 +55,41 @@ function Toggle({ checked, onChange, children }) {
   );
 }
 
+// A choice among a few, as one strip of buttons (the time the group has).
+function Segmented({ options, value, onChange, label }) {
+  return (
+    <div className="tonight-segmented" role="radiogroup" aria-label={label}>
+      {options.map(([key, title, hint, Icon]) => (
+        <button key={key} type="button" role="radio" aria-checked={value === key} onClick={() => onChange(key)}>
+          {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+          <span className="font-semibold">{title}</span>
+          {hint && <span className="text-[11px] opacity-70">{hint}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// One part of the night's set-up, numbered so the order reads at a glance.
+function Part({ n, title, hint, aside, children }) {
+  return (
+    <section className="space-y-3" aria-labelledby={`tonight-${n}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id={`tonight-${n}`} className="flex items-center gap-2 text-base font-semibold">
+          <span className="tonight-step" aria-hidden="true">{n}</span>{title}
+        </h2>
+        {aside}
+      </div>
+      {hint && <p className="-mt-1 text-sm text-slate-500">{hint}</p>}
+      {children}
+    </section>
+  );
+}
+
 export default function TonightPage() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const place = region(profile);
-  const [step, setStep] = useState(0);
-  const [direction, setDirection] = useState(1);
   const [answers, setAnswersState] = useState(ANSWERS.read);
   const [options, setOptionsState] = useState(OPTIONS.read);
   const [services, setServices] = useState(readServices);
@@ -97,6 +101,7 @@ export default function TonightPage() {
   const [nights, setNights] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [invited, setInvited] = useState(false);
 
   const setAnswer = (key, value) => setAnswersState((a) => { const next = { ...a, [key]: value }; ANSWERS.save(next); return next; });
   const setOption = (key, value) => setOptionsState((o) => { const next = { ...o, [key]: value }; OPTIONS.save(next); return next; });
@@ -116,16 +121,12 @@ export default function TonightPage() {
     backend("tonight").then((d) => setNights(d.nights.filter((n) => n.status === "open"))).catch(() => {});
   }, [user?.id]);
 
-  const go = (to) => { setDirection(to > step ? 1 : -1); setStep(Math.max(0, Math.min(STEPS.length - 1, to))); };
-  const next = () => go(step + 1);
-  // A single choice moves on by itself, after a beat to see it selected.
-  const choose = (key, value) => { setAnswer(key, value); setTimeout(() => go(STEPS.findIndex((s) => s.key === key) + 1), 220); };
   const toggleService = (id) => {
     const list = services.includes(id) ? services.filter((s) => s !== id) : [...services, id];
     setServices(list);
     saveServices(list);
   };
-  const canContinue = STEPS[step].key !== "friends" || chosen.length > 0;
+  const toggleFriend = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length < 3 ? [...c, id] : c));
 
   const startVote = async () => {
     setBusy(true);
@@ -138,6 +139,14 @@ export default function TonightPage() {
     } finally {
       setBusy(false);
     }
+  };
+  // Someone without friends here yet can ask one to join.
+  const invite = async () => {
+    const url = window.location.origin;
+    try {
+      if (navigator.share) await navigator.share({ title: "Umbrify", text: "Let's pick tonight's film together on Umbrify", url });
+      else { await navigator.clipboard.writeText(url); setInvited(true); }
+    } catch { /* closed */ }
   };
 
   const serviceNames = useMemo(() => catalogue.filter((c) => services.includes(c.provider_id)).map((c) => c.provider_name), [catalogue, services]);
@@ -167,197 +176,169 @@ export default function TonightPage() {
     );
   }
 
-  const current = STEPS[step];
-  const summary = [
-    { step: 0, label: "Watching", value: friendNames.length ? friendNames.join(", ") : "Nobody yet" },
-    { step: 1, label: "Mood", value: answers.mood ? MOODS[answers.mood]?.label : "Surprise us" },
-    { step: 2, label: "Time", value: TIMES[answers.time]?.label || "No limit" },
-    { step: 3, label: "Where", value: serviceNames.length ? serviceNames.join(", ") : "Any service" },
-    { step: 4, label: "Also", value: extras.length ? extras.join(" · ") : "No limits" },
-  ];
+  const noFriends = friends !== null && friends.length === 0;
+  // Each part its own words, so each is translated.
+  const recap = [friendNames.length ? `With ${friendNames.join(", ")}` : null, answers.mood ? MOODS[answers.mood]?.label : "Surprise us", TIMES[answers.time]?.label]
+    .filter(Boolean).flatMap((part, i) => (i ? [" · ", <span key={i}>{part}</span>] : [<span key={i}>{part}</span>]));
 
   return (
-    <main className="mx-auto max-w-2xl space-y-5 px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-2xl space-y-6 px-4 pb-44 pt-6 md:pb-32">
       <header className="space-y-1">
         <p className="eyebrow flex items-center gap-1.5"><Moon className="h-3.5 w-3.5" /> TONIGHT WITH FRIENDS</p>
         <h1 className="font-display text-2xl sm:text-3xl">One film. Your friends. A shared movie night.</h1>
+        <p className="text-sm text-slate-500">Choose who is watching and what kind of night it is: Umbrify picks five films for the group and everyone votes from their own phone.</p>
       </header>
 
       {nights.length > 0 && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Movie nights waiting for your vote</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <section className="space-y-2" aria-label="Movie nights waiting for your vote">
+          <p className="text-sm font-semibold">Movie nights waiting for your vote</p>
+          <div className="space-y-2">
             {nights.map((n) => (
-              <Link key={n.id} to={`/tonight/${n.id}`} className="rounded-full bg-white px-3 py-1 text-sm font-medium text-amber-900 shadow-sm hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-100">
-                {n.films.filter((f) => !f.reserve).length} films · {new Date(n.created_at).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+              <Link key={n.id} to={`/tonight/${n.id}`} className="tonight-waiting">
+                <Moon className="h-5 w-5 shrink-0 text-amber-500" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">{`${n.films.filter((f) => !f.reserve).length} films to vote on`}</span>
+                  <span className="block text-xs text-slate-500">{new Date(n.created_at).toLocaleDateString(undefined, { weekday: "long", hour: "2-digit", minute: "2-digit" })}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 dark:text-indigo-300">Vote <ArrowRight className="h-4 w-4" /></span>
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      <section className="account-panel space-y-5 overflow-hidden">
-        {/* Progress: one segment per question, done ones clickable. */}
-        <div className="space-y-2">
-          <div className="flex gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-label="Question">
-            {STEPS.map((s, i) => (
-              <button key={s.key} type="button" onClick={() => i < step && go(i)} disabled={i >= step} aria-label={`Back to: ${s.title}`}
-                className={`h-1.5 flex-1 rounded-full transition ${i <= step ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"} ${i < step ? "cursor-pointer hover:bg-indigo-400" : ""}`} />
-            ))}
-          </div>
-          <p className="text-xs text-slate-500">Question {step + 1} of {STEPS.length}</p>
+      {friends === null ? (
+        <div className="space-y-3" role="status" aria-label="Loading your friends…">
+          <div className="skeleton h-5 w-40" />
+          <div className="flex gap-4">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 w-16 rounded-full" />)}</div>
         </div>
-
-        <AnimatePresence mode="wait" initial={false} custom={direction}>
-          <motion.div key={current.key} custom={direction}
-            initial={{ opacity: 0, x: 32 * direction }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -32 * direction }}
-            transition={{ duration: 0.18 }} className="space-y-4">
-            <div>
-              <h2 className="section-title">{current.title}</h2>
-              <p className="text-sm text-slate-500">{current.hint}</p>
+      ) : noFriends ? (
+        <section className="account-panel space-y-3 text-center">
+          <Users className="mx-auto h-8 w-8 text-indigo-500" />
+          <h2 className="text-lg font-semibold">Movie nights are better together</h2>
+          <p className="text-sm text-slate-500">Movie nights are for friends who follow you back and share their activity.</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link className="account-button" to="/friends">Find friends</Link>
+            <button type="button" className="account-secondary" onClick={invite}>{invited ? "Link copied" : "Invite a friend"}</button>
+          </div>
+        </section>
+      ) : (
+        <>
+          <Part n={1} title="Who's watching with you?" hint="Pick up to three friends. Each votes from their own phone."
+            aside={<span className="text-xs text-slate-500">{`${chosen.length}/3`}</span>}>
+            <div className="tonight-friends">
+              {friends.map((f) => {
+                const on = chosen.includes(f.id);
+                const full = !on && chosen.length >= 3;
+                return (
+                  <button key={f.id} type="button" aria-pressed={on} disabled={full} onClick={() => toggleFriend(f.id)} className="tonight-friend">
+                    <span className="relative">
+                      <UserAvatar user={f} name={f.display_name} className="tonight-avatar" />
+                      {on && <Check className="tonight-friend-check" aria-hidden="true" />}
+                    </span>
+                    <span className="max-w-full truncate text-xs font-medium" translate="no">{f.display_name}</span>
+                  </button>
+                );
+              })}
             </div>
+            {chosen.length >= 3 && <p className="text-xs text-slate-500">The group is full</p>}
+          </Part>
 
-            {current.key === "friends" && (
-              friends === null ? <p className="text-sm text-slate-500" role="status">Loading your friends…</p>
-                : friends.length ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {friends.map((f) => {
-                      const on = chosen.includes(f.id);
-                      return (
-                        <Tile key={f.id} active={on} title={f.display_name} hint={on ? "Watching tonight" : chosen.length >= 3 ? "The group is full" : "Tap to invite"}
-                          onClick={() => setChosen((c) => (on ? c.filter((x) => x !== f.id) : c.length < 3 ? [...c, f.id] : c))}>
-                          <UserAvatar user={f} name={f.display_name} className="friend-avatar" />
-                        </Tile>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
-                    <Users className="mb-2 h-5 w-5 text-indigo-500" />
-                    Movie nights are for friends who follow you back and share their activity.{" "}
-                    <Link className="font-medium text-indigo-600 hover:underline" to="/friends">Find friends</Link>
-                  </div>
-                )
-            )}
+          <Part n={2} title="What are you in the mood for?">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[[null, "Surprise us", Sparkles, "Whatever suits the group best"], ...Object.entries(MOODS).map(([key, m]) => [key, m.label, MOOD_ICONS[key], MOOD_HINTS[key]])].map(([key, label, Icon, hint]) => {
+                const on = answers.mood === key || (!answers.mood && key === null);
+                return (
+                  <button key={key || "any"} type="button" aria-pressed={on} onClick={() => setAnswer("mood", key)} className="tonight-mood" title={hint}>
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    <span className="text-sm font-semibold leading-tight">{label}</span>
+                    <span className="text-[11px] leading-snug opacity-70">{hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Part>
 
-            {current.key === "mood" && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Tile active={!answers.mood} icon={Sparkles} title="Surprise us" hint="Whatever suits the group best" onClick={() => choose("mood", null)} />
-                {Object.entries(MOODS).map(([key, m]) => (
-                  <Tile key={key} active={answers.mood === key} icon={MOOD_ICONS[key]} title={m.label} hint={MOOD_HINTS[key]} onClick={() => choose("mood", key)} />
-                ))}
+          <Part n={3} title="How much time do you have?">
+            <Segmented label="How much time do you have?" value={answers.time} onChange={(v) => setAnswer("time", v)}
+              options={Object.entries(TIMES).map(([key, t]) => [key, t.label, null, TIME_ICONS[key]])} />
+          </Part>
+
+          <Part n={4} title="Where will you watch?" hint={serviceNames.length ? `On ${serviceNames.join(", ")}` : `Any service in ${place}`}>
+            {catalogue.length ? (
+              <div className="tonight-services">
+                {catalogue.map((p) => {
+                  const on = services.includes(p.provider_id);
+                  return (
+                    <button key={p.provider_id} type="button" onClick={() => toggleService(p.provider_id)} title={p.provider_name} aria-pressed={on} aria-label={p.provider_name}>
+                      <img alt="" src={`https://image.tmdb.org/t/p/w92${p.logo_path}`} />
+                      {on && <Check className="tonight-service-check" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            ) : <p className="text-sm text-slate-500"><Tv className="mr-1 inline h-4 w-4" />Streaming services could not be loaded; any service will do.</p>}
+            <Toggle checked={options.rent} onChange={(v) => setOption("rent", v)}>Also films to rent or buy on these services</Toggle>
+          </Part>
 
-            {current.key === "time" && (
-              <div className="grid gap-2">
-                {Object.entries(TIMES).map(([key, t]) => (
-                  <Tile key={key} active={answers.time === key} icon={TIME_ICONS[key]} title={t.label} hint={t.max ? `Films up to ${t.max} minutes` : "Any length, even a long epic"} onClick={() => choose("time", key)} />
-                ))}
-              </div>
-            )}
-
-            {current.key === "where" && (
-              <div className="space-y-3">
-                {catalogue.length ? (
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                    {catalogue.map((p) => {
-                      const on = services.includes(p.provider_id);
-                      return (
-                        <button key={p.provider_id} type="button" onClick={() => toggleService(p.provider_id)} title={p.provider_name} aria-pressed={on}
-                          className={`relative rounded-xl p-1 ring-2 transition ${on ? "ring-indigo-500" : "opacity-60 ring-transparent hover:opacity-100"}`}>
-                          <img className="w-full rounded-lg" style={{ aspectRatio: "1 / 1" }} alt={p.provider_name} src={`https://image.tmdb.org/t/p/w92${p.logo_path}`} />
-                          {on && <Check className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-indigo-600 p-0.5 text-white" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : <p className="text-sm text-slate-500"><Tv className="mr-1 inline h-4 w-4" />Streaming services could not be loaded; any service will do.</p>}
-                <p className="text-xs text-slate-500">{serviceNames.length ? `On ${serviceNames.join(", ")}` : `Any service in ${place}`}</p>
-                <Toggle checked={options.rent} onChange={(v) => setOption("rent", v)}>Also films to rent or buy on these services</Toggle>
-              </div>
-            )}
-
-            {current.key === "avoid" && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
+          <details className="tonight-more">
+            <summary>
+              <span className="font-semibold">More options</span>
+              <span className="min-w-0 flex-1 truncate text-right text-xs text-slate-500">{extras.length ? extras.join(" · ") : "No limits"}</span>
+            </summary>
+            <div className="space-y-4 pt-3">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-500">Anything you'd rather avoid?</p>
+                <div className="flex flex-wrap gap-1.5">
                   {Object.entries(AVOIDABLE).map(([id, name]) => {
                     const on = options.avoid.includes(Number(id));
                     return <Chip key={id} active={on} onClick={() => setOption("avoid", on ? options.avoid.filter((g) => g !== Number(id)) : [...options.avoid, Number(id)])}>{on ? "✕ " : ""}{name}</Chip>;
                   })}
                 </div>
-                <Toggle checked={options.gentle} onChange={(v) => setOption("gentle", v)}>A gentle night: no horror, thrillers, crime or war</Toggle>
-                <details className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                  <summary className="cursor-pointer text-sm font-semibold">More options</summary>
-                  <div className="mt-3 space-y-3">
-                    {[
-                      ["Era", "era", ERAS], ["Language", "language", LANGUAGES], ["Known or unknown", "popularity", POPULARITY],
-                    ].map(([label, key, table]) => (
-                      <div key={key} className="space-y-1.5">
-                        <p className="text-xs font-semibold text-slate-500">{label}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <Chip active={!options[key]} onClick={() => setOption(key, null)}>Any</Chip>
-                          {Object.entries(table).map(([k, v]) => <Chip key={k} active={options[key] === k} onClick={() => setOption(key, k)}>{v.label}</Chip>)}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-slate-500">Rated at least (IMDb and Rotten Tomatoes)</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Chip active={!options.minRating} onClick={() => setOption("minRating", null)}>Any</Chip>
-                        {MIN_RATINGS.map((r) => <Chip key={r} active={options.minRating === r} onClick={() => setOption("minRating", r)}>{r}+</Chip>)}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-slate-500">A look (colour and light)</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Chip active={!answers.look} onClick={() => setAnswer("look", null)}>Any</Chip>
-                        {Object.entries(LOOKS).map(([k, l]) => <Chip key={k} active={answers.look === k} onClick={() => setAnswer("look", k)}>{l.label}</Chip>)}
-                      </div>
-                    </div>
-                    <Toggle checked={options.watchlistOnly} onChange={(v) => setOption("watchlistOnly", v)}>Only from the group's watchlists</Toggle>
+              </div>
+              <Toggle checked={options.gentle} onChange={(v) => setOption("gentle", v)}>A gentle night: no horror, thrillers, crime or war</Toggle>
+              {[
+                ["Era", "era", ERAS], ["Language", "language", LANGUAGES], ["Known or unknown", "popularity", POPULARITY],
+              ].map(([label, key, table]) => (
+                <div key={key} className="space-y-1.5">
+                  <p className="text-xs font-semibold text-slate-500">{label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Chip active={!options[key]} onClick={() => setOption(key, null)}>Any</Chip>
+                    {Object.entries(table).map(([k, v]) => <Chip key={k} active={options[key] === k} onClick={() => setOption(key, k)}>{v.label}</Chip>)}
                   </div>
-                </details>
+                </div>
+              ))}
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-500">Rated at least (IMDb and Rotten Tomatoes)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip active={!options.minRating} onClick={() => setOption("minRating", null)}>Any</Chip>
+                  {MIN_RATINGS.map((r) => <Chip key={r} active={options.minRating === r} onClick={() => setOption("minRating", r)}>{r}+</Chip>)}
+                </div>
               </div>
-            )}
-
-            {current.key === "review" && (
-              <div className="space-y-3">
-                <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
-                  {summary.map((row) => (
-                    <li key={row.label} className="flex items-center gap-3 px-4 py-3">
-                      <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">{row.label}</span>
-                      <span className="min-w-0 flex-1 text-sm">{row.value}</span>
-                      <button type="button" onClick={() => go(row.step)} className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800" aria-label={`Change ${row.label}`}><Pencil className="h-3.5 w-3.5" /></button>
-                    </li>
-                  ))}
-                </ul>
-                <button className="account-button flex w-full items-center justify-center gap-2 py-3 text-base" disabled={busy || !chosen.length} onClick={startVote}>
-                  {busy ? "Finding films for everyone…" : <>Start the vote <ArrowRight className="h-4 w-4" /></>}
-                </button>
-                <p className="text-center text-xs text-slate-500">Umbrify picks five films for the whole group. Whoever compromised in your recent movie nights gets a little more say.</p>
-                {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-500">A look (colour and light)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Chip active={!answers.look} onClick={() => setAnswer("look", null)}>Any</Chip>
+                  {Object.entries(LOOKS).map(([k, l]) => <Chip key={k} active={answers.look === k} onClick={() => setAnswer("look", k)}>{l.label}</Chip>)}
+                </div>
               </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+              <Toggle checked={options.watchlistOnly} onChange={(v) => setOption("watchlistOnly", v)}>Only from the group's watchlists</Toggle>
+            </div>
+          </details>
 
-        {current.key !== "review" && (
-          <div className="flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-            <button type="button" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 disabled:invisible dark:hover:text-slate-200" onClick={() => go(step - 1)} disabled={step === 0}>
-              <ArrowLeft className="h-4 w-4" /> Back
-            </button>
-            <button type="button" className="account-button inline-flex items-center gap-1.5" onClick={next} disabled={!canContinue}>
-              {current.key === "avoid" ? "Review" : "Next"} <ArrowRight className="h-4 w-4" />
-            </button>
+          {/* Always in reach: what the night is so far, and the button to start it. */}
+          <div className="tonight-bar">
+            <div className="mx-auto flex max-w-2xl items-center gap-3 px-4">
+              <p className="min-w-0 flex-1 text-xs text-slate-600 dark:text-slate-300">
+                {error ? <span role="alert" className="text-red-600">{error}</span> : chosen.length ? <span className="line-clamp-2">{recap}</span> : "Pick at least one friend to start"}
+              </p>
+              <button className="account-button inline-flex shrink-0 items-center gap-1.5" disabled={busy || !chosen.length} onClick={startVote}>
+                {busy ? "Finding films for everyone…" : <>Start the vote <ArrowRight className="h-4 w-4" /></>}
+              </button>
+            </div>
           </div>
-        )}
-        {current.key === "review" && (
-          <button type="button" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" onClick={() => go(step - 1)}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </button>
-        )}
-      </section>
+        </>
+      )}
     </main>
   );
 }
