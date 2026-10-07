@@ -5,12 +5,14 @@ export function setBackendAccount(id) {
 }
 export async function backend(path, data, {
   signal,
-  account = accountId
+  account = accountId,
+  keepalive = false
 } = {}) {
   const publicAuth = path === 'auth' || /^auth\?action=(session|login|signup|recover|google|email-callback)(?:&|$)/.test(path);
   const response = await fetch(`/api/${path}`, {
     credentials: 'same-origin',
     signal,
+    keepalive,
     headers: {
       // Films and explanations come back in the interface language.
       'X-Umbrify-Lang': currentLanguage(),

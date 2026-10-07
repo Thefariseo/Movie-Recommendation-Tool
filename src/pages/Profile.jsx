@@ -19,6 +19,7 @@ import LanguagePicker from "../components/LanguagePicker";
 import IntegrationsPanel from "../components/IntegrationsPanel";
 import ProfileFriends from "../components/ProfileFriends";
 import UserAvatar from "../components/UserAvatar";
+import TasteCardLink from "../components/TasteCardLink";
 const countries = {
   IT: "Italy",
   US: "United States",
@@ -285,6 +286,7 @@ export default function Profile() {
               Explore your film stats <ArrowUpRight size={16} />
             </Link>
           </section>
+          {rated.length >= 5 && <TasteCardLink />}
           {auth.user && <AccountPanel />}
           <section className="account-panel flex flex-wrap items-center justify-between gap-3">
             <div>

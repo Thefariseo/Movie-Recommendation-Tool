@@ -12,7 +12,9 @@ export const AUTH_LIMITS = {
   // Exact films for a Letterboxd import, 25 links a call: about 2,000 films in ten minutes.
   films: [['ip', 80, 600]],
   // Feedback from anyone, signed in or not.
-  feedback: [['ip', 6, 3600]]
+  feedback: [['ip', 6, 3600]],
+  // Anonymous usage counts, sent a few at a time.
+  events: [['ip', 600, 3600]]
 };
 const hash = value => createHash('sha256').update(value).digest('hex');
 

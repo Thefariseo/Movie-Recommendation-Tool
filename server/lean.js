@@ -10,7 +10,8 @@ const VIDEO_TYPES = new Set(['Trailer', 'Teaser']);
 
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o?.[k] !== undefined).map(k => [k, o[k]]));
 const FILM = ['id', 'title', 'original_title', 'release_date', 'poster_path', 'backdrop_path', 'genre_ids', 'vote_average', 'vote_count', 'popularity', 'original_language', 'adult', 'video'];
-const PERSON = ['id', 'name', 'profile_path', 'known_for_department'];
+// original_name: a name TMDB gives in its own script (봉준호) has its Latin spelling there.
+const PERSON = ['id', 'name', 'original_name', 'profile_path', 'known_for_department'];
 
 /** A film in a list (recommendations, a filmography): its facts, not its plot, which no list shows. */
 export const leanListFilm = f => pick(f, FILM);

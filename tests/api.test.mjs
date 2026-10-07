@@ -479,3 +479,25 @@ test('feedback is accepted from a guest, with the page it came from', async () =
   assert.deepEqual(sent, [{ user_id: null, message: 'Love it', page: '/rate', contact: 'me@example.com', lang: 'en' }]);
   assert.equal((await execute(request('social?feedback', { message: 'x' }), social)).status, 400);
 });
+test('usage counts take known event names from anyone, and only an admin reads the summary', async () => {
+  const sent = [];
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes('/rest/v1/events')) { sent.push(JSON.parse(options.body)); return new Response(null, { status: 201 }); }
+    if (String(url).includes('/auth/v1/user')) return json({ id, email: 'Owner@Example.com' });
+    if (String(url).includes('rpc/event_summary')) return json({ visitors: 3 });
+    return json(true);
+  };
+  const result = await execute(request('social?events', { visitor: 'abc12345-guest', events: ['visit', 'hack', 'pick_open'] }), social);
+  assert.equal(result.status, 200);
+  assert.deepEqual(sent, [[{ visitor: 'abc12345-guest', name: 'visit' }, { visitor: 'abc12345-guest', name: 'pick_open' }]]);
+  assert.equal((await execute(request('social?events', { visitor: 'Not Valid!', events: ['visit'] }), social)).status, 400);
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+  process.env.ADMIN_EMAILS = 'someone@else.com';
+  const cookie = { Cookie: 'umbrify_access=token' };
+  assert.equal((await execute(request('social?insights', undefined, cookie), social)).status, 403);
+  process.env.ADMIN_EMAILS = 'owner@example.com';
+  const summary = await execute(request('social?insights&days=7', undefined, cookie), social);
+  assert.equal(summary.status, 200);
+  assert.deepEqual(await summary.json(), { visitors: 3 });
+  delete process.env.ADMIN_EMAILS;
+});

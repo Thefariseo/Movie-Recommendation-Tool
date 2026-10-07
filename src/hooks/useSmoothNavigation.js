@@ -6,7 +6,7 @@ import { transitionKind } from "../utils/pageTransition";
 
 // The app's own pages; anything else (the static privacy and terms pages) is
 // a real page load.
-const APP_PATHS = /^\/($|library|friends|person|list|chat|critic|tonight|season|profile|rate|watchlist|watched|stats)/;
+const APP_PATHS = /^\/($|library|friends|person|list|chat|critic|tonight|season|profile|rate|insights|taste|compare|watchlist|watched|stats)/;
 
 // The elements of the next page that take the place of those a link marks:
 // named only for the moment of the transition, one of each.

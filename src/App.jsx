@@ -17,6 +17,8 @@ import { fadeInImages, installTapFeedback } from "./utils/motion";
 import { installFilmPrefetch } from "./utils/prefetch";
 import { installTilt } from "./utils/tilt";
 import { installFlightOrigin } from "./utils/flight";
+import { installTracking, trackVisit, track } from "./utils/events";
+import useWatched from "@/hooks/useWatched";
 
 // Discover ships with the app; every other page loads when it is first opened.
 const ChatPage = lazyPage(() => import("./pages/ChatPage"));
@@ -37,6 +39,9 @@ const StatsPage = lazyPage(() => import("./pages/StatsPage"));
 const JourneysPage = lazyPage(() => import("./pages/JourneysPage"));
 const MapPage = lazyPage(() => import("./pages/MapPage"));
 const QuickRatePage = lazyPage(() => import("./pages/QuickRatePage"), "/rate");
+const InsightsPage = lazyPage(() => import("./pages/InsightsPage"));
+const TasteCardPage = lazyPage(() => import("./pages/TasteCardPage"));
+const ComparePage = lazyPage(() => import("./pages/ComparePage"));
 
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
 import { WatchedProvider } from "@/hooks/useWatched";
@@ -65,6 +70,8 @@ function AppContent() {
   useEffect(() => installFilmPrefetch(), []);
   useEffect(() => installTilt(), []);
   useEffect(() => installFlightOrigin(), []);
+  // Anonymous counts of what people do (src/utils/events.js).
+  useEffect(() => { trackVisit(); return installTracking(); }, []);
   // Pages wait for the account to be known: rendered as a guest first, they
   // were thrown away and rebuilt a moment later (a flash, and their films
   // fetched twice). A slow answer does not hold the page for long.
@@ -87,6 +94,7 @@ function AppContent() {
         <WatchedProvider>
           <WatchlistProvider>
             <ModalProvider>
+                <Milestones />
                               {/* No background of its own: the body's shows, with the ambient light (src/utils/ambient.js) between them. */}
                               <div className="min-h-screen text-[rgb(var(--color-fg))]">
                   <TopProgress />
@@ -132,6 +140,9 @@ function AppContent() {
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<Profile />} />
                       <Route path="/rate" element={<QuickRatePage />} />
+                      <Route path="/insights" element={<InsightsPage />} />
+                      <Route path="/taste" element={<TasteCardPage />} />
+                      <Route path="/compare" element={<ComparePage />} />
                       {/* 404 */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
@@ -161,4 +172,21 @@ function AppContent() {
     </ToastProvider>
     </MotionConfig></LazyMotion>
   );
+}
+
+// Rating a first film, and a tenth, counted once per browser.
+function Milestones() {
+  const { watched } = useWatched();
+  const rated = watched.filter((m) => Number(m.rated) > 0).length;
+  useEffect(() => {
+    for (const [at, name] of [[1, "rated_1"], [10, "rated_10"]]) {
+      if (rated < at) continue;
+      try {
+        if (localStorage.getItem(`umbrify_${name}`)) continue;
+        localStorage.setItem(`umbrify_${name}`, "1");
+      } catch { /* counted again next visit */ }
+      track(name);
+    }
+  }, [rated]);
+  return null;
 }

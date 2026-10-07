@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { MessageSquareText, X } from "lucide-react";
 import { backend } from "../utils/backend";
 import { currentLanguage } from "../i18n/index.js";
+import { track } from "../utils/events";
 
 /**
  * "Feedback", in the header on every page: a short note to whoever runs
@@ -32,6 +33,7 @@ export default function FeedbackButton() {
     try {
       await backend("social?feedback", { message, contact, page: `${pathname}${search}`.slice(0, 200), lang: currentLanguage() });
       setState("sent");
+      track("feedback_sent");
       setMessage("");
     } catch (err) {
       setError(err.message);

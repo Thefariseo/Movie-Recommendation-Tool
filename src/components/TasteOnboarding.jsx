@@ -7,6 +7,7 @@ import { loadTasteMap } from "../utils/tasteMap";
 import { movieDetails } from "../utils/api";
 import { useAuth } from "../contexts/AuthContext";
 import WelcomePoints from "./WelcomePoints";
+import { track } from "../utils/events";
 import { saveOnboarding } from "../utils/signals";
 import { skipOnboarding } from "../utils/onboarding";
 import { onboardingPool, nextPair, ROUNDS } from "../../shared/onboarding.js";
@@ -80,6 +81,9 @@ export default function TasteOnboarding({ onDone, onSkip, onStage }) {
     if (stage === "done") delete html.dataset.focus;
     else html.dataset.focus = "taste";
     if (stage === "pairs") window.scrollTo({ top: 0, behavior: "instant" });
+    if (stage === "pairs") track("onboarding_start");
+    if (stage === "import") track("import_start");
+    if (stage === "done" && mode === "pairs") track("onboarding_done");
     return () => { delete html.dataset.focus; };
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const chosen = history.filter((h) => h.chosen);
@@ -110,6 +114,7 @@ export default function TasteOnboarding({ onDone, onSkip, onStage }) {
     if (next.filter((h) => h.chosen).length >= ROUNDS) finish(next);
   };
   const skip = () => {
+    track("onboarding_skip");
     skipOnboarding();
     onSkip?.();
   };

@@ -62,8 +62,8 @@ function Hero({ movie }) {
           {(movie._reasonDetail || movie._reason) && <p className="max-w-2xl text-sm leading-relaxed text-slate-200 line-clamp-4">{movie._reasonDetail || movie._reason}</p>}
           <div className="flex flex-wrap gap-2 pt-1">
             <button type="button" data-film-id={movie.id} onClick={() => open(movie)} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"><Info className="h-4 w-4" /> Why, and the trailer</button>
-            <button type="button" onClick={toggle} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold hover:bg-white/25">{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />} {saved ? "On your watchlist" : "Watchlist"}</button>
-            <button type="button" onClick={() => { dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/10"><EyeOff className="h-4 w-4" /> Not for me</button>
+            <button type="button" onClick={toggle} data-track={saved ? undefined : "pick_save"} className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold hover:bg-white/25">{saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />} {saved ? "On your watchlist" : "Watchlist"}</button>
+            <button type="button" data-track="pick_dismiss" onClick={() => { dismissFilm(movie); addToast("Got it — we won't suggest it again", "info"); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/10"><EyeOff className="h-4 w-4" /> Not for me</button>
           </div>
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function PicksShowcase({ movies }) {
   if (!movies.length) return null;
   const [first, ...rest] = movies;
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-picks>
       <Hero movie={first} />
       {rest.length > 0 && (
         <div className="rise stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

@@ -2,6 +2,7 @@
 // Statistics / Analytics dashboard + Cinema Profile
 // =====================================================
 import React, { useMemo, useEffect, useState } from "react";
+import TasteCardLink from "../components/TasteCardLink";
 import { Link } from "react-router-dom";
 import {
   Film,
@@ -165,6 +166,7 @@ export default function StatsPage() {
 
   return (
     <main className="space-y-6 pb-20 pt-6">
+      <TasteCardLink />
 
       {/* ── Cinema Profile card ── */}
       <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-xl">
