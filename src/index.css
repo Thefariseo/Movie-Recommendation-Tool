@@ -1230,6 +1230,164 @@ button {
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Moving between destinations: the page slides the way the member travels
+   (src/hooks/useSmoothNavigation.js sets html[data-vt]); the header and the
+   tab bar stay where they are. */
+html[data-vt="forward"]::view-transition-old(root) {
+  animation: 0.26s cubic-bezier(0.4, 0, 1, 1) both vtOutLeft;
+}
+html[data-vt="forward"]::view-transition-new(root) {
+  animation: 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both vtInRight;
+}
+html[data-vt="back"]::view-transition-old(root) {
+  animation: 0.26s cubic-bezier(0.4, 0, 1, 1) both vtOutRight;
+}
+html[data-vt="back"]::view-transition-new(root) {
+  animation: 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both vtInLeft;
+}
+@keyframes vtOutLeft {
+  to { opacity: 0; transform: translateX(-9%); }
+}
+@keyframes vtInRight {
+  from { opacity: 0; transform: translateX(12%); }
+}
+@keyframes vtOutRight {
+  to { opacity: 0; transform: translateX(9%); }
+}
+@keyframes vtInLeft {
+  from { opacity: 0; transform: translateX(-12%); }
+}
+/* Between the tabs of one page only what is under the tab bar moves. */
+html[data-vt-within] .discovery-heading,
+html[data-vt-within] .library-layout > .page-heading {
+  view-transition-name: page-heading;
+}
+html[data-vt-within] .discover-page > .section-navigation,
+html[data-vt-within] .library-layout > .section-navigation {
+  view-transition-name: page-tabs;
+}
+/* Tonight and a cinema season: the lights go down, then the screen lights
+   up; a season's poster, coming from its card, stays lit throughout. */
+html[data-vt="dim"]::view-transition {
+  background: #000;
+}
+html[data-vt="dim"]::view-transition-old(root),
+html[data-vt="dim"]::view-transition-old(app-header),
+html[data-vt="dim"]::view-transition-old(mobile-navigation) {
+  animation: 0.34s ease-in both vtDimOut;
+}
+html[data-vt="dim"]::view-transition-new(root),
+html[data-vt="dim"]::view-transition-new(app-header),
+html[data-vt="dim"]::view-transition-new(mobile-navigation) {
+  animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.36s both vtLightsUp;
+}
+@keyframes vtDimOut {
+  to { opacity: 0; }
+}
+@keyframes vtLightsUp {
+  from { opacity: 0; transform: scale(1.015); }
+}
+
+/* Shared elements growing into their place on the next page: a cast photo
+   into the top of the person's page, a list's first posters into its grid,
+   a season's poster and title into its page. */
+::view-transition-group(person-photo),
+::view-transition-group(person-name),
+::view-transition-group(list-title),
+::view-transition-group(season-cover),
+::view-transition-group(season-title),
+::view-transition-group(list-film-0),
+::view-transition-group(list-film-1),
+::view-transition-group(list-film-2),
+::view-transition-group(list-film-3),
+::view-transition-group(list-film-4) {
+  animation-duration: 0.48s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Each poster leaves a beat after the one before it. */
+::view-transition-group(list-film-1) { animation-delay: 0.03s; }
+::view-transition-group(list-film-2) { animation-delay: 0.06s; }
+::view-transition-group(list-film-3) { animation-delay: 0.09s; }
+::view-transition-group(list-film-4) { animation-delay: 0.12s; }
+/* The round cast photo opens into the rectangular portrait. */
+::view-transition-image-pair(person-photo) {
+  overflow: clip;
+  animation: 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both vtUnround;
+}
+::view-transition-old(person-photo),
+::view-transition-new(person-photo) {
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+}
+@keyframes vtUnround {
+  from { border-radius: 50%; }
+}
+/* Words keep their proportions as they grow, instead of stretching. */
+::view-transition-old(person-name),
+::view-transition-new(person-name),
+::view-transition-old(list-title),
+::view-transition-new(list-title),
+::view-transition-old(season-title),
+::view-transition-new(season-title),
+::view-transition-old(film-title),
+::view-transition-new(film-title) {
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+
+/* The film sheet (src/hooks/useModal.jsx) opens out of the card tapped like
+   a curtain: the card's frame grows into the sheet while the sheet parts
+   from its middle, and the poster and the title fly to their places. It
+   closes the same way, back into the card. */
+.film-sheet {
+  view-transition-name: film-frame;
+}
+::view-transition-group(film-frame),
+::view-transition-group(film-title) {
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The header and the tab bar go under the sheet's shade with the rest of
+   the page, and the sheet sits above them, as it does once open. */
+html[data-curtain] .app-header,
+html[data-curtain] .mobile-navigation {
+  view-transition-name: none;
+}
+::view-transition-group(film-frame),
+::view-transition-group(film-poster),
+::view-transition-group(film-title) {
+  z-index: 1;
+}
+/* Closing, it eases out of its place before speeding back into the card. */
+html[data-curtain="close"]::view-transition-group(film-frame),
+html[data-curtain="close"]::view-transition-group(film-poster),
+html[data-curtain="close"]::view-transition-group(film-title) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+::view-transition-old(film-frame),
+::view-transition-new(film-frame) {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+::view-transition-new(film-frame) {
+  animation: 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both curtainOpen;
+}
+::view-transition-old(film-frame) {
+  animation: 0.32s cubic-bezier(0.4, 0, 0.6, 1) both curtainClose;
+}
+@keyframes curtainOpen {
+  from { clip-path: inset(0 50% round 16px); opacity: 0.5; }
+  to { clip-path: inset(0 0 round 16px); }
+}
+@keyframes curtainClose {
+  from { clip-path: inset(0 0 round 16px); }
+  to { clip-path: inset(0 50% round 16px); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1635,6 +1793,11 @@ body::before {
   pointer-events: none;
   box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.35);
   opacity: 0;
+}
+/* Captured for a page transition, the shadow the header is not showing yet
+   makes its picture swell (Chrome): it sits the transition out. */
+html:active-view-transition .app-header::before {
+  display: none;
 }
 @media (max-width: 767px) {
   .app-header {

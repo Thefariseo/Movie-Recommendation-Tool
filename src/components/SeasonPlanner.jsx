@@ -19,11 +19,13 @@ export function SeasonList({ seasons }) {
         const { current, finished } = seasonWeek(s);
         const film = s.season.weeks[current];
         return (
-          <Link key={s.id} to={`/season/${s.id}`} className="account-panel flex gap-3 text-slate-900 transition hover:ring-2 hover:ring-indigo-300 dark:text-slate-100">
-            <img loading="lazy" decoding="async" src={poster(film)} alt="" className="h-24 w-16 shrink-0 rounded-md object-cover" />
+          <Link key={s.id} to={`/season/${s.id}`} className="account-panel flex gap-3 text-slate-900 transition hover:ring-2 hover:ring-indigo-300 dark:text-slate-100"
+            // The poster and the title grow into the top of the season's page, drawn at once from these.
+            data-state={JSON.stringify({ season: { id: s.id, title: s.season.title, poster_path: film?.poster_path || null, week: current, weeks: s.season.weeks.length, finished } })}>
+            <img loading="lazy" decoding="async" src={poster(film)} alt="" data-morph="season-cover" className="h-24 w-16 shrink-0 rounded-md object-cover" />
             <span className="min-w-0">
               <span className="block text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{finished ? "Season complete" : `Week ${current + 1} of ${s.season.weeks.length}`}</span>
-              <span className="block truncate font-semibold" translate="no">{s.season.title}</span>
+              <span className="block truncate font-semibold" translate="no" data-morph="season-title">{s.season.title}</span>
               <span className="block truncate text-sm text-slate-500">{finished ? `${s.season.weeks.length} films` : <>{"This week: "}<span translate="no">{film.title}</span></>}</span>
               {s.members.length > 1 && <span className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500"><Users className="h-3 w-3" /> {`with ${s.members.length - 1} friend${s.members.length > 2 ? "s" : ""}`}</span>}
             </span>

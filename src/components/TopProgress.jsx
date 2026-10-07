@@ -10,5 +10,5 @@ export default function TopProgress() {
 /** In place of a page while it loads: the space it will take, and the bar above. */
 export function PageLoading() {
   useActivity();
-  return <div className="min-h-screen" role="status" aria-label="Loading" />;
+  return <div className="min-h-screen" role="status" aria-label="Loading" data-page-loading />;
 }

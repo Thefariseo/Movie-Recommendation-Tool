@@ -2,7 +2,7 @@
 // before it still asks for the old files, which no longer exist: the page is
 // then reloaded once, to pick up the new release. A second failure in a row
 // is a real one and is shown as an error.
-import { lazy } from "react";
+import { createElement, lazy } from "react";
 import { whenQuiet } from "./activity";
 
 const KEY = "umbrify_reloaded_for_update";
@@ -10,8 +10,10 @@ const KEY = "umbrify_reloaded_for_update";
 const loaders = new Map();
 
 export function lazyPage(load, path = null) {
-  if (path) loaders.set(path, load);
-  return lazy(() => load()
+  let loaded = null;
+  const fetchFile = () => load().then((module) => { loaded = module.default; return module; });
+  if (path) loaders.set(path, fetchFile);
+  const Lazy = lazy(() => fetchFile()
     .then((module) => {
       try { sessionStorage.removeItem(KEY); } catch { /* storage may be blocked */ }
       return module;
@@ -24,6 +26,12 @@ export function lazyPage(load, path = null) {
       // Nothing renders while the page reloads.
       return new Promise(() => {});
     }));
+  // Once its file is here (fetched ahead of time, or opened before), the page
+  // draws in the same turn instead of a moment later: a transition into it
+  // then finds it in place.
+  const Page = (props) => createElement(loaded || Lazy, props);
+  Page.ready = () => loaded !== null;
+  return Page;
 }
 
 /** Fetches a destination's file ahead of time (a pointer resting on its link). */

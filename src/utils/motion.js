@@ -23,6 +23,16 @@ export function withTransition(update) {
   }
 }
 
+// The page transition under way, if any: a page still arriving waits for it
+// to end before drawing what it has loaded, so that what is in flight (a
+// photo, a poster) lands where it was headed instead of vanishing mid-air.
+let running = null;
+export function transitionStarted(vt) {
+  const done = vt.finished.catch(() => {}).finally(() => { if (running === done) running = null; });
+  running = done;
+}
+export const whenStill = () => running || Promise.resolve();
+
 /** A short vibration on phones that have one, to confirm a save or a rating. */
 export function haptic(ms = 10) {
   try {

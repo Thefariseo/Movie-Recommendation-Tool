@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, Check, Eye, Feather, Lock, MessageCircle, Users } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import useWatched from "../hooks/useWatched";
 import { useModal } from "../hooks/useModal";
 import { backend } from "../utils/backend";
 import { movieDetails } from "../utils/api";
+import { whenStill } from "../utils/motion";
 import UserAvatar from "../components/UserAvatar";
 import { seasonWeek, weekOpens } from "../../shared/seasons.js";
 import RichText from "../components/RichText";
@@ -94,8 +95,29 @@ function Week({ week, k, season, open, current, me, people, data, seen, onSave }
 }
 
 /** One cinema season: the weeks open so far, everyone's notes, and the weeks to come. */
+// The top of a season's page: this week's poster and the title, which the
+// season's card grows into (src/hooks/useSmoothNavigation.js).
+function SeasonTop({ film, label, title }) {
+  return (
+    <div className="flex items-end gap-4">
+      {/* The card's smaller poster, already here, until this one arrives. */}
+      <img src={poster(film)} alt="" data-no-fade data-morph-target="season-cover"
+        className="w-20 shrink-0 rounded-md bg-cover object-cover shadow sm:w-24"
+        style={{ aspectRatio: "2 / 3", backgroundImage: film?.poster_path ? `url("https://image.tmdb.org/t/p/w154${film.poster_path}")` : undefined }} />
+      <div className="min-w-0 space-y-2">
+        <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {label}</p>
+        <h1 className="font-display text-3xl sm:text-4xl" translate="no" data-morph-target="season-title">{title}</h1>
+      </div>
+    </div>
+  );
+}
+const weekLabel = (finished, current, n) => (finished ? "CINEMA SEASON · COMPLETE" : `CINEMA SEASON · WEEK ${current + 1} OF ${n}`);
+
 export default function SeasonPage() {
   const { id } = useParams();
+  // What the season's card showed, drawn at once while the rest loads.
+  const { state } = useLocation();
+  const hint = state?.season && String(state.season.id) === id ? state.season : null;
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { watched } = useWatched();
@@ -104,11 +126,19 @@ export default function SeasonPage() {
 
   useEffect(() => {
     if (!user) return;
-    backend(`critic?season=${encodeURIComponent(id)}`).then(setData).catch((e) => setError(e.message));
+    backend(`critic?season=${encodeURIComponent(id)}`).then((d) => whenStill().then(() => setData(d))).catch((e) => setError(e.message));
   }, [id, user?.id]);
 
   if (!user && !authLoading) return <main className="mx-auto max-w-3xl p-4"><p className="account-panel text-sm">Sign in to follow this cinema season. <Link className="font-medium text-indigo-600 hover:underline" to="/profile">Sign in</Link></p></main>;
   if (error) return <main className="mx-auto max-w-3xl p-4"><p className="account-panel text-sm text-rose-600">{error}</p></main>;
+  if (!data && hint) {
+    return (
+      <main className="mx-auto max-w-3xl space-y-6 p-4">
+        <header><SeasonTop film={hint} label={weekLabel(hint.finished, hint.week, hint.weeks)} title={hint.title} /></header>
+        <p className="text-sm text-slate-500" role="status">Opening the season…</p>
+      </main>
+    );
+  }
   if (!data) return <main className="mx-auto max-w-3xl p-4"><p className="text-sm text-slate-500" role="status">Opening the season…</p></main>;
 
   const season = data.season;
@@ -127,8 +157,7 @@ export default function SeasonPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4">
       <header className="space-y-3">
-        <p className="eyebrow flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {finished ? "CINEMA SEASON · COMPLETE" : `CINEMA SEASON · WEEK ${current + 1} OF ${n}`}</p>
-        <h1 className="font-display text-3xl sm:text-4xl" translate="no">{season.season.title}</h1>
+        <SeasonTop film={season.season.weeks[current]} label={weekLabel(finished, current, n)} title={season.season.title} />
         <p className="text-slate-600 dark:text-slate-300"><RichText>{season.season.introduction}</RichText></p>
         {season.season.by === "critic" && <p className="inline-flex items-center gap-1 text-xs text-slate-500"><Feather className="h-3 w-3" /> Introduced by your critic</p>}
         <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><div className="h-full bg-indigo-500" style={{ width: `${(100 * open) / n}%` }} /></div>

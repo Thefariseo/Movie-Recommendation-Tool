@@ -50,6 +50,7 @@ export default function Home() {
       <nav className="section-navigation" aria-label="Discovery sections">
         <Link
           to="/?view=foryou"
+          data-vt
           aria-current={view === "foryou" ? "page" : undefined}
           className={view === "foryou" ? "section-selected" : ""}
         >
@@ -57,6 +58,7 @@ export default function Home() {
         </Link>
         <Link
           to="/?view=cinema"
+          data-vt
           aria-current={view === "cinema" ? "page" : undefined}
           className={view === "cinema" ? "section-selected" : ""}
         >
@@ -64,6 +66,7 @@ export default function Home() {
         </Link>
         <Link
           to="/?view=browse"
+          data-vt
           aria-current={view === "browse" ? "page" : undefined}
           className={view === "browse" ? "section-selected" : ""}
         >

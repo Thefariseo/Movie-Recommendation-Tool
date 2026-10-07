@@ -61,7 +61,7 @@ const SIGN_LABELS = {
   circle: "Your circle",
 };
 
-export default function MovieModal({ movie, onClose }) {
+export default function MovieModal({ movie, curtain = false, onClose }) {
   const {profile, user} = useAuth();
   const country = profile?.country || detectCountry();
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
@@ -163,7 +163,8 @@ export default function MovieModal({ movie, onClose }) {
   return (
     <motion.div
       key="modal"
-      initial={{ scale: 0.94, opacity: 0, y: 24 }}
+      // Opened out of its card, the page transition already brings it in.
+      initial={curtain ? false : { scale: 0.94, opacity: 0, y: 24 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.94, opacity: 0, y: 24 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
@@ -272,7 +273,7 @@ export default function MovieModal({ movie, onClose }) {
             className="w-24 shrink-0 self-start rounded-xl shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 sm:w-28"
           />
           <div className="min-w-0 flex-1 pt-1">
-            <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl" translate="no">
+            <h2 className="text-xl font-bold leading-tight text-slate-900 dark:text-slate-50 sm:text-2xl" translate="no" style={{ viewTransitionName: "film-title" }}>
               {details?.title || <FilmTitle film={movie} />}
             </h2>
 
@@ -290,8 +291,9 @@ export default function MovieModal({ movie, onClose }) {
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Dir.{" "}
                 <Link to={`/person/${director.id}?role=directing`} onClick={onClose} translate="no"
+                  data-state={JSON.stringify({ person: { id: director.id, name: director.name, profile_path: director.profile_path || null } })}
                   className="font-medium text-slate-700 underline-offset-2 hover:underline dark:text-slate-300">
-                  {director.name}
+                  <span data-morph="person-name">{director.name}</span>
                 </Link>
               </p>
             )}
@@ -390,6 +392,8 @@ export default function MovieModal({ movie, onClose }) {
             <Rail className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
               {cast.map((a) => (
                 <Link key={a.id} to={`/person/${a.id}?role=acting`} onClick={onClose} title={a.character ? `${a.name} · ${a.character}` : a.name}
+                  // Their photo and name grow into the top of their page, drawn at once from these.
+                  data-state={JSON.stringify({ person: { id: a.id, name: a.name, profile_path: a.profile_path || null } })}
                   className="w-14 shrink-0 text-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
                   <img
                     src={
@@ -398,9 +402,10 @@ export default function MovieModal({ movie, onClose }) {
                         : "/placeholder_poster.svg"
                     }
                     alt={a.name}
+                    data-morph={a.profile_path ? "person-photo" : undefined}
                     className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
                   />
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight" translate="no">
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight" translate="no" data-morph="person-name">
                     {a.name}
                   </p>
                 </Link>
