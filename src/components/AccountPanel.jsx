@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLibrary } from '../contexts/LibraryContext';
 import { backend } from '../utils/backend';
+import { track } from '../utils/events';
 export default function AccountPanel() {
   const auth = useAuth();
   const library = useLibrary();
@@ -24,6 +25,7 @@ export default function AccountPanel() {
         location.assign(result.url);
         return;
       }
+      if (result?.signedIn && mode === 'signup') track('signup');
       setMessage(result?.message || 'Saved.');
       await auth.reload();
     } catch (e) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, EyeOff, RotateCcw, Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useSignals } from "../utils/signals";
@@ -8,6 +8,7 @@ import StarRating from "../components/StarRating";
 import TasteMeter from "../components/TasteMeter";
 import SaveProgress from "../components/SaveProgress";
 import FilmTitle from "../components/FilmTitle";
+import { track } from "../utils/events";
 
 const ROUND = 10;
 const poster = (f, size = "w500") => (f?.poster_path ? `https://image.tmdb.org/t/p/${size}${f.poster_path}` : "/placeholder_poster.svg");
@@ -22,6 +23,9 @@ export default function QuickRatePage() {
   const signals = useSignals(user?.id);
   const { films, loading, refresh } = useFilmsToRate({ limit: ROUND, signals });
   const rate = useRate();
+  // Sent here from a friend's taste link: the round ends back on the comparison.
+  const [params] = useSearchParams();
+  const returnTo = /^\/compare\?t=[A-Za-z0-9_-]+$/.test(params.get("next") || "") ? params.get("next") : null;
   const rated = useRatedCount();
   const [index, setIndex] = useState(0);
   // What happened to each film of the round: a rating, or null for "not seen".
@@ -32,6 +36,7 @@ export default function QuickRatePage() {
   const film = films?.[index];
   const done = films && index >= films.length;
   const ratedNow = Object.values(answers).filter(Boolean).length;
+  useEffect(() => { if (done && ratedNow) track("quick_round_done"); }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
   // On a phone the round fills the screen: the search steps out of the header.
   useEffect(() => {
     const html = document.documentElement;
@@ -80,7 +85,9 @@ export default function QuickRatePage() {
           <h2 className="text-xl font-semibold">{ratedNow ? "Round done." : "None of these, then."}</h2>
           <p className="text-sm text-slate-500">{ratedNow === 1 ? "You rated one film: your picks already take it into account." : ratedNow ? `You rated ${ratedNow} films: your picks already take them into account.` : "Try another ten: the next ones are different."}</p>
           <div className="flex flex-wrap gap-3">
-            <Link to="/" className="account-button inline-flex">See your picks <ArrowRight size={16} aria-hidden="true" /></Link>
+            {returnTo
+              ? <Link to={returnTo} className="account-button inline-flex">See your match <ArrowRight size={16} aria-hidden="true" /></Link>
+              : <Link to="/" className="account-button inline-flex">See your picks <ArrowRight size={16} aria-hidden="true" /></Link>}
             <button type="button" onClick={again} className="account-secondary inline-flex"><RotateCcw size={16} aria-hidden="true" /> Another 10</button>
           </div>
           <SaveProgress />

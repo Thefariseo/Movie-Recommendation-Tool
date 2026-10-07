@@ -3490,3 +3490,170 @@ html:active-view-transition .app-header::before {
     padding: 20px 20px max(20px, env(safe-area-inset-bottom));
   }
 }
+
+/* The owner's numbers (/insights). */
+.insights-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 32px 20px 110px;
+  display: grid;
+  gap: 18px;
+}
+.insights-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.insights-tiles > div {
+  display: grid;
+  gap: 4px;
+}
+.insights-tiles span,
+.insights-tiles small {
+  font-size: 12px;
+  color: rgb(var(--color-fg-muted));
+}
+.insights-tiles strong {
+  font-size: 28px;
+}
+.insights-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 48px 48px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.insights-row small {
+  color: rgb(var(--color-fg-muted));
+  text-align: right;
+}
+.insights-row strong {
+  text-align: right;
+}
+.insights-bar {
+  height: 8px;
+  background: rgb(var(--color-border));
+  overflow: hidden;
+}
+.insights-bar > span {
+  display: block;
+  height: 100%;
+  background: rgb(var(--accent-600));
+  transform-origin: left;
+}
+.insights-days {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 140px;
+}
+.insights-days > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+.insights-days > span > span {
+  width: 100%;
+  min-height: 2px;
+  background: rgb(var(--accent-500));
+}
+.insights-days small {
+  margin-top: 4px;
+  font-size: 9px;
+  color: rgb(var(--color-fg-muted));
+  writing-mode: vertical-rl;
+}
+@media (max-width: 767px) {
+  .insights-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .insights-row {
+    grid-template-columns: minmax(0, 1fr) 70px 36px 40px;
+    gap: 8px;
+  }
+}
+
+/* The taste card and the comparison of two tastes. */
+.taste-card-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 20px 110px;
+  display: grid;
+  gap: 20px;
+}
+.taste-card-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.taste-card-image {
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border));
+  background: #120d0f;
+}
+.taste-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.taste-card-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgb(var(--accent-200));
+  background: rgb(var(--accent-50));
+  color: rgb(var(--accent-700));
+}
+.dark .taste-card-link {
+  border-color: rgb(var(--accent-800));
+  background: rgb(var(--accent-950));
+  color: rgb(var(--accent-200));
+}
+.taste-card-link small {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgb(var(--color-fg-muted));
+}
+.compare-match {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 28px 20px;
+  background: #120d0f;
+  color: #fff;
+  text-align: center;
+}
+.compare-match strong {
+  font: 700 72px / 1 "Albert Sans", system-ui, sans-serif;
+  color: rgb(var(--accent-300));
+}
+.compare-match span {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.compare-match small {
+  font-size: 13px;
+  color: #a99ea1;
+}
+.compare-films {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 767px) {
+  .taste-card-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .compare-films {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

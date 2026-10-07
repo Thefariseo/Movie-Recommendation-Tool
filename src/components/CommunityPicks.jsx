@@ -79,6 +79,7 @@ export default function CommunityPicks() {
         <button
           className="account-secondary"
           onClick={refresh}
+          data-track="other_picks"
           disabled={!result && !error}
         >
           Other picks

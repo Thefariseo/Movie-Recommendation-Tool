@@ -40,6 +40,7 @@ export default function ForYouSection() {
           className="account-secondary"
           disabled={loading}
           onClick={refresh}
+          data-track="other_picks"
         >
           Other picks
         </button>

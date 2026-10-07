@@ -379,5 +379,15 @@ select set_config('request.jwt.claim.sub','',true);
 insert into public.feedback(message) values('From a guest');
 reset role;
 select public.test_assert((select count(*)=2 from public.feedback),'feedback from a member and a guest is kept');
+-- Events: anyone records them anonymously, nobody reads them back, only the server sums them up.
+set local role anon;
+insert into public.events(visitor,name) values('abc12345-guest','visit'),('abc12345-guest','onboarding_start');
+do $$begin
+ begin insert into public.events(visitor,name) values('BAD ID','visit');raise exception 'A malformed visitor was recorded';exception when check_violation then null;end;
+ begin perform 1 from public.events;raise exception 'A guest read the events';exception when insufficient_privilege then null;end;
+ begin perform public.event_summary(30);raise exception 'A guest read the summary';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+select public.test_assert((public.event_summary(30)->>'visitors')::int=1 and (public.event_summary(30)->'steps'->>'onboarding_start')::int=1,'the summary counts visitors and steps');
 rollback;
 \echo 'Database authorization, sync, social and learning tests passed.'
