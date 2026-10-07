@@ -49,14 +49,13 @@ export default function usePullToRefresh(ref, { onRefresh, busy }) {
       const dx = e.touches[0].clientX - start.x, dy = e.touches[0].clientY - start.y;
       if (!start.on) {
         if (Math.hypot(dx, dy) < 8) return;
-        if (dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0 || !e.cancelable) { start = null; return; }
+        if (dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0) { start = null; return; }
         start.on = true;
         ref.current.classList.add("pull-active", "pulling");
         go("pulling");
       }
-      e.preventDefault();
       // The further it goes, the harder it pulls.
-      pulled = 150 * (1 - Math.exp(-dy / 190));
+      pulled = Math.max(0, 150 * (1 - Math.exp(-dy / 190)));
       place(pulled);
       if (pulled >= READY && current.current === "pulling") { haptic(8); go("ready"); }
       else if (pulled < READY && current.current === "ready") go("pulling");
@@ -71,14 +70,16 @@ export default function usePullToRefresh(ref, { onRefresh, busy }) {
       place(HOLD);
       latest.current();
     };
+    // Listened to without holding up the page's scrolling: at the top of the
+    // page a finger drawn down scrolls nothing, so nothing needs stopping.
     document.addEventListener("touchstart", onStart, { passive: true });
-    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchmove", onMove, { passive: true });
     document.addEventListener("touchend", onEnd);
     document.addEventListener("touchcancel", onEnd);
-    // The browser's own pull-to-reload would take the gesture first.
+    // Nor does the browser's own pull-to-reload, or its bounce, take it.
     const html = document.documentElement;
     const before = html.style.overscrollBehaviorY;
-    html.style.overscrollBehaviorY = "contain";
+    html.style.overscrollBehaviorY = "none";
     return () => {
       document.removeEventListener("touchstart", onStart);
       document.removeEventListener("touchmove", onMove);
