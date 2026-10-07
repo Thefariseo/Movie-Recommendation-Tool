@@ -16,6 +16,7 @@ import useSmoothNavigation from "./hooks/useSmoothNavigation";
 import { fadeInImages, installTapFeedback } from "./utils/motion";
 import { installFilmPrefetch } from "./utils/prefetch";
 import { installTilt } from "./utils/tilt";
+import { installFlightOrigin } from "./utils/flight";
 
 // Discover ships with the app; every other page loads when it is first opened.
 const ChatPage = lazyPage(() => import("./pages/ChatPage"));
@@ -62,6 +63,7 @@ function AppContent() {
   useEffect(() => installTapFeedback(), []);
   useEffect(() => installFilmPrefetch(), []);
   useEffect(() => installTilt(), []);
+  useEffect(() => installFlightOrigin(), []);
   // Pages wait for the account to be known: rendered as a guest first, they
   // were thrown away and rebuilt a moment later (a flash, and their films
   // fetched twice). A slow answer does not hold the page for long.

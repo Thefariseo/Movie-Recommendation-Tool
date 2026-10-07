@@ -29,8 +29,8 @@ export function ToastProvider({ children }) {
     <ToastCtx.Provider value={{ addToast }}>
       {children}
 
-      {/* Toast container – bottom-right, above everything */}
-      <div className="fixed bottom-4 right-4 z-[300] flex flex-col-reverse gap-2">
+      {/* Toast container – bottom-right, above everything (on a phone, above the tab bar) */}
+      <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-[300] flex flex-col-reverse gap-2 md:bottom-4">
         <AnimatePresence>
           {toasts.map(({ id, message, type }) => {
             const Icon =
